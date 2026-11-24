@@ -511,3 +511,135 @@ Info.plist permission text are the owner's; nothing in this pass changes them.
 ### Requirements issues
 
 None.
+
+## Third pass
+
+Owner: apple-ui-designer. Date: 2026-11-23. Branch `feature/immich-import` at
+22103c2 (the fixes of the second pass). Checked from source with no shell and no
+run of the app: `ServerSheet.swift` in full, `RemoteBrowseRules.swift` 90 to 175,
+`ServerSource.swift` (the sheet, focus and finish paths), `ServerText.swift`
+200 to 240, `ImportWindow.swift` 670 to 700, `Localizable.xcstrings` (the DQ-11
+entry), `docs/USER_GUIDE.md` 36 to 90, the tests named in `status.md`'s "Review
+findings (second round)" and design.md §10 and §15.
+
+### Verdict
+
+**Ready for the owner's sign-off checks. All six items I raised in the second
+pass are fixed as asked; nothing blocking and nothing that should be fixed
+first.** Two nits are new (N-6, N-7), neither needs a change to pass.
+
+### Confirmations
+
+| Item | Result | From the source |
+|---|---|---|
+| **N-1** certificate page clipped its buttons | **Fixed** | `CertificatePage` (`ServerSheet.swift:443-509`) is a `VStack` of a fixed header (title and **Back**), a `ScrollView` holding the paragraph, the three rows, the fingerprints and the footer, then a `Divider` and the fixed button bar. Only the body scrolls, so Back, Cancel and **Trust Certificate** cannot be pushed out by content at any height. A `ScrollView` is not the CLAUDE.md hazard here: that rule is about the inspector's scroll view under the window's toolbar, and this one is inside a sheet window with no toolbar (the buttons, which a click must reach, are outside it anyway). The body keeps `fixedSize(horizontal: false, vertical: true)` inside the scroll view, so text wraps to the 460 pt width and the scroll view measures it correctly |
+| Trust Certificate reachable, not the default | **Pass** | The button has no `keyboardShortcut` and no `.borderedProminent`, so it is not the default and Return does nothing on the page. **Cancel** has `role: .cancel` and `.cancelAction`, and calls `back()`; **Back** has ⌘[. Trust is a plain push button in the bar. D4 holds. The user guide says the same ("neither button is the default, so Return does nothing; Esc or **Back** returns to the form") |
+| Back and Cancel at the smallest window | **Pass in the arithmetic, look is M1** | The import window's minimum is 480 pt (`ImportWindow.swift:18`); `ServerSheetHeight.ideal` gives `max(300, min(470 or 540, 480 - 40))` = 440 pt there. Of that, the header and the bar with its divider take roughly 100 pt (my estimate), leaving about 340 pt for the scrolling body. The three controls are in the fixed parts, so they are on screen whatever the body needs |
+| Layout when the height is clamped | **Pass** | Form page: title fixed, `Form` scrolls, button bar fixed (`ServerSheet.swift:299-364`), so **Add**, **Save**, Remove Server… and Cancel stay visible; the notice (+90) and a result (+60) raise the ideal but are cut at `window - 40`, and the form scrolls instead. Certificate page: as above. The 300 pt floor never applies in a real window (440 at the smallest) and only guards a window whose height is not known yet (`windowHeight` nil gives the content height). The frame is set on the sheet's root, so no page can be taller than it is told |
+| **N-3** `trusted` cleared on address change | **Fixed, with a test** | `addressEdited()` sets `trusted = nil`, clears the unencrypted confirmation and the result (`:73-79`), and the property observer on `address` runs only when the value differs from the old one. `ServerFormRules.pin` gives a trusted certificate only for the address it was trusted for, else the saved pin while the saved address is unchanged, else none (`RemoteBrowseRules.swift:129-136`); `pinFollowsAddress` pins all four cases. The B1 rule is unaffected: `trustedPending` is `trusted != nil`, and Trust sets it after the address is already typed |
+| User-facing consequence of that | **Acceptable; wording nit N-7** | What the person sees after changing the address of a trusted server: the form shows no result; Save checks again and, because the old pin is dropped for a new address, the certificate page appears as a first-time page ("Trust this certificate?", not "Trust the new certificate?", one fingerprint). That is the right outcome: a pin is for one address, and nothing is trusted that was not looked at. The page footer's promise ("accept only this exact certificate for “‹name›”") names the connection, not the address, which is slightly looser than the rule (N-7) |
+| **N-4** focus flag | **Fixed** | Cleared in the failed branch of the first check (`ServerSource.swift:144`), so a later grid cannot take the keyboard unasked. `serverSaved` sets it after `chooseServer` and `ImportGrid.windowDidChange` consumes it once (`:231-233`) |
+| **N-5** comment on `key` | **Fixed** | The comment says the key is held and observed so the field redraws (`ServerSheet.swift:31-34`) |
+| **DQ-11** alert string | **Fixed, word for word** | `ServerText.swift:226` and the catalog entry at `Localizable.xcstrings:1120-1135` read "‹n› photos were imported before the import stopped. Nothing more was downloaded. Choose Review Certificate… in the window to see the new one." with the `one` form "1 photo was imported…" and the `other` form; the old "Edit Server…, then Review Certificate…" key is gone (a search of Sources and the guide finds none). It matches design.md §10 (lines 743, 940, 1375-1387). **The route it names exists:** `finishServerImport` always calls `connectServer` after the alert is queued, so the grid re-reads the server, lands on the Can't Connect state with `browse.failure == .certificateChanged`, and that state shows **Review Certificate…** (`ImportWindow.swift:686-687`), which opens the Edit sheet on the changed-certificate page (`showEditServer(reviewingCertificate: true)`). The button appears a moment after the alert, once that check ends |
+| User guide wrap | **Fixed** | Lines 53 to 67 wrap at the file's width; "Such a server stays marked **Not encrypted**…" starts its own line. Terms unchanged and still match the UI. The guide describes the route to review a certificate only as "**Review Certificate…** shows the old and new fingerprints" (line 69), which stays true |
+
+### New findings
+
+**Blocking: none. Should fix: none.**
+
+**Nits (no change needed to pass)**
+
+- **N-6. Nothing says the certificate page scrolls.** In the smallest window the
+  body is about 340 pt against a content height of roughly 360 pt for a first-time
+  page and 420 pt or more for a changed one (estimates). On macOS overlay
+  scrollers show only while scrolling (or if the person set "Always"), so the
+  footer, and on a changed certificate possibly the **Now** fingerprint, can sit
+  below the fold with no sign. The buttons stay reachable, so a person can press
+  **Trust Certificate** without having seen the second fingerprint. That is
+  the very behaviour the page exists to prevent. Judgment, not HIG text: the
+  smallest window is an edge case and a person who resizes the window sees all of
+  it. If M1 shows it is easy to miss, add `.scrollIndicators(.visible)` to that
+  `ScrollView` (I have not verified that this forces the indicator under an
+  overlay scroller setting) or raise the import window's minimum height. No change
+  asked now.
+- **N-7. The footer promises trust "for ‹name›"; the pin is for the address.**
+  `ServerSheet.swift:490`. After the fix a person who edits a trusted server's
+  address meets the page again, as the rule intends, but the sentence let them
+  expect the trust to follow the name. Suggested wording if the engineer touches
+  it: "…this Mac will accept only this exact certificate for “‹name›” at this
+  address." Optional; the user guide's "for this server" has the same slack.
+
+### What's working
+
+The fixed header and bar with a scrolling middle is the same shape as the form
+page, so both pages behave alike at every size. The trust rules live in
+PhotoCore with tests, and every fix of the second pass has either a test or a
+named manual check. The DQ-11 route now exists from the first window the person
+sees after the alert.
+
+### Manual checks for a person: the final list
+
+For the owner at the bundled app, on a scratch library (`Scripts/build-app.sh`,
+then the bundle with `--library-root`). None asks for VoiceOver, macOS 15 or
+macOS 26. M2 and the second half of M1 need a real self-signed `https://` Immich
+server (the fake server has no TLS). **Required before sign-off, because they
+decide a finding: M1 to M6. Optional, to look at when convenient: M7 to M11.**
+
+Required:
+
+1. **M1. Sheet size and the certificate page (S2, N-1, N-6).** Add Server… with
+   the import window at its smallest height (480 pt) and taller. Look at: the form
+   scrolls between title and buttons and **Add** never leaves; typing
+   `http://192.168.1.5` or getting a result grows the sheet without a jump; on the
+   certificate page, first-time and changed, **title, Back, Cancel and Trust
+   Certificate are all visible**, and whether it is obvious that the body scrolls
+   (N-6). Light, Dark, Increase Contrast.
+2. **M2. Trusting a certificate, end to end (B1, S1, N-3, DQ-11).** Add with a
+   self-signed server: certificate page; **Back** brings the API key's dots back
+   and Add is enabled; Return does nothing, Esc goes back; Trust Certificate
+   checks and closes. Renew the certificate and choose the server:
+   **Review Certificate…** opens the "Trusted before / Now" page and **Trust
+   Certificate saves with nothing else edited**, with no prompt afterwards. Change
+   a trusted server's address in Edit and Save: a first-time page appears, not the
+   changed one. Make the certificate change mid-import: the alert's last sentence
+   names **Review Certificate…** and the button is in the window a moment later.
+   Does anything on the page nudge you to trust?
+3. **M3. Remove Server… three ways (S3, D4).** From the sheet, the Source pop-up
+   and File ▸ Remove Server…: the confirmation appears each time (from the sheet,
+   after it closes); Return does nothing, Esc cancels, Remove removes. Then
+   make the Keychain refuse and read the "wasn't removed" alert.
+4. **M4. Alert keys (DQ-5).** On the "wasn't removed" alert and each stop alert
+   (revoke the key mid-import, drop the network): do Return and Esc both dismiss?
+   If Esc does not, the engineer adds `role: .cancel` to OK.
+5. **M5. Keyboard (S4).** Full Keyboard Access on: Source pop-up to Add Server…, Tab
+   through the sheet in order, Space on the notice's check box, Return with it
+   unticked does nothing. After **Add** and after **Save**, with no click: ⌘A,
+   Space, arrows, End (next page), Return.
+6. **M6. Toolbar at 900 pt (S6).** A long album name and a date range set: titles
+   cut in the middle near 180 pt, Import and Stop still reachable, View ▸ Date
+   Range… still opens its popover from the overflow menu.
+
+Optional:
+
+7. **M7. Narrowest inspector (N6).** Long server and project names, "Encrypted,
+   certificate trusted by you": nothing clipped; `print inspectorwidth` says `fits`.
+8. **M8. The grid (PRD P2).** A few hundred photos: thumbnails arrive, no hitch,
+   scroll position holds as a page appends; an **Edited** and **In Library** photo
+   at the smallest tile size, both badges legible in Light and Dark.
+9. **M9. Menus and empty state.** The dimmed Server, **Album** and **Date Range…**
+   items in the library window's menus (does a dimmed **Album** read as the
+   library's own albums? If so, **Server Album**); **Open Server** beside
+   **Choose Folder…** looks like the other action buttons.
+10. **M10. Wording of the Activity lines.** Read the external-library line (DQ-8)
+    and, with a photo the server gives no size for, DQ-9.
+11. **M11. The local network prompt (PRD P7)** on first connecting to a
+    `192.168.x.x` server, and the unreachable result's System Settings sentence.
+
+### Held for the owner, not decided here
+
+The Tailscale address range, the fake server linked into the app (C10) and the
+Info.plist permission text. Unchanged by this pass.
+
+### Requirements issues
+
+None.
