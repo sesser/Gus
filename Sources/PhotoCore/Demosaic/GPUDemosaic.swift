@@ -107,6 +107,29 @@ public final class GPUDemosaic: @unchecked Sendable {
         }
     }
 
+    /// The IEEE half float nearest to `value` (ties to even), as its bits.
+    /// Written out for the same reason as `float(half:)`.
+    public static func halfBits(_ value: Float) -> UInt16 {
+        let bits = value.bitPattern
+        let sign = UInt16((bits >> 16) & 0x8000)
+        let exponent = Int((bits >> 23) & 0xff), fraction = bits & 0x7f_ffff
+        if exponent == 0xff { return sign | 0x7c00 | (fraction != 0 ? 0x200 : 0) }
+        let rebased = exponent - 127 + 15
+        if rebased >= 31 { return sign | 0x7c00 }
+        if rebased <= 0 {
+            if rebased < -10 { return sign }
+            let full = fraction | 0x80_0000, shift = UInt32(14 - rebased)
+            var half = full >> shift
+            let rest = full & ((1 << shift) - 1), middle: UInt32 = 1 << (shift - 1)
+            if rest > middle || (rest == middle && half & 1 == 1) { half += 1 }
+            return sign | UInt16(half)
+        }
+        var half = UInt32(rebased) << 10 | fraction >> 13
+        let rest = fraction & 0x1fff
+        if rest > 0x1000 || (rest == 0x1000 && half & 1 == 1) { half += 1 }
+        return sign | UInt16(half)
+    }
+
     /// Kernels whose test for a flat area adds this to a variation, so a
     /// division never meets zero (`DemosaicTables`, the Bayer blend).
     public static let epsilon: Float = 1e-3

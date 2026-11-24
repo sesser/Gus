@@ -114,7 +114,7 @@ public struct LinearDNGWriter {
             scratch.append(rgba[index * 4 + 2])
         }
         // Little-endian on every Mac this runs on.
-        let halves = scratch.map { Float16($0) }
+        let halves = scratch.map { GPUDemosaic.halfBits($0) }
         try halves.withUnsafeBytes { try handle.write(contentsOf: Data($0)) }
         rowsWritten += count
     }
