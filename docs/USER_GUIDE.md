@@ -8,9 +8,11 @@ sidecars, videos and HDR. See the [README](../README.md) to build it.
 **Importing from a card**: **File ▸ Import from Card or Folder…** (⌘I) opens the
 import window; it also opens by itself when a card (any volume with a `DCIM`
 folder) is inserted, unless that is turned off in **Settings**. The source
-pop-up in the toolbar lists cards and chosen folders (⌘O chooses another,
-⌘R rescans); the subtitle shows how many shots are picked and the newest
-photo's camera with its shutter count. Each shot has a check box: click a
+pop-up in the toolbar lists cards, chosen folders and the Immich servers you
+added (⌘O chooses another folder, ⌘R rescans; see **Importing from an Immich
+server** below, where nothing is checked until you check it); the subtitle
+shows how many shots are picked and the newest photo's camera with its
+shutter count. Each shot has a check box: click a
 tile, or Space on the focused one, to include or leave it out; shift-click
 sets a range; ⌘A and ⇧⌘A (or the toolbar's Selection menu) pick all or none,
 and the same menu shows videos and the photos already in the library (marked
@@ -28,6 +30,84 @@ copies stay identical to the originals). **Import N Photos** in the toolbar
 (or Return) starts; it becomes **Stop** (⌘.) while copying, with progress
 beside it. Every copy is read back and compared by hash before it counts. Optionally, the originals that were copied and checked
 are deleted from the card (after a confirmation) and the card is ejected.
+
+**Importing from an Immich server**: in the import window's source pop-up,
+choose **Add Server…** (also in the File menu while the import window is in
+front, and in the window's empty state). Give the server a name (left empty,
+it is the address's host), its address and an API key. An address without
+`https://` or `http://` gets `https://`; a trailing slash and `/api` are
+dropped, a port and a path such as `/immich` are kept, and **Will connect to**
+shows where the key will go. Create the key in Immich, in your account
+settings; it needs only these permissions: asset.read, asset.view,
+asset.download and album.read (a key that can do more is accepted, and the
+app still only reads). This Mac keeps its copy of the key in the Keychain and
+nowhere else. **Add** (Return) checks the server; while it does, the sheet
+says **Checking the server…**. Each problem is named under the field it
+concerns: the server can't be reached; it doesn't look like an Immich server;
+the key was rejected; the key is missing permissions (naming them); the
+server is too old (Immich 3.2.0 or newer is needed, and both versions are
+shown); the server's certificate has changed; or the Keychain refused the key.
+A server that passes is saved and becomes the source.
+
+Two things are asked before a key is sent. An `http://` address is allowed
+only for a server on your local network (a private address such as
+192.168.x.x or 10.x.x.x, a `.local` name, or a name without dots), and only
+after you tick **Send my key and photos without encryption** under the notice
+that says the connection is not encrypted; any other `http://` address is
+refused. Such a server stays marked **Not encrypted** in the window's subtitle
+and the options. An `https://` server whose certificate macOS does not trust
+(a self-signed one, or one from your own authority) shows its certificate:
+who it is issued to and by, its dates and its SHA-256 fingerprint. Compare
+the fingerprint with your server's; **Trust Certificate** makes this Mac
+accept that exact certificate, and only it, for this server (neither button
+is the default, so Return does nothing; Esc or **Back** returns to the form).
+If the server later presents another certificate, connecting fails with
+**The server's certificate has changed**, and **Review Certificate…** shows
+the old and new fingerprints for you to trust the new one; an import never
+asks in the middle. There is no setting that turns certificate checking off.
+macOS may ask once whether the app may reach devices on your local network.
+
+Choosing a server checks it again (**Connecting to ‹name›…**); the app
+contacts a server only when you choose it, or press **Add**, **Save**, **Try
+Again** or **Rescan**. The grid lists your own photos, newest first: images
+only, never videos, archived, hidden, locked or trashed photos. More load as
+you scroll near the end (**Loading more photos…**). The **Album** pop-up
+chooses All Photos or one of your albums (with the number of items the
+server gives for it, which can include videos), and **Date Range** shows only
+photos taken between two days, either end open. Nothing is checked when a
+server opens: check photos as for a card, or **Select All** (⌘A), which takes
+the photos loaded so far (the subtitle says, for example, **250 selected ·
+250 loaded**). A photo already imported from this server is marked **In
+Library** and can't be checked, so it is never downloaded again, even after
+you remove the server and add it again at the same address; a server at a
+new address is a new server to the library. A photo edited in Immich carries
+an **Edited** badge: the original is what is imported, never the server's
+edit.
+
+The options inspector starts with a **Server** section (name, address,
+Immich version, how the connection is protected, **Edit Server…**). The
+project name starts as "‹server name› - ‹album or All Photos›" and is plain
+text you can change; there is no After Import section, since nothing on the
+server is ever changed or deleted. **Import N Photos** downloads each
+original under a hidden temporary name, checks its size and the SHA-1 the
+server gave, and moves it into place under your file name template; a
+download that does not match is discarded. Photos whose content is already
+in the library are not imported again. Imported photos are ordinary photos
+in a new project, each remembering which Immich photo it came from. A
+description and a star rating from Immich are added to a new photo when it
+has none of its own, and then follow the usual sidecar rules. Of a Live
+Photo only the still is imported. **Stop** (⌘.) ends the downloads and keeps
+what finished. If the server stops responding (after three more tries,
+**Waiting for “‹name›”…**), rejects the key or presents another certificate,
+the import stops, keeps what finished, and one alert says why; a photo
+deleted on the server during the import is listed and the rest go on.
+Activity in the library window lists what was imported, what was already in
+the library, the Live Photo videos left out and each photo that could not be
+imported, with the reason. **Edit Server…** changes the name, address or key
+(an empty key field keeps the stored key); **Remove Server…** asks first,
+then deletes the key from the Keychain (it still works on the server until
+you delete it in Immich) and keeps every photo already imported. The
+standalone importer has no servers.
 
 Choose **File ▸ Add Folder Without Copying…** (⇧⌘I) to add photos where they are, without
 copying: pick a folder. Photos in it and its
@@ -1040,8 +1120,9 @@ name, opens the About window; **Help ▸ About** followed by the app's name is
 the same item and opens the same window (there is only ever one). It shows the app's version and build,
 then a thank-you to the projects the app relies on: LibRaw, darktable,
 LightCraft, GRDB and ExifTool, each with a sentence on what it gave, its
-license, and a link to its page. A link opens in your browser; the app itself
-contacts nothing, and the window works without a network. Below the list are
+license, and a link to its page. A link opens in your browser; the About
+window contacts nothing, and it works without a network. (The app contacts a
+network only to reach an Immich server you added, and only that server.) Below the list are
 the app's own copyright and its license (the GNU General Public License,
 version 3 or later). **View License**, beside LibRaw, LightCraft and GRDB and
 under the app's own license statement, opens that text in a window of its

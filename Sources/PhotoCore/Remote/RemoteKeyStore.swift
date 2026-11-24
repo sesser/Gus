@@ -27,7 +27,7 @@ public struct RemoteKeyStoreError: Error, Equatable, Sendable, CustomStringConve
 
     public var description: String { message }
 
-    static func from(_ status: OSStatus) -> RemoteKeyStoreError {
+    public static func from(_ status: OSStatus) -> RemoteKeyStoreError {
         let text = SecCopyErrorMessageString(status, nil) as String? ?? "OSStatus \(status)"
         return RemoteKeyStoreError(status: status, message: text)
     }

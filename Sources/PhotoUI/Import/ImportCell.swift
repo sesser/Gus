@@ -36,25 +36,48 @@ final class ImportCell: NSCollectionViewItem {
         cellView.setImage(nil)
     }
 
-    func configure(with shot: SourceShot, included: Bool, colorSpace: CGColorSpace?, pixelSize: Int) {
+    /// A server photo's thumbnail comes from `remote` (issue #271, design
+    /// §4.4); a file's from `SourceThumbnails`. Cancelled when the cell is
+    /// reused or scrolled away.
+    func configure(with shot: SourceShot, included: Bool, colorSpace: CGColorSpace?, pixelSize: Int,
+                   server: ServerMarks? = nil,
+                   remote: (@MainActor (URL, Int, CGColorSpace?) async -> CGImage?)? = nil) {
         let isNew = shotID != shot.id
         shotID = shot.id
-        cellView.apply(shot, included: included)
-        guard isNew || cellView.image == nil else { return }
+        cellView.apply(shot, included: included, server: server)
+        guard isNew || (cellView.image == nil && !cellView.thumbnailFailed) else { return }
         loadTask?.cancel()
         let url = shot.primary.url
         loadTask = Task { [weak self] in
-            let image = await SourceThumbnails.shared.thumbnail(for: url, pixelSize: pixelSize, colorSpace: colorSpace)
+            let image = if let remote, RemoteAssetURL.isRemote(url) {
+                await remote(url, pixelSize, colorSpace)
+            } else {
+                await SourceThumbnails.shared.thumbnail(for: url, pixelSize: pixelSize, colorSpace: colorSpace)
+            }
             guard let self, !Task.isCancelled, self.shotID == shot.id else { return }
             self.cellView.setImage(image)
+            if image == nil, RemoteAssetURL.isRemote(url) { self.cellView.thumbnailDidFail() }
         }
     }
+}
+
+/// What a server photo's cell shows beyond a card's (design §4.5).
+struct ServerMarks: Equatable {
+    /// Edited on the server (R21): the Edited badge.
+    var isEdited: Bool
+    /// The connection's name, for "Already imported from “‹name›”".
+    var serverName: String
 }
 
 final class ImportCellView: NSView {
     var onClick: ((NSEvent) -> Void)?
     var onToggle: (() -> Void)?
     private(set) var image: CGImage?
+    private(set) var thumbnailFailed = false
+    private var server: ServerMarks?
+    private let editedBackingLayer = CALayer()
+    private let editedLayer = CALayer()
+    private var editedSize = CGSize.zero
 
     private let imageLayer = CALayer()
     private let placeholderLayer = CALayer()
@@ -103,7 +126,11 @@ final class ImportCellView: NSView {
         // The library cell's offline marker uses the same dark backing.
         backingLayer.backgroundColor = NSColor(white: 0, alpha: 0.55).cgColor
         backingLayer.cornerRadius = 4
-        for sublayer in [placeholderLayer, imageLayer, nameLayer, kindLayer, dateLayer, backingLayer, inLibraryLayer] {
+        editedBackingLayer.backgroundColor = NSColor(white: 0, alpha: 0.55).cgColor
+        editedBackingLayer.cornerRadius = 4
+        editedLayer.contentsGravity = .resizeAspect
+        for sublayer in [placeholderLayer, imageLayer, nameLayer, kindLayer, dateLayer, backingLayer, inLibraryLayer,
+                         editedBackingLayer, editedLayer] {
             sublayer.actions = Self.noActions
             layer.addSublayer(sublayer)
         }
@@ -130,7 +157,7 @@ final class ImportCellView: NSView {
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         let scale = window?.backingScaleFactor ?? 2
-        for sublayer in [imageLayer, nameLayer, kindLayer, dateLayer, inLibraryLayer] {
+        for sublayer in [imageLayer, nameLayer, kindLayer, dateLayer, inLibraryLayer, editedLayer] {
             sublayer.contentsScale = scale
         }
     }
@@ -186,12 +213,21 @@ final class ImportCellView: NSView {
             checkBox.frame = NSRect(x: origin.x + (Self.backing - size.width) / 2, y: origin.y + (Self.backing - size.height) / 2,
                                     width: size.width, height: size.height)
         }
+        // Edited, top-trailing on the same backing (design §4.5, D9).
+        let editedWidth = editedSize.width + 8
+        editedBackingLayer.frame = NSRect(x: imageFrame.maxX - 4 - editedWidth, y: origin.y, width: editedWidth,
+                                          height: Self.backing)
+        editedLayer.frame = NSRect(x: editedBackingLayer.frame.minX + 4,
+                                   y: origin.y + (Self.backing - editedSize.height) / 2,
+                                   width: editedSize.width, height: editedSize.height)
     }
 
-    func apply(_ shot: SourceShot, included: Bool) {
+    func apply(_ shot: SourceShot, included: Bool, server: ServerMarks? = nil) {
         let changed = self.shot?.id == shot.id && self.included != included
+        if self.shot?.id != shot.id { thumbnailFailed = false }
         self.shot = shot
         self.included = included
+        self.server = server
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         let name = (shot.primary.name as NSString).deletingPathExtension
@@ -214,12 +250,48 @@ final class ImportCellView: NSView {
             inLibraryLayer.contents = image?.image
             inLibrarySize = image?.size ?? .zero
         }
+        let edited = server?.isEdited == true
+        editedLayer.isHidden = !edited
+        editedBackingLayer.isHidden = !edited
+        if edited {
+            let image = Badges.image(Self.editedText, appearance: NSAppearance(named: .darkAqua) ?? effectiveAppearance)
+            editedLayer.contents = image?.image
+            editedSize = image?.size ?? .zero
+        }
         // Left out, or already in the library: the image at 50%.
         imageLayer.opacity = shot.isDuplicate || !included ? 0.5 : 1
-        toolTip = shot.isDuplicate ? Self.alreadyInLibrary : shot.files.map(\.name).joined(separator: " + ")
+        toolTip = tooltip(shot)
         positionMarks(imageLayer.frame)
         CATransaction.commit()
         if changed { NSAccessibility.post(element: self, notification: .valueChanged) }
+    }
+
+    private func tooltip(_ shot: SourceShot) -> String {
+        var lines: [String] = []
+        if shot.isDuplicate {
+            lines.append(server.map { Self.alreadyImported(from: $0.serverName) } ?? Self.alreadyInLibrary)
+        } else {
+            lines.append(shot.files.map(\.name).joined(separator: " + "))
+        }
+        if server?.isEdited == true { lines.append(Self.editedTooltip) }
+        if thumbnailFailed { lines.append(Self.noPreview) }
+        return lines.joined(separator: "\n")
+    }
+
+    /// For the debug script: "marked", "edited", "nopreview" as they apply.
+    var debugFlags: String {
+        var flags: [String] = []
+        if shot?.isDuplicate == true { flags.append("marked") }
+        if server?.isEdited == true { flags.append("edited") }
+        if thumbnailFailed { flags.append("nopreview") }
+        if image != nil { flags.append("thumbnail") }
+        return flags.joined(separator: ",")
+    }
+
+    /// The server gave no thumbnail: the placeholder stays, and the tooltip says so.
+    func thumbnailDidFail() {
+        thumbnailFailed = true
+        if let shot { toolTip = tooltip(shot) }
     }
 
     func setImage(_ image: CGImage?) {
@@ -245,7 +317,7 @@ final class ImportCellView: NSView {
         super.viewDidChangeEffectiveAppearance()
         updateColors()
         shownBadge = nil
-        if let shot { apply(shot, included: included) }
+        if let shot { apply(shot, included: included, server: server) }
     }
 
     static var inLibraryText: String {
@@ -254,6 +326,22 @@ final class ImportCellView: NSView {
 
     static var alreadyInLibrary: String {
         String(localized: "Already in the library")
+    }
+
+    static var editedText: String {
+        String(localized: "Edited", comment: "Import grid badge: the photo was edited on the server")
+    }
+
+    static var editedTooltip: String {
+        String(localized: "Edited on the server. The original is imported.", comment: "Import grid tooltip")
+    }
+
+    static var noPreview: String {
+        String(localized: "The server didn't return a preview.", comment: "Import grid tooltip")
+    }
+
+    static func alreadyImported(from name: String) -> String {
+        String(localized: "Already imported from “\(name)”", comment: "Import grid tooltip: a server photo already linked")
     }
 
     /// In the capture's own time: cameras usually record local time without a
@@ -280,8 +368,12 @@ final class ImportCellView: NSView {
 
     override func accessibilityLabel() -> String? {
         guard let shot else { return nil }
-        return AccessibilityText.list([(shot.primary.name as NSString).deletingPathExtension,
-                                       AccessibilityText.fileType(shot.files.map(\.kind)), Self.dateText(shot)])
+        var parts = [(shot.primary.name as NSString).deletingPathExtension,
+                     AccessibilityText.fileType(shot.files.map(\.kind)), Self.dateText(shot)]
+        if server?.isEdited == true {
+            parts.append(String(localized: "edited on server", comment: "VoiceOver: an import grid photo edited on the server"))
+        }
+        return AccessibilityText.list(parts)
     }
 
     override func accessibilityValue() -> Any? {

@@ -59,6 +59,12 @@ public struct CopyImportResult: Sendable {
     public var copied = 0
     /// Files already at the destination with the same content (not copied again).
     public var alreadyAtDestination = 0
+
+    public init(project: ProjectRecord? = nil, insertedVersionIDs: [Int64] = [], nextCounter: Int) {
+        self.project = project
+        self.insertedVersionIDs = insertedVersionIDs
+        self.nextCounter = nextCounter
+    }
 }
 
 /// Copies shots from a card or folder into the library's folders, verifies each

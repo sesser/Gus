@@ -893,6 +893,7 @@ enum DebugScript {
             return
         }
         let importWindow = NSApp.windows.first { $0.isVisible && $0.title == String(localized: "Import") }
+        if await DebugServerCommands.run(words, model: model, window: importWindow) { return }
         if !(await ImportDebugCommands.run(words, model: model, window: importWindow)) {
             print("debug-script: unknown import command")
         }

@@ -12,7 +12,7 @@ import PhotoCore
 ///            | template folder|file|project <text> | tokens … (see TemplateFieldProbe)
 ///            | grid (each cell: name, checked, focus) | key left|right|up|down|space|return (to the grid)
 ///            | contextmenu <index> [<item title>] | options on|off | duplicates on|off | gridshot <png> (the grid alone)
-///            | optionsshot <png> (the options inspector's content)
+///            | optionsshot <png> (the options inspector's content) | scroll <index>|end (a server's paging)
 @MainActor
 public enum ImportDebugCommands {
     /// Runs one command (the words after "import"). Returns false for a command
@@ -98,6 +98,12 @@ public enum ImportDebugCommands {
             printState(model)
         case "grid":
             ImportGridProbe.printGrid(in: window)
+        case "scroll":
+            // A server's grid: to item <index> or the end; waits for a page it asks for.
+            ImportGridProbe.scroll(to: argument == "end" || argument.isEmpty ? nil : Int(argument), in: window)
+            try? await Task.sleep(for: .milliseconds(150))
+            for _ in 0..<300 where model.browse?.isLoadingPage == true { try? await Task.sleep(for: .milliseconds(50)) }
+            try? await Task.sleep(for: .milliseconds(300))
         case "key":
             ImportGridProbe.send(argument, in: window)
             try? await Task.sleep(for: .milliseconds(150))

@@ -110,7 +110,7 @@ public struct CaptureDateRange: Hashable, Sendable {
         (Self.utc(from), Self.utc(through).map { $0.addingTimeInterval(86_400) })
     }
 
-    static func utc(_ day: DateComponents?) -> Date? {
+    public static func utc(_ day: DateComponents?) -> Date? {
         guard let day, let year = day.year, let month = day.month, let date = day.day else { return nil }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

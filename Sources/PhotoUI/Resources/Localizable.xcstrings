@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    " · Not encrypted" : {
+      "comment" : "Import window subtitle suffix: a plain http server",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · Not encrypted"
+          }
+        }
+      }
+    },
     "%@  %@" : {
       "comment" : "Template token menu item: the token's name, then the token",
       "localizations" : {
@@ -199,6 +210,17 @@
         }
       }
     },
+    "%@ to %@" : {
+      "comment" : "A range of dates, or a certificate's validity",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ to %2$@"
+          }
+        }
+      }
+    },
     "%@ value" : {
       "comment" : "VoiceOver: an adjustment slider's number field",
       "localizations" : {
@@ -228,6 +250,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@, %2$@."
+          }
+        }
+      }
+    },
+    "%@, server" : {
+      "comment" : "VoiceOver: a server in the Source pop-up",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, server"
           }
         }
       }
@@ -265,6 +298,39 @@
         }
       }
     },
+    "%@: it was deleted on the server during the import." : {
+      "comment" : "Server import report: a failed photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: it was deleted on the server during the import."
+          }
+        }
+      }
+    },
+    "%@: the download did not match the server's checksum and was discarded." : {
+      "comment" : "Server import report: a failed photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: the download did not match the server's checksum and was discarded."
+          }
+        }
+      }
+    },
+    "%@: the download was incomplete and was discarded." : {
+      "comment" : "Server import report: a failed photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: the download was incomplete and was discarded."
+          }
+        }
+      }
+    },
     "%@: the original could not be read." : {
       "comment" : "Export report: file name; also a file line under the left-unchanged row of a paste or preset that measures color alignment",
       "localizations" : {
@@ -272,6 +338,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@: the original could not be read."
+          }
+        }
+      }
+    },
+    "%@: the server could not provide the original (%@)." : {
+      "comment" : "Server import report: a failed photo; the HTTP status",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: the server could not provide the original (%2$@)."
           }
         }
       }
@@ -319,6 +396,29 @@
         }
       },
       "comment" : "Import report: tools of a preset carried over approximately"
+    },
+    "%lld could not be imported." : {
+      "comment" : "Server import report",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld could not be imported."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld could not be imported."
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "%lld items" : {
       "comment" : "Copy Adjustments: the list of what was copied when it is long, in the announcement and the toolbar Paste item's tooltip",
@@ -501,6 +601,29 @@
         }
       },
       "comment" : "Import report: tools of a preset with no equivalent here"
+    },
+    "%lld Live Photo videos were not downloaded." : {
+      "comment" : "Server import report",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Live Photo video was not downloaded."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Live Photo videos were not downloaded."
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "%lld look-up tables" : {
       "localizations" : {
@@ -788,6 +911,29 @@
         }
       }
     },
+    "%lld photos loaded" : {
+      "comment" : "VoiceOver: a server's first page arrived",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo loaded"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos loaded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld photos match" : {
       "comment" : "Smart album editor live count",
       "localizations" : {
@@ -896,6 +1042,98 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld photos were exported without machine learning noise reduction: this Mac needs macOS 27 or later."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld photos were imported before the import stopped. Add %@ to the key in Immich, or choose Edit Server… to enter another key." : {
+      "comment" : "Server import alert: missing permission",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld photo was imported before the import stopped. Add %2$@ to the key in Immich, or choose Edit Server… to enter another key."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld photos were imported before the import stopped. Add %2$@ to the key in Immich, or choose Edit Server… to enter another key."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld photos were imported before the import stopped. Nothing more was downloaded. Choose Edit Server…, then Review Certificate…, to see the new one." : {
+      "comment" : "Server import alert: certificate changed",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo was imported before the import stopped. Nothing more was downloaded. Choose Edit Server…, then Review Certificate…, to see the new one."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos were imported before the import stopped. Nothing more was downloaded. Choose Edit Server…, then Review Certificate…, to see the new one."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld photos were imported before the import stopped. Photos already imported are marked, so importing again takes only the rest." : {
+      "comment" : "Server import alert: unreachable",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo was imported before the import stopped. Photos already imported are marked, so importing again takes only the rest."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos were imported before the import stopped. Photos already imported are marked, so importing again takes only the rest."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld photos were imported before the import stopped. The key may have been deleted or expired. Choose Edit Server… to enter a new one." : {
+      "comment" : "Server import alert: key rejected",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo was imported before the import stopped. The key may have been deleted or expired. Choose Edit Server… to enter a new one."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos were imported before the import stopped. The key may have been deleted or expired. Choose Edit Server… to enter a new one."
                 }
               }
             }
@@ -1121,6 +1359,52 @@
         }
       }
     },
+    "%lld selected · %lld loaded" : {
+      "comment" : "Import window subtitle: a server with pages left",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld selected · %lld loaded"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld selected · %lld loaded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld selected · %lld of %lld loaded" : {
+      "comment" : "Import window subtitle: a server with pages left and a known total",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld selected · %lld of %lld loaded"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld selected · %lld of %lld loaded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld spots" : {
       "comment" : "How many spots a photo has: the Spots context row at the limit, captions and VoiceOver; the Copy Adjustments sheet's Spots row",
       "localizations" : {
@@ -1321,6 +1605,29 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld videos weren't duplicated."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld were already in the library." : {
+      "comment" : "Server import report",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld was already in the library."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld were already in the library."
                 }
               }
             }
@@ -1550,6 +1857,17 @@
         }
       }
     },
+    "A server named “%@” already exists." : {
+      "comment" : "Server sheet: the name is taken",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A server named “%@” already exists."
+          }
+        }
+      }
+    },
     "A short description read aloud by screen readers, under 250 characters" : {
       "comment" : "Info tab: tooltip of the Alt Text field",
       "localizations" : {
@@ -1590,6 +1908,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add"
+          }
+        }
+      }
+    },
+    "Add %@ to the key in Immich, or create a new key with the four permissions listed above." : {
+      "comment" : "Server check: missing permissions, detail; the missing ones",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add %@ to the key in Immich, or create a new key with the four permissions listed above."
           }
         }
       }
@@ -1733,6 +2062,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add Rule"
+          }
+        }
+      }
+    },
+    "Add Server" : {
+      "comment" : "Server sheet title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Server"
+          }
+        }
+      }
+    },
+    "Add Server…" : {
+      "comment" : "Import window: Source pop-up, File menu and empty state",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Server…"
           }
         }
       }
@@ -2046,6 +2397,17 @@
         }
       }
     },
+    "Album" : {
+      "comment" : "Import window: the scope pop-up for a server, and View ▸ Album",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album"
+          }
+        }
+      }
+    },
     "Album name" : {
       "comment" : "VoiceOver's label for an album's name field in the sidebar",
       "localizations" : {
@@ -2064,6 +2426,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Albums"
+          }
+        }
+      }
+    },
+    "Albums unavailable" : {
+      "comment" : "Album pop-up: the album list could not be read",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Albums unavailable"
           }
         }
       }
@@ -2174,6 +2547,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Almost no color"
+          }
+        }
+      }
+    },
+    "Already imported from “%@”" : {
+      "comment" : "Import grid tooltip: a server photo already linked; the server's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Already imported from “%@”"
           }
         }
       }
@@ -2289,6 +2673,17 @@
         }
       }
     },
+    "Any date" : {
+      "comment" : "Date Range: no range",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any date"
+          }
+        }
+      }
+    },
     "Any Flag" : {
       "comment" : "View ▸ Filter, Flag section: no flag filter",
       "localizations" : {
@@ -2318,6 +2713,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aperture"
+          }
+        }
+      }
+    },
+    "API key" : {
+      "comment" : "Server sheet row label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API key"
           }
         }
       }
@@ -2884,6 +3290,39 @@
         }
       }
     },
+    "Can't Connect to %@" : {
+      "comment" : "Import window: a server's check failed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't Connect to %@"
+          }
+        }
+      }
+    },
+    "Can't reach “%@”" : {
+      "comment" : "Server check: unreachable, title; the host",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't reach “%@”"
+          }
+        }
+      }
+    },
+    "Capture date" : {
+      "comment" : "Date Range popover title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture date"
+          }
+        }
+      }
+    },
     "Change" : {
       "comment" : "Alert button: confirms a lens correction change on photos with masks or spots",
       "localizations" : {
@@ -2939,6 +3378,28 @@
         }
       }
     },
+    "Check the address, that the server is running, and that this Mac can reach it." : {
+      "comment" : "Server check: unreachable, detail",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the address, that the server is running, and that this Mac can reach it."
+          }
+        }
+      }
+    },
+    "Checking the server…" : {
+      "comment" : "Server sheet status",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking the server…"
+          }
+        }
+      }
+    },
     "Choose the reference" : {
       "comment" : "VoiceOver: the hint of the Merge to HDR sheet's photos table; choosing a row makes it the reference",
       "localizations" : {
@@ -2957,6 +3418,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose which adjustments to copy"
+          }
+        }
+      }
+    },
+    "Clear Date Range" : {
+      "comment" : "Import window: remove the date range",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Date Range"
+          }
+        }
+      }
+    },
+    "Connecting to %@…" : {
+      "comment" : "Import window: checking a server",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecting to %@…"
+          }
+        }
+      }
+    },
+    "Connection" : {
+      "comment" : "Import options: how the server connection is protected",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection"
           }
         }
       }
@@ -2994,6 +3488,50 @@
         }
       }
     },
+    "Couldn't load more photos from “%@”: %@. Scroll to try again." : {
+      "comment" : "Activity: a server's next page failed; the server's name and the reason",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load more photos from “%1$@”: %2$@. Scroll to try again."
+          }
+        }
+      }
+    },
+    "Create the key in Immich, in your account settings. It needs only these permissions: asset.read, asset.view, asset.download and album.read." : {
+      "comment" : "Server sheet: key caption; the permission names are not translated",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create the key in Immich, in your account settings. It needs only these permissions: asset.read, asset.view, asset.download and album.read."
+          }
+        }
+      }
+    },
+    "Date Range" : {
+      "comment" : "Import window toolbar: a server's capture date range",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Date Range"
+          }
+        }
+      }
+    },
+    "Date Range…" : {
+      "comment" : "Import window: View menu item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Date Range…"
+          }
+        }
+      }
+    },
     "De-ghost" : {
       "comment" : "Merge to HDR sheet: check box, takes moving things from the reference only",
       "localizations" : {
@@ -3023,6 +3561,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Couldn't detect people in %@."
+          }
+        }
+      }
+    },
+    "Description and star rating from Immich are added to a new photo when it has none here." : {
+      "comment" : "Import options, Metadata section, for a server",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Description and star rating from Immich are added to a new photo when it has none here."
           }
         }
       }
@@ -3203,6 +3752,83 @@
         }
       }
     },
+    "Edit Server" : {
+      "comment" : "Server sheet title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Server"
+          }
+        }
+      }
+    },
+    "Edit Server…" : {
+      "comment" : "Import window: File menu, inspector and grid state",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Server…"
+          }
+        }
+      }
+    },
+    "Edited" : {
+      "comment" : "Import grid badge: the photo was edited on the server",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edited"
+          }
+        }
+      }
+    },
+    "edited on server" : {
+      "comment" : "VoiceOver: an import grid photo edited on the server",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "edited on server"
+          }
+        }
+      }
+    },
+    "Edited on the server. The original is imported." : {
+      "comment" : "Import grid tooltip: a server photo edited on the server",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edited on the server. The original is imported."
+          }
+        }
+      }
+    },
+    "Encrypted (https)" : {
+      "comment" : "Import options: an https server the system trusts",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encrypted (https)"
+          }
+        }
+      }
+    },
+    "Encrypted, certificate trusted by you" : {
+      "comment" : "Import options: an https server with a pinned certificate",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encrypted, certificate trusted by you"
+          }
+        }
+      }
+    },
     "Everything except %lld subjects." : {
       "comment" : "Detection caption: Background, the subjects it leaves out",
       "localizations" : {
@@ -3288,6 +3914,219 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Green filter: lighter leaves and grass, darker reds and skin."
+          }
+        }
+      }
+    },
+    "https://photos.example.com" : {
+      "comment" : "Server sheet: the address field's prompt",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "https://photos.example.com"
+          }
+        }
+      }
+    },
+    "If macOS asked to allow access to your local network, check System Settings ▸ Privacy & Security ▸ Local Network." : {
+      "comment" : "Server check: unreachable, a local host",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If macOS asked to allow access to your local network, check System Settings ▸ Privacy & Security ▸ Local Network."
+          }
+        }
+      }
+    },
+    "If you trust it, this Mac will accept only this exact certificate for “%@”. If it ever changes, connecting fails until you review it again." : {
+      "comment" : "Certificate page footer; the server's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you trust it, this Mac will accept only this exact certificate for “%@”. If it ever changes, connecting fails until you review it again."
+          }
+        }
+      }
+    },
+    "Immich %@" : {
+      "comment" : "Import options: the server's version",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immich %@"
+          }
+        }
+      }
+    },
+    "Import stopped after %lld photos." : {
+      "comment" : "Server import report: stopped by the person",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Import stopped after %lld photo."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Import stopped after %lld photos."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Imported %lld photos" : {
+      "comment" : "Import window subtitle after a server import",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld photos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Imported %lld photos." : {
+      "comment" : "Server import report: first line",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld photo."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld photos."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Imported %lld photos. %lld could not be imported." : {
+      "comment" : "Server import alert title: some photos failed",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld photo. %lld could not be imported."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld photos. %lld could not be imported."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Insert a Card, Choose a Folder or Add a Server" : {
+      "comment" : "Import window empty state, no servers saved",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insert a Card, Choose a Folder or Add a Server"
+          }
+        }
+      }
+    },
+    "Insert a Card, Choose a Folder or Open a Server" : {
+      "comment" : "Import window empty state, servers saved",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insert a Card, Choose a Folder or Open a Server"
+          }
+        }
+      }
+    },
+    "Issued by" : {
+      "comment" : "Certificate page row",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Issued by"
+          }
+        }
+      }
+    },
+    "Issued to" : {
+      "comment" : "Certificate page row",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Issued to"
+          }
+        }
+      }
+    },
+    "It is no longer the certificate you trusted for “%@”. That is expected if the certificate was renewed, but it can also mean that someone is intercepting the connection. Nothing was sent to the server." : {
+      "comment" : "Server check: certificate changed, detail; the server's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It is no longer the certificate you trusted for “%@”. That is expected if the certificate was renewed, but it can also mean that someone is intercepting the connection. Nothing was sent to the server."
+          }
+        }
+      }
+    },
+    "It runs version %@. Importing needs version %@ or newer." : {
+      "comment" : "Server check: too old, detail; both versions",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It runs version %1$@. Importing needs version %2$@ or newer."
+          }
+        }
+      }
+    },
+    "Leave empty to keep the current key" : {
+      "comment" : "Server sheet: the key field's prompt when editing",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave empty to keep the current key"
           }
         }
       }
@@ -3391,6 +4230,39 @@
         }
       }
     },
+    "Loading more photos…" : {
+      "comment" : "Import window status: a server's next page",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading more photos…"
+          }
+        }
+      }
+    },
+    "Loading photos…" : {
+      "comment" : "Import window status: a server's first page",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading photos…"
+          }
+        }
+      }
+    },
+    "macOS can't tell who issued the certificate that “%@” presented. That is normal for a server you set up yourself, but another device on your network can present a certificate too. Trust it only if the fingerprint below matches your server's." : {
+      "comment" : "Certificate page: a certificate the system does not trust; the host",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS can't tell who issued the certificate that “%@” presented. That is normal for a server you set up yourself, but another device on your network can present a certificate too. Trust it only if the fingerprint below matches your server's."
+          }
+        }
+      }
+    },
     "Masks and spots are placed in the corrected frame, so this photo's can move away from what they cover now. You can undo the change." : {
       "comment" : "Alert message before a lens correction that moves the frame of a photo with masks or spots",
       "localizations" : {
@@ -3479,6 +4351,28 @@
         }
       }
     },
+    "No Photos in This Date Range" : {
+      "comment" : "Import window: a server's date range matches nothing",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Photos in This Date Range"
+          }
+        }
+      }
+    },
+    "No photos were imported." : {
+      "comment" : "Server import report: first line",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No photos were imported."
+          }
+        }
+      }
+    },
     "No subject stands out in this photo. It selects nothing." : {
       "comment" : "Detection caption: Subject found nothing",
       "localizations" : {
@@ -3519,6 +4413,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No vignetting table was found in this file. Choose Manual to set the amount by hand."
+          }
+        }
+      }
+    },
+    "Not encrypted (http)" : {
+      "comment" : "Import options: a plain http server",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not encrypted (http)"
+          }
+        }
+      }
+    },
+    "Now" : {
+      "comment" : "Certificate page: the presented certificate's fingerprint",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now"
+          }
+        }
+      }
+    },
+    "On or after %@" : {
+      "comment" : "Date Range: only a start",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On or after %@"
+          }
+        }
+      }
+    },
+    "On or before %@" : {
+      "comment" : "Date Range: only an end",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On or before %@"
+          }
+        }
+      }
+    },
+    "Only your own photos are listed. Videos, archived, hidden, locked and trashed photos are not." : {
+      "comment" : "Import window: a server's empty states",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only your own photos are listed. Videos, archived, hidden, locked and trashed photos are not."
+          }
+        }
+      }
+    },
+    "Open Server" : {
+      "comment" : "Import window empty state: a menu of the saved servers",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Server"
           }
         }
       }
@@ -3567,6 +4527,17 @@
         }
       }
     },
+    "Paste the key here" : {
+      "comment" : "Server sheet: the key field's prompt when adding",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste the key here"
+          }
+        }
+      }
+    },
     "Pasted as it is, whatever a photo's size or shape." : {
       "comment" : "Copy Adjustments sheet: under Crop & Straighten, and its VoiceOver hint",
       "localizations" : {
@@ -3607,6 +4578,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "People mask added. %@"
+          }
+        }
+      }
+    },
+    "Photos are copied from the server. Nothing on the server is changed." : {
+      "comment" : "Import options: Server section caption",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos are copied from the server. Nothing on the server is changed."
           }
         }
       }
@@ -3699,6 +4681,39 @@
         }
       }
     },
+    "Remove Server…" : {
+      "comment" : "Import window: File menu and the Server sheet",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Server…"
+          }
+        }
+      }
+    },
+    "Remove the server “%@”?" : {
+      "comment" : "Alert before removing a server; its name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove the server “%@”?"
+          }
+        }
+      }
+    },
+    "Remove “%@”…" : {
+      "comment" : "Source pop-up: remove the current server",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove “%@”…"
+          }
+        }
+      }
+    },
     "Resets on paste" : {
       "comment" : "Copy Adjustments sheet: a checked group the photo has not changed",
       "localizations" : {
@@ -3710,6 +4725,17 @@
         }
       }
     },
+    "Review Certificate…" : {
+      "comment" : "Server sheet and grid state: see a changed certificate",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review Certificate…"
+          }
+        }
+      }
+    },
     "Scale the corrected photo to fill its frame, with no empty edge." : {
       "comment" : "Tooltip and VoiceOver help of Constrain to image",
       "localizations" : {
@@ -3717,6 +4743,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scale the corrected photo to fill its frame, with no empty edge."
+          }
+        }
+      }
+    },
+    "Send my key and photos without encryption" : {
+      "comment" : "Server sheet: the unencrypted notice's check box",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send my key and photos without encryption"
+          }
+        }
+      }
+    },
+    "Server" : {
+      "comment" : "Import options section header for a server",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Server"
+          }
+        }
+      }
+    },
+    "Server address" : {
+      "comment" : "Server sheet row label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Server address"
           }
         }
       }
@@ -3750,6 +4809,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Set the correction by hand."
+          }
+        }
+      }
+    },
+    "SHA-256 fingerprint" : {
+      "comment" : "Certificate page: the certificate's fingerprint",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SHA-256 fingerprint"
+          }
+        }
+      }
+    },
+    "Show All Photos" : {
+      "comment" : "Import window: back to a server's All Photos",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show All Photos"
+          }
+        }
+      }
+    },
+    "Show only photos taken within a date range" : {
+      "comment" : "Import window toolbar: Date Range tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show only photos taken within a date range"
           }
         }
       }
@@ -3833,6 +4925,29 @@
         }
       }
     },
+    "Stopped after %lld photos" : {
+      "comment" : "Import window subtitle after Stop",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Stopped after %lld photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Stopped after %lld photos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Subject" : {
       "comment" : "Mask detection kind: menu item, row title and a new mask's name",
       "localizations" : {
@@ -3855,6 +4970,39 @@
         }
       }
     },
+    "The address starts with http://. Your API key and every photo you import cross your network without encryption, so anyone on it could read them. Use https:// if your server offers it." : {
+      "comment" : "Server sheet: the unencrypted notice",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The address starts with http://. Your API key and every photo you import cross your network without encryption, so anyone on it could read them. Use https:// if your server offers it."
+          }
+        }
+      }
+    },
+    "The API key for “%@” is missing a permission" : {
+      "comment" : "Server import alert title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The API key for “%@” is missing a permission"
+          }
+        }
+      }
+    },
+    "The API key is deleted from the Keychain. Photos you already imported stay in the library. The key itself still works on the server until you delete it in Immich." : {
+      "comment" : "Remove server alert message",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The API key is deleted from the Keychain. Photos you already imported stay in the library. The key itself still works on the server until you delete it in Immich."
+          }
+        }
+      }
+    },
     "The camera's table in this file could not be read, so nothing is corrected. Choose Manual to set the amount by hand." : {
       "comment" : "Lens correction caption, with a warning symbol: the file's table is damaged or not understood",
       "localizations" : {
@@ -3862,6 +5010,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The camera's table in this file could not be read, so nothing is corrected. Choose Manual to set the amount by hand."
+          }
+        }
+      }
+    },
+    "The certificate of “%@” has changed" : {
+      "comment" : "Server import alert title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The certificate of “%@” has changed"
+          }
+        }
+      }
+    },
+    "The key couldn't be saved" : {
+      "comment" : "Server check: Keychain failure",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The key couldn't be saved"
+          }
+        }
+      }
+    },
+    "The key may be mistyped, expired or deleted. Create a new key in Immich and paste it here." : {
+      "comment" : "Server check: key rejected, detail",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The key may be mistyped, expired or deleted. Create a new key in Immich and paste it here."
+          }
+        }
+      }
+    },
+    "The Keychain returned an error: %@." : {
+      "comment" : "Keychain failure; the system's message",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Keychain returned an error: %@."
           }
         }
       }
@@ -3888,6 +5080,61 @@
         }
       }
     },
+    "The reasons are listed in Activity in the library window." : {
+      "comment" : "Server import alert message",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The reasons are listed in Activity in the library window."
+          }
+        }
+      }
+    },
+    "The server didn't return a preview." : {
+      "comment" : "Import grid tooltip: a server photo without a thumbnail",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server didn't return a preview."
+          }
+        }
+      }
+    },
+    "The server rejected this API key" : {
+      "comment" : "Server check: key rejected",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server rejected this API key"
+          }
+        }
+      }
+    },
+    "The server's certificate has changed" : {
+      "comment" : "Server check: certificate changed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server's certificate has changed"
+          }
+        }
+      }
+    },
+    "The start date is after the end date." : {
+      "comment" : "Date Range popover: Apply is dimmed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The start date is after the end date."
+          }
+        }
+      }
+    },
     "The stored result is missing or damaged. It selects nothing. Choose Update to detect again." : {
       "comment" : "Detection caption: the stored result's row is missing or unreadable",
       "localizations" : {
@@ -3895,6 +5142,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The stored result is missing or damaged. It selects nothing. Choose Update to detect again."
+          }
+        }
+      }
+    },
+    "This API key is missing permissions" : {
+      "comment" : "Server check: missing permissions",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This API key is missing permissions"
+          }
+        }
+      }
+    },
+    "This connection is not encrypted" : {
+      "comment" : "Server sheet: the unencrypted notice's title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This connection is not encrypted"
+          }
+        }
+      }
+    },
+    "This doesn't look like an Immich server" : {
+      "comment" : "Server check: not Immich",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This doesn't look like an Immich server"
           }
         }
       }
@@ -3932,6 +5212,39 @@
         }
       }
     },
+    "This Immich server is too old" : {
+      "comment" : "Server check: too old",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Immich server is too old"
+          }
+        }
+      }
+    },
+    "This key can do more than importing needs. Only reading is used." : {
+      "comment" : "Import options: the key has more permissions than needed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This key can do more than importing needs. Only reading is used."
+          }
+        }
+      }
+    },
+    "This Mac keeps its copy of the key in the Keychain." : {
+      "comment" : "Server sheet: key caption",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Mac keeps its copy of the key in the Keychain."
+          }
+        }
+      }
+    },
     "This photo has no adjustments. Checking a group resets it on the photos you paste onto." : {
       "comment" : "Copy Adjustments sheet: under the title when the photo has no adjustments at all",
       "localizations" : {
@@ -3961,6 +5274,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Thumbnails"
+          }
+        }
+      }
+    },
+    "To" : {
+      "comment" : "Date Range popover: the end date",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To"
+          }
+        }
+      }
+    },
+    "Trust Certificate" : {
+      "comment" : "Certificate page button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trust Certificate"
+          }
+        }
+      }
+    },
+    "Trust the new certificate?" : {
+      "comment" : "Certificate page title: a pinned server's certificate changed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trust the new certificate?"
+          }
+        }
+      }
+    },
+    "Trust this certificate?" : {
+      "comment" : "Certificate page title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trust this certificate?"
+          }
+        }
+      }
+    },
+    "Trusted before" : {
+      "comment" : "Certificate page: the pinned certificate's fingerprint",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trusted before"
+          }
+        }
+      }
+    },
+    "Try Again" : {
+      "comment" : "Import window: check a server again",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try Again"
           }
         }
       }
@@ -4031,6 +5410,17 @@
         }
       }
     },
+    "Use an address that starts with https:// or http://." : {
+      "comment" : "Server sheet: another scheme was typed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use an address that starts with https:// or http://."
+          }
+        }
+      }
+    },
     "Use the correction table the camera stored in this file." : {
       "comment" : "Tooltip of the Auto segment of a lens correction group's Source",
       "localizations" : {
@@ -4064,6 +5454,28 @@
         }
       }
     },
+    "Valid" : {
+      "comment" : "Certificate page row: the validity dates",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valid"
+          }
+        }
+      }
+    },
+    "Version" : {
+      "comment" : "Import options: the server's version row",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version"
+          }
+        }
+      }
+    },
     "Wait for the current detection to finish." : {
       "comment" : "Tooltip of detection items dimmed while one runs",
       "localizations" : {
@@ -4071,6 +5483,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wait for the current detection to finish."
+          }
+        }
+      }
+    },
+    "Waiting for “%@”…" : {
+      "comment" : "Import window: a request is being tried again",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for “%@”…"
+          }
+        }
+      }
+    },
+    "Will connect to %@" : {
+      "comment" : "Server sheet: the normalized address",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Will connect to %@"
           }
         }
       }
@@ -16242,6 +17676,17 @@
         }
       }
     },
+    "“%@” answered, but not as Immich does. Check the address, including any path or port." : {
+      "comment" : "Server check: not Immich, detail; the host",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” answered, but not as Immich does. Check the address, including any path or port."
+          }
+        }
+      }
+    },
     "“%@” is a video. Only photos can be compared." : {
       "comment" : "Alert: Compare Side by Side on a video; its file name",
       "localizations" : {
@@ -16249,6 +17694,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“%@” is a video. Only photos can be compared."
+          }
+        }
+      }
+    },
+    "“%@” Is No Longer on the Server" : {
+      "comment" : "Import window: the chosen album was deleted on the server",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” Is No Longer on the Server"
           }
         }
       }
@@ -16393,6 +17849,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Problem"
+          }
+        }
+      }
+    },
+    "“%@” is not on your local network. http:// is only allowed for servers on your local network; use https://." : {
+      "comment" : "Server sheet: plain http to a host that is not local",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is not on your local network. http:// is only allowed for servers on your local network; use https://."
           }
         }
       }
@@ -16814,6 +18281,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The merged photo was saved at %@ but couldn't be added to the library. Add the folder again to import it."
+          }
+        }
+      }
+    },
+    "“%@” presented a different certificate from the one you trusted on %@. That is expected if it was renewed. It can also mean that someone is intercepting the connection." : {
+      "comment" : "Certificate page: a pinned server presented another certificate; the host, then the date",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” presented a different certificate from the one you trusted on %2$@. That is expected if it was renewed. It can also mean that someone is intercepting the connection."
+          }
+        }
+      }
+    },
+    "“%@” rejected the API key" : {
+      "comment" : "Server import alert title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” rejected the API key"
+          }
+        }
+      }
+    },
+    "“%@” stopped responding" : {
+      "comment" : "Server import alert title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” stopped responding"
           }
         }
       }

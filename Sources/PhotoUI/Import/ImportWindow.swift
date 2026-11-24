@@ -55,6 +55,29 @@ public struct ImportWindow: View {
                                                                set: { if !$0 { model.alertText = nil } })) {
                 Button("OK", role: .cancel) { model.alertText = nil }
             }
+            // A server import's failure (design §6.2, §6.3): title, message, OK.
+            .alert(model.serverAlert?.title ?? "", isPresented: Binding(get: { model.serverAlert != nil },
+                                                                        set: { if !$0 { model.serverAlert = nil } }),
+                   presenting: model.serverAlert) { _ in
+                Button("OK", role: .cancel) { model.serverAlert = nil }
+            } message: { alert in
+                Text(alert.message)
+            }
+            .sheet(item: $model.serverSheet) { sheet in
+                ServerSheet(sheet: sheet)
+            }
+            // Remove Server… (design §3.7): Remove is destructive and no button
+            // is the default, so Return does nothing.
+            .confirmationDialog(String(localized: "Remove the server “\(model.removingServer?.name ?? "")”?",
+                                       comment: "Alert before removing a server"),
+                                isPresented: Binding(get: { model.removingServer != nil },
+                                                     set: { if !$0 { model.removingServer = nil } }),
+                                titleVisibility: .visible, presenting: model.removingServer) { service in
+                Button("Remove", role: .destructive) { model.removeServer(service) }
+                Button("Cancel", role: .cancel) { model.removingServer = nil }
+            } message: { _ in
+                Text("The API key is deleted from the Keychain. Photos you already imported stay in the library. The key itself still works on the server until you delete it in Immich.")
+            }
     }
 
     private var deletionTitle: String {
@@ -62,8 +85,9 @@ public struct ImportWindow: View {
     }
 
     /// "6 of 412 selected · Sony ILCE-7M3, shutter count 4,374"; after an
-    /// import, "Imported 412 files".
+    /// import, "Imported 412 files". A server: design §4.6.
     private var subtitle: String {
+        if let browse = model.browse { return serverSubtitle(browse) }
         if let done = model.doneText, !model.isImporting { return done }
         guard !model.shots.isEmpty else { return "" }
         let selected = String(localized: "\(model.selection.count) of \(model.shots.count - model.duplicateCount) selected")
@@ -73,6 +97,15 @@ public struct ImportWindow: View {
                    comment: "Import window subtitle: the newest photo's camera and its shutter count")
         } ?? camera.name
         return "\(selected) · \(cameraText)"
+    }
+
+    private func serverSubtitle(_ browse: ServerBrowse) -> String {
+        let suffix = browse.isUnencrypted ? ServerText.notEncryptedSuffix : ""
+        if let done = model.doneText, !model.isImporting { return done + suffix }
+        guard !model.shots.isEmpty else { return browse.isUnencrypted ? String(suffix.dropFirst(3)) : "" }
+        let line = ServerSubtitle.of(selected: model.selection.count, loaded: model.shots.count,
+                                     marked: model.duplicateCount, hasMorePages: browse.hasMorePages, total: browse.total)
+        return ServerText.subtitle(line) + suffix
     }
 }
 
@@ -84,13 +117,17 @@ private struct ImportToolbar: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
             SourceMenu(model: model)
+            if let browse = model.browse {
+                AlbumMenu(model: model, browse: browse)
+                DateRangeButton(model: model, browse: browse)
+            }
             Button {
-                model.rescan(keepingPicks: true)
+                model.rescanSource()
             } label: {
                 Label("Rescan", systemImage: "arrow.clockwise")
             }
             .help("Rescan")
-            .disabled(model.source == nil || model.isImporting)
+            .disabled(!model.hasSource || model.isImporting)
         }
         ToolbarItem(placement: .status) {
             ImportActivity(model: model)
@@ -101,11 +138,15 @@ private struct ImportToolbar: ToolbarContent {
                     .disabled(!model.canSelectAll)
                 Button("Deselect All") { model.selectNone() }
                     .disabled(!model.canDeselectAll)
-                Divider()
-                Toggle("Show Videos", isOn: $model.includesVideos)
-                    .disabled(model.isImporting)
-                if !model.copiesOnly {
-                    Toggle("Show Photos Already in Library", isOn: $model.showsDuplicates)
+                // Not for a server: videos are never listed and marked photos
+                // stay visible (design §4.5, D8).
+                if model.browse == nil {
+                    Divider()
+                    Toggle("Show Videos", isOn: $model.includesVideos)
+                        .disabled(model.isImporting)
+                    if !model.copiesOnly {
+                        Toggle("Show Photos Already in Library", isOn: $model.showsDuplicates)
+                    }
                 }
             } label: {
                 Label("Selection", systemImage: "checklist")
@@ -126,21 +167,50 @@ private struct ImportToolbar: ToolbarContent {
             } else {
                 Button("Import \(model.selectedShots.count) Photos") { model.startImport() }
                     .buttonStyle(.borderedProminent)
-                    .disabled(model.selectedShots.isEmpty || model.source == nil)
+                    .disabled(model.selectedShots.isEmpty || !model.hasSource || (model.browse != nil && model.browse?.client == nil))
             }
         }
     }
 }
 
-/// Mounted cards, chosen folders, a divider, Choose Folder….
+/// What the Source pop-up can choose: a card or folder, or a saved server.
+private enum SourceChoice: Hashable {
+    case files(ImportSource)
+    case server(Int64)
+}
+
+/// Mounted cards, chosen folders, saved servers (library app), a divider,
+/// Choose Folder… and Add Server…, then Edit and Remove for the current
+/// server (design §2.2).
 private struct SourceMenu: View {
     let model: CardImportModel
 
+    private var selection: Binding<SourceChoice?> {
+        Binding(get: {
+            if let id = model.browse?.service.id { return .server(id) }
+            return model.source.map(SourceChoice.files)
+        }, set: { choice in
+            switch choice {
+            case .files(let source)?: model.choose(source)
+            case .server(let id)?: if let service = model.servers.first(where: { $0.id == id }) { model.chooseServer(service) }
+            case nil: break
+            }
+        })
+    }
+
     var body: some View {
         Menu {
-            Picker(selection: Binding(get: { model.source }, set: { if let source = $0 { model.choose(source) } })) {
+            Picker(selection: selection) {
                 ForEach(model.sources) { source in
-                    Label(source.name, systemImage: source.isCard ? "sdcard" : "folder").tag(ImportSource?.some(source))
+                    Label(source.name, systemImage: source.isCard ? "sdcard" : "folder").tag(SourceChoice?.some(.files(source)))
+                }
+                if !model.copiesOnly {
+                    ForEach(model.servers) { service in
+                        Label(service.name, systemImage: "server.rack")
+                            .accessibilityLabel(Text(String(localized: "\(service.name), server",
+                                                            comment: "VoiceOver: a server in the Source pop-up")))
+                            .tag(SourceChoice?.some(.server(service.id ?? 0)))
+                    }
                 }
             } label: {
                 EmptyView()
@@ -149,8 +219,21 @@ private struct SourceMenu: View {
             .labelsHidden()
             Divider()
             Button("Choose Folder…") { model.chooseFolder() }
+            if !model.copiesOnly {
+                Button("Add Server…") { model.showAddServer() }
+                if let service = model.browse?.service {
+                    Divider()
+                    Button(String(localized: "Edit “\(service.name)”…")) { model.showEditServer() }
+                    Button(String(localized: "Remove “\(service.name)”…", comment: "Source pop-up: remove the current server")) {
+                        model.askToRemoveServer()
+                    }
+                }
+            }
         } label: {
-            if let source = model.source {
+            if let service = model.browse?.service {
+                Label(service.name, systemImage: "server.rack")
+                    .labelStyle(.titleAndIcon)
+            } else if let source = model.source {
                 Label(source.name, systemImage: source.isCard ? "sdcard" : "folder")
                     .labelStyle(.titleAndIcon)
             } else {
@@ -169,18 +252,25 @@ private struct SourceMenu: View {
 private struct ImportActivity: View {
     let model: CardImportModel
 
+    /// "Waiting for “‹name›”…" while a server request is tried again (design §6.1).
+    private var waitingText: String? {
+        guard model.progress?.waitingForServer == true, let name = model.sourceName else { return nil }
+        return ServerText.waiting(name)
+    }
+
     var body: some View {
         if let progress = model.progress {
             HStack(spacing: 8) {
                 ProgressView(value: Double(progress.bytesDone), total: Double(max(progress.bytesTotal, 1)))
                     .frame(width: 160)
-                Text(model.progressDetail ?? "")
+                Text(waitingText ?? model.progressDetail ?? "")
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                     .toolbarStatusText()
             }
             .toolbarCapsuleInset()
             .help(progress.currentName)
+            .accessibilityValue(Text(waitingText ?? ""))
         } else if model.isScanning, let source = model.source {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
@@ -191,7 +281,26 @@ private struct ImportActivity: View {
                 .toolbarStatusText()
             }
             .toolbarCapsuleInset()
+        } else if let browse = model.browse, let status = serverStatus(browse) {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text(status)
+                    .foregroundStyle(.secondary)
+                    .toolbarStatusText()
+            }
+            .toolbarCapsuleInset()
         }
+    }
+
+    /// "Connecting to ‹name›…", "Loading photos…", "Loading more photos…"
+    /// (design §4.4).
+    private func serverStatus(_ browse: ServerBrowse) -> String? {
+        if browse.isConnecting {
+            return ToolbarMetrics.statusLine(name: browse.service.name) { ServerText.connecting($0) }
+        }
+        guard browse.isLoadingPage else { return nil }
+        return browse.loadedFirstPage ? String(localized: "Loading more photos…", comment: "Import window: a server's next page")
+                                      : String(localized: "Loading photos…", comment: "Import window: a server's first page")
     }
 }
 
@@ -206,15 +315,44 @@ private struct ImportGridArea: View {
     }
 
     @ViewBuilder private var content: some View {
+        if let browse = model.browse {
+            ServerGridArea(model: model, browse: browse)
+        } else {
+            fileContent
+        }
+    }
+
+    @ViewBuilder private var fileContent: some View {
         let name = model.source?.name ?? ""
         switch ImportGridState.of(hasSource: model.source != nil, isScanning: model.isScanning, readError: model.readError,
                                   shotCount: model.shots.count, duplicateCount: model.duplicateCount,
                                   showsDuplicates: model.showsDuplicates) {
-        case .noSource:
+        case .noSource where model.copiesOnly:
             ContentUnavailableView {
                 Label("Insert a Card or Choose a Folder", systemImage: "sdcard")
             } actions: {
                 Button("Choose Folder…") { model.chooseFolder() }
+            }
+        case .noSource:
+            // The library app also offers servers (design §2.4).
+            ContentUnavailableView {
+                Label(model.servers.isEmpty ? String(localized: "Insert a Card, Choose a Folder or Add a Server")
+                                            : String(localized: "Insert a Card, Choose a Folder or Open a Server"),
+                      systemImage: "sdcard")
+            } actions: {
+                Button("Choose Folder…") { model.chooseFolder() }
+                if model.servers.isEmpty {
+                    Button("Add Server…") { model.showAddServer() }
+                } else {
+                    Menu("Open Server") {
+                        ForEach(model.servers) { service in
+                            Button(service.name) { model.chooseServer(service) }
+                        }
+                        Divider()
+                        Button("Add Server…") { model.showAddServer() }
+                    }
+                    .fixedSize()
+                }
             }
         case .scanning:
             ProgressView("Reading \(name)…")
@@ -251,6 +389,9 @@ private struct ImportOptionsForm: View {
 
     var body: some View {
         Form {
+            if let browse = model.browse {
+                ServerSection(model: model, browse: browse)
+            }
             Section("Destination") {
                 LabeledContent("Folder") {
                     HStack {
@@ -276,8 +417,18 @@ private struct ImportOptionsForm: View {
                         }
                     }
                     if model.existingProjectID == nil {
-                        TemplateField(title: String(localized: "Project name"), text: $model.projectNameTemplate,
-                                      tokens: .importFiles, sample: model.exampleContext)
+                        if let browse = model.browse {
+                            // Plain text for a server (design §5.3).
+                            LabeledContent("Project name") {
+                                TextField("Project name", text: Binding(get: { browse.projectName },
+                                                                        set: { model.setServerProjectName($0) }))
+                                    .textFieldStyle(.roundedBorder)
+                                    .labelsHidden()
+                            }
+                        } else {
+                            TemplateField(title: String(localized: "Project name"), text: $model.projectNameTemplate,
+                                          tokens: .importFiles, sample: model.exampleContext)
+                        }
                     }
                 }
                 LabeledContent("Job code") {
@@ -322,7 +473,22 @@ private struct ImportOptionsForm: View {
                 if model.presetID != nil {
                     Caption(text: String(localized: "Written to sidecar files next to the copies; the copies stay identical to the originals."))
                 }
+                if model.browse != nil {
+                    Caption(text: String(localized: "Description and star rating from Immich are added to a new photo when it has none here."))
+                }
             }
+            // Nothing on a server is ever deleted or ejected (design §5.1).
+            if model.browse == nil {
+                afterImport
+            }
+        }
+        .formStyle(.grouped)
+        .sheet(item: $editingPreset) { preset in
+            PresetEditor(preset: preset, onSave: model.savePreset, onDelete: { model.deletePreset($0) })
+        }
+    }
+
+    @ViewBuilder private var afterImport: some View {
             Section("After Import") {
                 Toggle(isOn: $model.deletesOriginals) {
                     Text("Delete originals from “\(sourceName)”", comment: "Import option check box")
@@ -335,11 +501,6 @@ private struct ImportOptionsForm: View {
                 .disabled(model.source?.isEjectable != true)
                 Caption(text: String(localized: "Originals are deleted only after every copy is verified, and you're asked first."))
             }
-        }
-        .formStyle(.grouped)
-        .sheet(item: $editingPreset) { preset in
-            PresetEditor(preset: preset, onSave: model.savePreset, onDelete: { model.deletePreset($0) })
-        }
     }
 
     private var selectedPreset: MetadataPreset? {
@@ -457,5 +618,252 @@ private struct PresetEditor: View {
         } message: {
             Text("Copies already imported keep their metadata.", comment: "Delete metadata preset alert")
         }
+    }
+}
+
+/// The inspector's first section for a server (design §5): where photos come
+/// from and how the connection is protected.
+private struct ServerSection: View {
+    let model: CardImportModel
+    let browse: ServerBrowse
+
+    var body: some View {
+        Section("Server") {
+            LabeledContent("Name") { Text(browse.service.name) }
+            LabeledContent("Address") {
+                Text(browse.service.address)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(browse.service.address)
+            }
+            if let info = browse.info {
+                LabeledContent("Version") {
+                    Text(String(localized: "Immich \(info.version.description)", comment: "Import options: the server's version"))
+                }
+            }
+            LabeledContent("Connection") {
+                if browse.isUnencrypted {
+                    Label(String(localized: "Not encrypted (http)"), systemImage: "exclamationmark.triangle")
+                } else if browse.service.certificateFingerprint != nil {
+                    Text("Encrypted, certificate trusted by you")
+                } else {
+                    Text("Encrypted (https)")
+                }
+            }
+            Caption(text: String(localized: "Photos are copied from the server. Nothing on the server is changed."))
+            if browse.info?.hasMoreThanNeeded == true {
+                Caption(text: String(localized: "This key can do more than importing needs. Only reading is used."))
+            }
+            Button("Edit Server…") { model.showEditServer() }
+                .disabled(model.isImporting)
+        }
+    }
+}
+
+/// The grid area for a server (design §4.7).
+private struct ServerGridArea: View {
+    let model: CardImportModel
+    let browse: ServerBrowse
+
+    private var description: Text {
+        Text("Only your own photos are listed. Videos, archived, hidden, locked and trashed photos are not.")
+    }
+
+    var body: some View {
+        let name = browse.service.name
+        switch browse.gridState {
+        case .connecting:
+            ProgressView(ServerText.connecting(name))
+        case .loading:
+            ProgressView("Reading \(name)…")
+        case .cantConnect(let result):
+            let text = ServerText.result(result, host: browse.address?.host ?? "", name: name)
+            ContentUnavailableView {
+                Label(ServerText.cantConnect(name), systemImage: "exclamationmark.triangle")
+            } description: {
+                Text([text?.title, text?.detail].compactMap { $0 }.joined(separator: "\n"))
+                    .textSelection(.enabled)
+            } actions: {
+                Button("Try Again") { model.rescanSource() }
+                if case .certificateChanged = result {
+                    Button("Review Certificate…") { model.showEditServer(reviewingCertificate: true) }
+                } else {
+                    Button("Edit Server…") { model.showEditServer() }
+                }
+            }
+        case .noPhotosAll:
+            ContentUnavailableView {
+                Label("No Photos on \(name)", systemImage: "photo.on.rectangle")
+            } description: {
+                description
+            }
+        case .noPhotosInAlbum:
+            ContentUnavailableView {
+                Label("No Photos in “\(browse.scopeName)”", systemImage: "photo.on.rectangle")
+            } description: {
+                description
+            } actions: {
+                Button("Show All Photos") { model.chooseAlbum(nil) }
+            }
+        case .noPhotosInRange:
+            ContentUnavailableView {
+                Label("No Photos in This Date Range", systemImage: "calendar")
+            } description: {
+                description
+            } actions: {
+                Button("Clear Date Range") { model.setDateRange(nil) }
+            }
+        case .albumGone:
+            ContentUnavailableView {
+                Label(String(localized: "“\(browse.scopeName)” Is No Longer on the Server",
+                             comment: "Import window: the chosen album was deleted on the server"),
+                      systemImage: "photo.on.rectangle")
+            } actions: {
+                Button("Show All Photos") { model.chooseAlbum(nil) }
+            }
+        case .photos:
+            ImportGridView(model: model, shots: model.visibleShots, selection: model.selection)
+        }
+    }
+}
+
+/// The Album pop-up (design §4.2, DQ-4): All Photos, then the account's
+/// albums by name with the server's count.
+private struct AlbumMenu: View {
+    let model: CardImportModel
+    let browse: ServerBrowse
+
+    var body: some View {
+        Menu {
+            Picker(selection: Binding(get: { browse.albumID }, set: { model.chooseAlbum($0) })) {
+                Text(ServerText.allPhotos).tag(String?.none)
+                if !browse.albums.isEmpty { Divider() }
+                ForEach(browse.albums) { album in
+                    Text(ServerText.album(album)).tag(String?.some(album.id))
+                }
+            } label: {
+                EmptyView()
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+            if browse.albumsFailed {
+                Button("Albums unavailable") {}
+                    .disabled(true)
+            }
+        } label: {
+            Label(browse.albumsLoaded ? browse.scopeName : ServerText.allPhotos, systemImage: "photo.on.rectangle")
+                .labelStyle(.titleAndIcon)
+        }
+        .help("Album")
+        .accessibilityLabel(Text("Album"))
+        .accessibilityValue(Text(browse.scopeName))
+        .disabled(!browse.albumsLoaded || model.isImporting || browse.client == nil)
+    }
+}
+
+/// Date Range (design §4.3): a popover with two optional days.
+private struct DateRangeButton: View {
+    let model: CardImportModel
+    @Bindable var browse: ServerBrowse
+
+    var body: some View {
+        Button {
+            browse.showsDateRange = true
+        } label: {
+            if let range = browse.dates, !range.isEmpty {
+                Label(ServerText.dateRangeText(range), systemImage: "calendar")
+                    .labelStyle(.titleAndIcon)
+            } else {
+                Label("Date Range", systemImage: "calendar")
+            }
+        }
+        .help("Show only photos taken within a date range")
+        .accessibilityLabel(Text("Date Range"))
+        .accessibilityValue(Text(ServerText.dateRangeText(browse.dates)))
+        .disabled(model.isImporting || browse.client == nil)
+        .popover(isPresented: $browse.showsDateRange, arrowEdge: .bottom) {
+            DateRangePopover(model: model, initial: browse.dates) { browse.showsDateRange = false }
+        }
+    }
+}
+
+private struct DateRangePopover: View {
+    let model: CardImportModel
+    let close: () -> Void
+    @State private var usesFrom: Bool
+    @State private var usesTo: Bool
+    @State private var from: Date
+    @State private var to: Date
+
+    init(model: CardImportModel, initial: CaptureDateRange?, close: @escaping () -> Void) {
+        self.model = model
+        self.close = close
+        let today = Self.utcDay(Date())
+        _usesFrom = State(initialValue: initial?.from != nil)
+        _usesTo = State(initialValue: initial?.through != nil)
+        _from = State(initialValue: CaptureDateRange.utc(initial?.from) ?? today)
+        _to = State(initialValue: CaptureDateRange.utc(initial?.through) ?? today)
+    }
+
+    static var utcCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    /// The local calendar day of `date`, as midnight UTC (the photo's own
+    /// day, as the grid shows it).
+    static func utcDay(_ date: Date) -> Date {
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return CaptureDateRange.utc(parts) ?? date
+    }
+
+    private var range: CaptureDateRange {
+        let calendar = Self.utcCalendar
+        return CaptureDateRange(from: usesFrom ? calendar.dateComponents([.year, .month, .day], from: from) : nil,
+                                through: usesTo ? calendar.dateComponents([.year, .month, .day], from: to) : nil)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Capture date").font(.system(size: 13, weight: .semibold))
+            Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 6) {
+                GridRow {
+                    Toggle("From", isOn: $usesFrom).toggleStyle(.checkbox)
+                    DatePicker("From", selection: $from, displayedComponents: .date)
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                        .environment(\.timeZone, TimeZone(secondsFromGMT: 0)!)
+                        .disabled(!usesFrom)
+                }
+                GridRow {
+                    Toggle("To", isOn: $usesTo).toggleStyle(.checkbox)
+                    DatePicker("To", selection: $to, displayedComponents: .date)
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                        .environment(\.timeZone, TimeZone(secondsFromGMT: 0)!)
+                        .disabled(!usesTo)
+                }
+            }
+            if range.isReversed {
+                Label("The start date is after the end date.", systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 11))
+            }
+            HStack {
+                Spacer()
+                Button("Clear") {
+                    model.setDateRange(nil)
+                    close()
+                }
+                Button("Apply") {
+                    model.setDateRange(range)
+                    close()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(range.isReversed)
+            }
+        }
+        .padding(14)
+        .frame(width: 280)
     }
 }
