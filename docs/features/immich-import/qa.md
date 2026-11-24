@@ -591,6 +591,14 @@ and `exifInfo.rating` per asset.)
 
 ### Follow-up
 
-Findings: none. Owner's sign-off for this range: not yet given. P1 to P14 are
-open (P14 is new); P8 is corrected to expect the app to ignore ⌘Q with a sheet
+Findings: none. P8 was corrected to expect the app to ignore ⌘Q with a sheet
 up.
+
+**Owner's sign-off, 2026-11-24.** The owner signed off #271 ("Sign off on this
+feature. All checks pass.") on `feature/immich-import` at commit ce3b75e (HEAD
+when he signed), after running the checks by hand on the bundle built from the
+branch. P1 to P8 and P14 all pass in his words; he named no check left open, so
+none is. VoiceOver, macOS 15 and macOS 26 remain covered by CI only (the owner's
+standing ruling). The README, `CLAUDE.md`, roadmap and inventory entries wait
+for Ship (step 6). Relayed by the main session; recorded here, not committed by
+me.
