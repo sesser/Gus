@@ -409,3 +409,149 @@ an app-wide follow-up, not a change for this branch.
 
 C20 is a nit and does not block sign-off. If it is taken, record it here with
 its commit.
+
+## Fifth pass
+
+Reviewed: `feature/immich-import`, 3e90686..54760d1 (f334d9d: owner finding
+O1, a server import adds to an existing project of the same name; 1978f2a:
+design DQ-12 to DQ-14, docs only; 54760d1: the DQ-13 note and the DQ-14
+stacked field). c3ea072, the designer's fourth review, came in during this
+pass and touches `review.md` only. Date: 2026-11-24. Build and tests:
+`swift build --build-tests` clean. `RemoteProjectReuseTests` 7 of 7, 20 of 20
+runs clean. `LocalizationTests`, `BrandingTests`, `RemoteImportTests`,
+`RemoteReviewFixTests` and `ImportTemplate` pass. Full `swift test`: 1521
+tests in 214 suites pass (78.4 s). Two probes ran in a throwaway worktree
+under the scratchpad, never in the repository; they are described under
+Checked and fine.
+
+### Verdict
+
+Ready for QA and the owner's M1 from the code-review side. The lookup and the
+insert are one serialized write. The note and the importer use the same
+cleaning, the same comparison, the same fallback to the address and the same
+address, so the note shows exactly when the import would reuse a project, as
+far as the loaded project list is current. The new tests fail without the
+change, and the concurrency test catches a lookup split from its insert. One
+nit: a test comment claims a check the test doesn't make (C21).
+
+### Findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C21 | Nit | `Tests/PhotoCoreTests/RemoteProjectReuseTests.swift:76-78` | The comment says "An empty field falls back on the address, and that name is reused too". The test checks only `RemoteProjectName.cleaned` (`" / "` gives `-`, blanks give the address). It never calls `projectForImport` twice with the address, and no test runs an import with an empty field. | None today: the fallback goes through the same `projectForImport` as any name, and `reuseNote`'s `shows("   ")` covers the note's side. But if `makeTarget` stopped applying `cleaned` (or passed a different address than the note uses), no test would catch it, and the comment says one would. Fix if wanted: add a second `projectForImport(named: cleaned("  ", address:))` and expect `!created`, or change the comment. | Tests that fail without the fix |
+
+### Checked and fine
+
+- **One serialized write.** `Catalog.projectForImport` reads every project
+  and inserts inside one `database.write`, and GRDB serializes writes. So no
+  other write can create the twin between the lookup and the insert. Probe:
+  with the lookup moved to its own `database.read` before the write,
+  `concurrentLookups` failed 5 of 5 runs (two issues each). The test does
+  detect the race it is meant for. On the code as built its pass is
+  structural: 16 writes in series, the first inserts and the other 15 find
+  that row. Reading the whole `project` table in the write is one small query
+  per import, made once (the target is kept for the run).
+- **Tests fail without the change.** Probe: with `makeTarget` put back to
+  `createProject` (the cleaned name kept), `secondImportReuses` failed with 4
+  issues and `keepsSourcePath` with 1, which confirms `status.md`. The other
+  four tests call the new functions directly. `comparison`,
+  `severalWithTheName` (explicit `createdAt`, the tie on `id`), `reuseNote`
+  and `differentNameCreates` have no timing or shared state. Each import test
+  has its own fake server, in-memory catalog and temporary folder. This is a
+  structural argument; the 20 clean runs alone would rule out only a flake
+  rate above about 1 in 7.
+- **First photo fails after the target is made.** `makeTarget` still runs
+  inside `finish` (the task Stop doesn't cancel, C1), after the duplicate
+  check. An import whose photos are all already in the library therefore
+  touches no project. When the first verified photo then fails (the move,
+  `outsideDestination`, `pathTaken`, a catalog error), `failed` returns the
+  target and the run keeps it. A **created** project stays empty, with an
+  `importRun` and no images. That was already so before O1 (third pass,
+  "`makeTarget` ordering"). Now the next import of that name reuses the empty
+  project instead of making a second one. A **reused** project is untouched
+  apart from one more `importRun` row with no images. `lastImportRun` skips
+  runs with no image, so Last Import still shows the previous import. When
+  `createImportRun` throws after `projectForImport` created the project, the
+  target stays nil. The next photo then calls `makeTarget` again and finds
+  that project instead of making another. That is better than before. DQ-12's
+  "an import that brings nothing touches none" is true except in that rare
+  failure, as it was before.
+- **Note against importer.** The importer gets `.named(browse.projectName)`
+  and `options.link.address = browse.address.normalized`
+  (`ServerSource.swift:389-394`). The note uses
+  `cleaned(browse.projectName, address: browse.address?.normalized ?? service.address)`.
+  The `??` side matters only when the address can't be parsed, and then
+  `startServerImport` returns at its guard, so nothing is imported. Both sides
+  compare with Swift `==` (case counts, canonical equivalence), and both
+  search every project row: `projectSummaries` has no `WHERE`, and the
+  importer fetches the whole table. Several projects with the name show the
+  note, and the oldest takes the photos. Add to set to a project hides the
+  field and the note, and the importer gets `.existing`. A stored name that
+  `cleaned` can never give (a double space or a `/` from a rename) matches on
+  neither side. The one gap is staleness: `library.projects` is a snapshot
+  that `refreshProjects` renews after imports, renames and removals. A project
+  made by another path in the moment before Import would make the note lag,
+  never the import. The design accepts "the library's list not loaded yet"
+  as hidden. A running import doesn't refresh the list, but its name is
+  already fixed in `options`.
+- **Observation.** `addsToExistingProject` reads `browse.projectName`,
+  `existingProjectID` (both observed) and `library.projects`. `LibraryModel`
+  is `@Observable`, so a read through the `@ObservationIgnored` weak
+  reference still registers. The note appears after the import that creates
+  the project, as `status.md`'s scripted run shows.
+- **Swift 6 concurrency.** No new `@unchecked Sendable` or
+  `nonisolated(unsafe)`. `projectForImport` returns a `Sendable` tuple from
+  the write. `addsToExistingProject` and `announceProjectNote` are on the
+  model's main actor and read only in-memory state: no catalog access on the
+  main actor. `projectForImport` runs in `finish`'s unstructured task, so a
+  Stop can't make GRDB throw `CancellationError` inside it.
+- **VoiceOver.** The visible label and the caption are both
+  `accessibilityHidden`. The field keeps "Project name" as its label
+  (`labelsHidden` hides it only visually). The sentence is the field's hint
+  while it shows, and the hint is empty otherwise. That is the same pattern as
+  `ServerSheet`'s result hints. The announcement fires only on a change of
+  the name: `setServerProjectName`, or `chooseAlbum`'s prefill when the field
+  wasn't edited. It fires only on a hidden-to-shown change, at medium
+  priority. Changing the server (`chooseServer`), opening the window, Add to
+  and a refreshed project list don't announce. Nothing reads the sentence
+  twice: the caption is hidden, and a changed hint is not spoken until focus
+  returns to the field.
+- **Strings.** One new key, its English text, with the designer's comment,
+  `en` and `translated`, read through `String(localized:comment:)`.
+  `Text(cond ? sentence : "")` is a `String`, so it is shown verbatim and
+  needs no key. "Project name" is an existing key. `LocalizationTests` and
+  `BrandingTests` pass. The debug script's `project` command only types into
+  the field. It changes no photo, so it needs no undo group.
+- **Undo, History, `importRun`.** Imports register no undo step and write no
+  edit history, and this diff changes neither. Each import is still its own
+  `importRun` (`secondImportReuses` checks two runs in one project), so Last
+  Import (`.importRun(lastImportRunID)`) shows only the newest import's
+  photos. `didFinishCopyImport` refreshes the projects and selects the reused
+  project, or reloads it when it is already selected. It never adds a row of
+  its own, so the sidebar can't list the project twice. A reused project keeps
+  its `sourcePath`, as `CopyImporter`'s `.existing` does.
+- **RAW+JPEG pairs and sidecars.** Pairing is by volume, project and folder
+  plus stem (`ImagePairing.pair`). With reuse, a RAW from an earlier server
+  import and a JPEG from a later one, in the same folder, now pair. Before
+  O1 they sat in two projects and didn't pair. This is the library's rule, the
+  same as a card import set to Add to. `mergeDefaultVersions` lets the RAW's
+  culling values win and combines keywords and albums. Then the C2 and C12
+  writes fill the server's rating and description only where the pair is
+  empty (`insertRemoteMaster`), so they can now reach a photo imported
+  earlier whose value is empty. A rating or caption the person set is never
+  replaced. Each `UPDATE` queues the owner's sidecar through the existing
+  triggers, and `SidecarSync` still refuses a sidecar another app changed.
+  QA may want one scripted case: import a RAW, then its JPEG in a second
+  import of the same scope.
+- **Scope.** Card and folder imports still call `createProject`
+  (`CopyImporter.swift:225`, `Importer.swift:256`). `RemoteImporter` has one
+  caller (`ServerSource.swift:395`). No migration, no pipeline bump, no
+  golden. Nothing touches the network, a parser or file writing, so
+  `/security-review` doesn't need to run again.
+- **Held for the owner, not findings:** C10, the Tailscale range and the
+  `Info.plist` text, as before.
+
+### Follow-up
+
+C21 is a nit and does not block QA or sign-off. If it is taken, record it here
+with its commit.
