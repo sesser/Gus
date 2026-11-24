@@ -208,7 +208,7 @@ struct RemoteCheckTests {
         let page = try await client.page(scope: RemoteScope(), cursor: nil, ownerID: FakeImmichServer.ownerID)
         _ = try await client.thumbnail(assetID: page.assets[0].id)
         try await RepositoryFiles.withTemporaryDirectory { folder in
-            _ = try await client.download(assetID: page.assets[0].id, to: folder.appending(path: "x.jpg")) { _ in }
+            _ = try await client.download(assetID: page.assets[0].id, to: folder.appending(path: "x.jpg"), limit: RemoteAsset.maximumSize) { _ in }
         }
         // Anything off the list fails before a byte is sent.
         let http = try RemoteHTTPSession(connection: client.connection)

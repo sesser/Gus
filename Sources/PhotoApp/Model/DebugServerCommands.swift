@@ -14,7 +14,7 @@ import PhotoUI
 ///                  | fault delete|corrupt|truncate|external <index> | fault unavailable <index> <times> | fault slow <ms>
 ///                  | fault permissions <a,b,…>
 ///     import server add <name> <address>|fake [<key>]   (Add Server… with the notice confirmed; waits for the check)
-///     import server sheet add|edit|close|print | field name|address|key <text> | confirm on|off | submit | trust | back
+///     import server sheet add|edit|close|print|remove | field name|address|key <text> | confirm on|off | submit | trust | back
 ///     import server list | select <name> (waits) | check | edit | remove [<name>] | confirm yes|no | print
 ///     import server keychain fail|ok   (the in-memory key store refuses, or works again)
 ///     import album <name>|all (waits) | import dates <yyyy-mm-dd|-> <yyyy-mm-dd|->|clear (waits)
@@ -231,6 +231,12 @@ enum DebugServerCommands {
             await waitForCheck(sheet)
         case "back":
             model.serverSheet?.back()
+        case "remove":
+            // Remove Server… in the sheet: the confirmation follows its closing.
+            model.serverSheet?.remove()
+            try? await Task.sleep(for: .milliseconds(800))
+            print("debug-script: import server sheet remove: sheet \(model.serverSheet == nil ? "closed" : "open") "
+                  + "asks \(model.removingServer?.name ?? "-")")
         case "print":
             printSheet(model)
         default:
@@ -265,6 +271,9 @@ enum DebugServerCommands {
             parts.append("result \(result.kind) '\(text.title)' under \(text.concernsAddress ? "address" : "key")")
         }
         parts.append("checking \(sheet.isChecking) default \(sheet.canSubmit ? "enabled" : "dimmed")")
+        // The sheet's size against its ideal (design §11, S2).
+        let size = model.window?.attachedSheet?.frame.size
+        parts.append("size \(size.map { "\(Int($0.width))x\(Int($0.height))" } ?? "-") ideal \(Int(sheet.idealHeight))")
         if case .certificate(let summary, let changed) = sheet.page {
             parts.append("page certificate \(changed ? "changed" : "new") subject '\(summary.subject)' "
                          + "fingerprint \(summary.fingerprint.displayLines.joined(separator: " / "))")

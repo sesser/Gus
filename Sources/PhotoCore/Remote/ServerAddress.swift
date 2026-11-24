@@ -133,14 +133,34 @@ public enum LocalNetwork {
         guard !host.isEmpty, host.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "." }) else {
             return false
         }
+        // A host that reads as a number ("134744072", "0x08080808", "08") is
+        // resolved by the system as an IPv4 address, or is no address at all:
+        // never a local name (code review C5).
+        if looksNumeric(host) { return false }
         return host == "localhost" || host.hasSuffix(".local") || !host.contains(".")
     }
 
+    /// The host as an IPv4 address in every form the system's resolver takes
+    /// (`inet_aton`): dotted quad, the short forms ("10.1"), and decimal,
+    /// octal ("012.0.0.1") or hexadecimal ("0x7f000001") parts.
     static func ipv4(_ text: String) -> [UInt8]? {
-        // inet_pton takes only the dotted-quad form, so "10.1" is not an address here.
+        guard looksNumeric(text) else { return nil }
         var address = in_addr()
-        guard text.withCString({ inet_pton(AF_INET, $0, &address) }) == 1 else { return nil }
+        guard text.withCString({ inet_aton($0, &address) }) == 1 else { return nil }
         return withUnsafeBytes(of: address.s_addr) { Array($0) }
+    }
+
+    /// Dot-separated parts that start with a digit and hold only digits, or
+    /// `0x` and hexadecimal digits: what `inet_aton` reads as a number.
+    static func looksNumeric(_ text: String) -> Bool {
+        let parts = text.split(separator: ".", omittingEmptySubsequences: false)
+        guard !parts.isEmpty, parts.count <= 4 else { return false }
+        return parts.allSatisfy { part in
+            guard let first = part.first, first.isASCII, first.isNumber else { return false }
+            let lower = part.lowercased()
+            if lower.hasPrefix("0x") { return lower.dropFirst(2).allSatisfy(\.isHexDigit) }
+            return part.allSatisfy { $0.isASCII && $0.isNumber }
+        }
     }
 
     static func ipv6(_ text: String) -> [UInt8]? {

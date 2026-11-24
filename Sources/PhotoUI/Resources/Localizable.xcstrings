@@ -353,13 +353,13 @@
         }
       }
     },
-    "%@: the server gave no size to check the download against, so it was discarded." : {
-      "comment" : "Server import report: an external-library photo with no size to verify (R13)",
+    "%@: the server did not say how large the file is, so the download could not be checked and was discarded." : {
+      "comment" : "Server import report: an external-library photo with no size to verify (R13; design §15 DQ-9)",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@: the server gave no size to check the download against, so it was discarded."
+            "value" : "%@: the server did not say how large the file is, so the download could not be checked and was discarded."
           }
         }
       }
@@ -424,6 +424,29 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld could not be imported."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld imported photos were checked by size only, not against the server's checksum, because they are in an Immich external library." : {
+      "comment" : "Server import report: photos verified by byte count only (R13, R19; design §15 DQ-8)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld imported photo was checked by size only, not against the server's checksum, because it is in an Immich external library."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld imported photos were checked by size only, not against the server's checksum, because they are in an Immich external library."
                 }
               }
             }
@@ -1639,29 +1662,6 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld were already in the library."
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "%lld were checked by size only (photos in an Immich external library)." : {
-      "comment" : "Server import report: photos verified by byte count only (R13, R19)",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld was checked by size only (a photo in an Immich external library)."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld were checked by size only (photos in an Immich external library)."
                 }
               }
             }
@@ -3919,6 +3919,17 @@
         }
       }
     },
+    "From date" : {
+      "comment" : "Date Range popover: VoiceOver name of the start date picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From date"
+          }
+        }
+      }
+    },
     "Green Filter" : {
       "comment" : "Adjust ▸ Black & White menu item; choose one filter alone",
       "localizations" : {
@@ -4418,6 +4429,29 @@
         }
       }
     },
+    "No photos were imported. %lld could not be imported." : {
+      "comment" : "Server import alert title: every photo tried failed (design review N4)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "No photos were imported. %lld could not be imported."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "No photos were imported. %lld could not be imported."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "No subject stands out in this photo. It selects nothing." : {
       "comment" : "Detection caption: Subject found nothing",
       "localizations" : {
@@ -4458,6 +4492,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No vignetting table was found in this file. Choose Manual to set the amount by hand."
+          }
+        }
+      }
+    },
+    "Not encrypted" : {
+      "comment" : "Import window subtitle: a plain http server, nothing listed yet",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not encrypted"
           }
         }
       }
@@ -5180,6 +5225,17 @@
         }
       }
     },
+    "The server's answer could not be read" : {
+      "comment" : "Activity: the reason when a server's answer was not what the app reads; it ends a sentence, so no period",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server's answer could not be read"
+          }
+        }
+      }
+    },
     "The server's certificate has changed" : {
       "comment" : "Server check: certificate changed",
       "localizations" : {
@@ -5352,6 +5408,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "To"
+          }
+        }
+      }
+    },
+    "To date" : {
+      "comment" : "Date Range popover: VoiceOver name of the end date picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To date"
           }
         }
       }

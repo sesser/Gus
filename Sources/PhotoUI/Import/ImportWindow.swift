@@ -64,7 +64,7 @@ public struct ImportWindow: View {
             } message: { alert in
                 Text(alert.message)
             }
-            .sheet(item: $model.serverSheet) { sheet in
+            .sheet(item: $model.serverSheet, onDismiss: { model.serverSheetDidDismiss() }) { sheet in
                 ServerSheet(sheet: sheet)
             }
             // Remove Server… (design §3.7): Remove is destructive and no button
@@ -103,7 +103,7 @@ public struct ImportWindow: View {
     private func serverSubtitle(_ browse: ServerBrowse) -> String {
         let suffix = browse.isUnencrypted ? ServerText.notEncryptedSuffix : ""
         if let done = model.doneText, !model.isImporting { return done + suffix }
-        guard !model.shots.isEmpty else { return browse.isUnencrypted ? String(suffix.dropFirst(3)) : "" }
+        guard !model.shots.isEmpty else { return browse.isUnencrypted ? ServerText.notEncrypted : "" }
         let line = ServerSubtitle.of(selected: model.selection.count, loaded: model.shots.count,
                                      marked: model.duplicateCount, hasMorePages: browse.hasMorePages, total: browse.total)
         return ServerText.subtitle(line) + suffix
@@ -623,7 +623,11 @@ private struct ServerSection: View {
 
     var body: some View {
         Section("Server") {
-            LabeledContent("Name") { Text(browse.service.name) }
+            LabeledContent("Name") {
+                Text(browse.service.name)
+                    .lineLimit(2)
+                    .help(browse.service.name)
+            }
             LabeledContent("Address") {
                 Text(browse.service.address)
                     .lineLimit(1)
@@ -745,8 +749,16 @@ private struct AlbumMenu: View {
                     .disabled(true)
             }
         } label: {
-            Label(browse.albumsLoaded ? browse.scopeName : ServerText.allPhotos, systemImage: "photo.on.rectangle")
-                .labelStyle(.titleAndIcon)
+            // Truncated in the middle, at most 180 pt (design §4.1, S6).
+            Label {
+                Text(browse.albumsLoaded ? browse.scopeName : ServerText.allPhotos)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: ServerToolbarMetrics.titleWidth)
+            } icon: {
+                Image(systemName: "photo.on.rectangle")
+            }
+            .labelStyle(.titleAndIcon)
         }
         .help("Album")
         .accessibilityLabel(Text("Album"))
@@ -765,8 +777,15 @@ private struct DateRangeButton: View {
             browse.showsDateRange = true
         } label: {
             if let range = browse.dates, !range.isEmpty {
-                Label(ServerText.dateRangeText(range), systemImage: "calendar")
-                    .labelStyle(.titleAndIcon)
+                Label {
+                    Text(ServerText.dateRangeText(range))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: ServerToolbarMetrics.titleWidth)
+                } icon: {
+                    Image(systemName: "calendar")
+                }
+                .labelStyle(.titleAndIcon)
             } else {
                 Label("Date Range", systemImage: "calendar")
             }
@@ -824,7 +843,7 @@ private struct DateRangePopover: View {
             Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 6) {
                 GridRow {
                     Toggle("From", isOn: $usesFrom).toggleStyle(.checkbox)
-                    DatePicker("From", selection: $from, displayedComponents: .date)
+                    DatePicker("From date", selection: $from, displayedComponents: .date)
                         .labelsHidden()
                         .datePickerStyle(.compact)
                         .environment(\.timeZone, TimeZone(secondsFromGMT: 0)!)
@@ -832,7 +851,7 @@ private struct DateRangePopover: View {
                 }
                 GridRow {
                     Toggle("To", isOn: $usesTo).toggleStyle(.checkbox)
-                    DatePicker("To", selection: $to, displayedComponents: .date)
+                    DatePicker("To date", selection: $to, displayedComponents: .date)
                         .labelsHidden()
                         .datePickerStyle(.compact)
                         .environment(\.timeZone, TimeZone(secondsFromGMT: 0)!)
@@ -860,4 +879,9 @@ private struct DateRangePopover: View {
         .padding(14)
         .frame(width: 280)
     }
+}
+
+/// The server toolbar items' title width (design §4.1, design review S6).
+enum ServerToolbarMetrics {
+    static let titleWidth: CGFloat = 180
 }

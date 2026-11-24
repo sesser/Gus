@@ -107,6 +107,11 @@ public final class FakeImmichServer: Sendable {
         case unavailable(String, times: Int)
         /// Originals are sent in pieces, with this pause between them.
         case slow(Duration)
+        /// The answer at `path` (without `/api`) is `bytes` long, whatever it
+        /// should be.
+        case huge(path: String, bytes: Int)
+        /// The asset's original has 1 KiB more than the listing says.
+        case oversize(String)
     }
 
     public static let ownerID = "11111111-1111-4111-8111-111111111111"
@@ -290,6 +295,9 @@ public final class FakeImmichServer: Sendable {
 
     private func answer(_ request: ParsedRequest, key: String?, state snapshot: State) -> Response {
         let path = request.path.hasPrefix("/api") ? String(request.path.dropFirst(4)) : request.path
+        for case .huge(let hugePath, let bytes) in snapshot.faults where hugePath == path {
+            return Response(status: 200, body: Data(repeating: 0x20, count: bytes))
+        }
         if path == "/server/version", request.method == "GET" {
             if snapshot.faults.contains(.notImmich) {
                 return Response(status: 200, contentType: "text/html", body: Data("<html>Hello</html>".utf8))
@@ -349,6 +357,7 @@ public final class FakeImmichServer: Sendable {
             if left > 0 { return .json(["message": "Unavailable"], status: 503) }
             var data = asset.data
             if snapshot.faults.contains(.corrupt(id)), !data.isEmpty { data[data.count / 2] ^= 0xFF }
+            if snapshot.faults.contains(.oversize(id)) { data.append(Data(repeating: 0, count: 1024)) }
             var response = Response(status: 200, contentType: "image/jpeg", body: data)
             if snapshot.faults.contains(.truncate(id)) {
                 response.headers["X-Truncate"] = "1"

@@ -159,7 +159,8 @@ extension CardImportModel {
     }
 
     /// The key from the store, a client, and the check (R2).
-    static func check(_ service: RemoteServiceRecord, keys: any RemoteKeyStore) async -> CheckOutcome {
+    /// Off the main actor: the Keychain may ask the person (code review C8).
+    nonisolated static func check(_ service: RemoteServiceRecord, keys: any RemoteKeyStore) async -> CheckOutcome {
         guard let address = service.serverAddress else { return .failed(.notImmich) }
         let key: String
         do throws(RemoteKeyStoreError) {
@@ -322,11 +323,15 @@ extension CardImportModel {
         }
     }
 
+    /// A plain reason for Activity, never a developer's name for the error
+    /// (code review C9).
     static func reason(_ error: RemoteError) -> String {
         switch error {
         case .unreachable(let reason), .disk(let reason): reason
         case .status(let code): HTTPURLResponse.localizedString(forStatusCode: code)
-        default: String(describing: error)
+        case .certificate: String(localized: "The server's certificate has changed", comment: "Server check: certificate changed")
+        case .malformed, .notAllowed, .transportRefused, .tooLarge, .cancelled:
+            String(localized: "The server's answer could not be read", comment: "Activity: a server's answer was not what the app reads; ends a sentence")
         }
     }
 
@@ -452,8 +457,22 @@ extension CardImportModel {
         await loadServers()
         serverSheet = nil
         chooseServer(service)
-        // The keyboard goes back to the grid (design §7).
-        ImportCollectionView.focus(in: window)
+        // The keyboard goes to the grid once it is in the window, after the
+        // first page lands (design §7, design review S4).
+        focusesGridWhenShown = true
+    }
+
+    /// The Server sheet went: a Remove Server… asked from it asks now (S3).
+    public func serverSheetDidDismiss() {
+        guard let service = removalAfterSheet else { return }
+        removalAfterSheet = nil
+        askToRemoveServer(service)
+    }
+
+    /// Stop and Quit: waits for the stopped import to remove its partial file
+    /// and finish the photo it was cataloging, or `timeout` (code review C7).
+    public func waitUntilDone(timeout: Duration) async {
+        await MainActorWait.whileTrue({ importTask != nil }, timeout: timeout)
     }
 }
 

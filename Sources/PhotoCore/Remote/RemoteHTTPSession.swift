@@ -21,6 +21,9 @@ public enum RemoteError: Error, Equatable, Sendable {
     case malformed
     /// The download could not be written here: the system's reason.
     case disk(String)
+    /// The answer was larger than it may be: a JSON answer or thumbnail over
+    /// its cap, or a download past its expected size (code review C4).
+    case tooLarge
     case cancelled
 
     /// Worth asking again (R20): the server may come back.
@@ -101,13 +104,13 @@ public final class RemoteHTTPSession: Sendable {
     public func data(_ endpoint: ImmichEndpoint) async throws(RemoteError) -> Data {
         let request = try makeRequest(method: endpoint.method, path: endpoint.path, query: endpoint.queryItems,
                                       body: endpoint.body, sendsKey: endpoint.sendsKey)
-        return try await perform(request)
+        return try await perform(request, limit: endpoint.maximumResponseSize)
     }
 
     /// Any method and path: refused unless the allowlist has it. Exists so
     /// tests can show that nothing outside the allowlist is ever sent (AC5).
     func send(method: String, path: String) async throws(RemoteError) -> Data {
-        try await perform(try makeRequest(method: method, path: path, query: [], body: nil, sendsKey: true))
+        try await perform(try makeRequest(method: method, path: path, query: [], body: nil, sendsKey: true), limit: 1 << 16)
     }
 
     func makeRequest(method: String, path: String, query: [URLQueryItem], body: Data?, sendsKey: Bool)
@@ -135,16 +138,44 @@ public final class RemoteHTTPSession: Sendable {
         return request
     }
 
-    private func perform(_ request: URLRequest) async throws(RemoteError) -> Data {
-        let data: Data
+    /// Sends `request` and reads at most `limit` bytes of a 2xx answer: a
+    /// longer one is refused as soon as its length is known, or when it passes
+    /// the limit, so no answer can grow without bound in memory.
+    private func perform(_ request: URLRequest, limit: Int) async throws(RemoteError) -> Data {
+        let bytes: URLSession.AsyncBytes
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            (bytes, response) = try await session.bytes(for: request)
         } catch {
             throw mapped(error)
         }
-        guard let http = response as? HTTPURLResponse else { throw .malformed }
-        guard (200..<300).contains(http.statusCode) else { throw .status(http.statusCode) }
+        guard let http = response as? HTTPURLResponse else {
+            bytes.task.cancel()
+            throw .malformed
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            bytes.task.cancel()
+            throw .status(http.statusCode)
+        }
+        guard response.expectedContentLength <= Int64(limit) else {
+            bytes.task.cancel()
+            throw .tooLarge
+        }
+        var data = Data()
+        data.reserveCapacity(max(0, min(Int(response.expectedContentLength), limit)))
+        do {
+            for try await byte in bytes {
+                guard data.count < limit else {
+                    bytes.task.cancel()
+                    throw RemoteError.tooLarge
+                }
+                data.append(byte)
+            }
+        } catch let error as RemoteError {
+            throw error
+        } catch {
+            throw mapped(error)
+        }
         return data
     }
 
@@ -177,7 +208,10 @@ public final class RemoteHTTPSession: Sendable {
 
     /// Streams `endpoint`'s body into `file` (created, never replaced),
     /// hashing as it goes. On any failure or cancellation the file is removed.
-    public func download(_ endpoint: ImmichEndpoint, to file: URL,
+    /// `limit`: the most bytes it may have (the size the server reported, or
+    /// `RemoteAsset.maximumSize`); a longer answer is stopped there and fails
+    /// with `tooLarge` (code review C4).
+    public func download(_ endpoint: ImmichEndpoint, to file: URL, limit: Int64 = RemoteAsset.maximumSize,
                          progress: @escaping @Sendable (Int64) -> Void = { _ in }) async throws(RemoteError) -> Download {
         let request = try makeRequest(method: endpoint.method, path: endpoint.path, query: endpoint.queryItems,
                                       body: endpoint.body, sendsKey: endpoint.sendsKey)
@@ -185,7 +219,7 @@ public final class RemoteHTTPSession: Sendable {
               let handle = try? FileHandle(forWritingTo: file) else {
             throw .disk(CocoaError(.fileWriteNoPermission).localizedDescription)
         }
-        let sink = DownloadSink(handle: handle, progress: progress)
+        let sink = DownloadSink(handle: handle, limit: limit, progress: progress)
         let task = session.dataTask(with: request)
         delegate.register(sink, for: task.taskIdentifier)
         let outcome: Result<Download, RemoteError> = await withTaskCancellationHandler {
@@ -217,14 +251,17 @@ final class DownloadSink: Sendable {
         var status = 0
         var expectedLength: Int64?
         var writeError: String?
+        var tooLarge = false
     }
 
     private let handle: FileHandle
+    private let limit: Int64
     private let progress: @Sendable (Int64) -> Void
     private let state = Mutex(State())
 
-    init(handle: FileHandle, progress: @escaping @Sendable (Int64) -> Void) {
+    init(handle: FileHandle, limit: Int64, progress: @escaping @Sendable (Int64) -> Void) {
         self.handle = handle
+        self.limit = limit
         self.progress = progress
     }
 
@@ -232,19 +269,30 @@ final class DownloadSink: Sendable {
         state.withLock { $0.continuation = continuation }
     }
 
-    func received(_ response: URLResponse) {
+    /// False to stop at once: a `Content-Length` past the limit.
+    func received(_ response: URLResponse) -> Bool {
         let http = response as? HTTPURLResponse
-        state.withLock { state in
+        return state.withLock { state in
             state.status = http?.statusCode ?? 0
             let length = response.expectedContentLength
             state.expectedLength = length >= 0 ? length : nil
+            if (200..<300).contains(state.status), length > limit {
+                state.tooLarge = true
+                return false
+            }
+            return true
         }
     }
 
-    /// False to stop the download (a status that is not 2xx, or the disk).
+    /// False to stop the download (a status that is not 2xx, the disk, or
+    /// bytes past the limit).
     func received(_ data: Data) -> Bool {
         let carryOn = state.withLock { state -> Bool in
-            guard (200..<300).contains(state.status), state.writeError == nil else { return false }
+            guard (200..<300).contains(state.status), state.writeError == nil, !state.tooLarge else { return false }
+            guard state.count + Int64(data.count) <= limit else {
+                state.tooLarge = true
+                return false
+            }
             do {
                 try handle.write(contentsOf: data)
             } catch {
@@ -264,7 +312,9 @@ final class DownloadSink: Sendable {
             let continuation = state.continuation
             state.continuation = nil
             let result: Result<RemoteHTTPSession.Download, RemoteError>
-            if let writeError = state.writeError {
+            if state.tooLarge {
+                result = .failure(.tooLarge)
+            } else if let writeError = state.writeError {
                 result = .failure(.disk(writeError))
             } else if state.status != 0, !(200..<300).contains(state.status) {
                 result = .failure(.status(state.status))
@@ -364,8 +414,8 @@ final class SessionDelegate: NSObject, URLSessionDataDelegate, Sendable {
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                     completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void) {
-        sink(dataTask)?.received(response)
-        completionHandler(.allow)
+        let carryOn = sink(dataTask)?.received(response) ?? true
+        completionHandler(carryOn ? .allow : .cancel)
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {

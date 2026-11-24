@@ -47,6 +47,20 @@ public enum ImmichEndpoint: Hashable, Sendable {
         }
     }
 
+    /// The most bytes an answer may have (code review C4). `/server/version`
+    /// is read before the address is known to be Immich, so it is the
+    /// smallest. Originals are downloads with their own limit.
+    public var maximumResponseSize: Int {
+        switch self {
+        case .serverVersion: 64 << 10
+        case .apiKeyMe, .userMe: 1 << 20
+        case .ownAlbums: 16 << 20
+        case .search: 32 << 20
+        case .thumbnail: 16 << 20
+        case .original: 64 << 10
+        }
+    }
+
     /// `/server/version` is public; everything else needs the key.
     public var sendsKey: Bool { self != .serverVersion }
 
@@ -233,7 +247,8 @@ extension ImmichDTO.Asset {
         metadata.pixelHeight = exifInfo?.exifImageHeight
         let rating = exifInfo?.rating.flatMap { (1...5).contains($0) ? $0 : nil }
         let description = exifInfo?.description?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return RemoteAsset(id: id, fileName: originalFileName, checksum: checksum, byteCount: exifInfo?.fileSizeInByte,
+        return RemoteAsset(id: id, fileName: originalFileName, checksum: checksum,
+                           byteCount: RemoteAsset.saneSize(exifInfo?.fileSizeInByte),
                            metadata: metadata, modifiedAt: ImmichDTO.date(fileModifiedAt) ?? created ?? Date(timeIntervalSince1970: 0),
                            isEdited: isEdited == true, hasLiveVideo: livePhotoVideoId != nil,
                            isExternalLibrary: libraryId?.isEmpty == false,

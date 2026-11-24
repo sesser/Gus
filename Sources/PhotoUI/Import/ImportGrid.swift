@@ -227,6 +227,11 @@ final class ImportGridController: NSObject, NSCollectionViewDataSource, NSCollec
 
     func windowDidChange(_ window: NSWindow?) {
         model.window = window
+        // After Add or Save: the new grid takes the keyboard (design §7, S4).
+        if let window, model.focusesGridWhenShown {
+            model.focusesGridWhenShown = false
+            DispatchQueue.main.async { [collectionView] in window.makeFirstResponder(collectionView) }
+        }
     }
 }
 
@@ -234,14 +239,6 @@ final class ImportGridController: NSObject, NSCollectionViewDataSource, NSCollec
 final class ImportCollectionView: NSCollectionView {
     weak var controller: ImportGridController?
 
-    /// Gives the keyboard to the import grid in `window`, if it shows one.
-    static func focus(in window: NSWindow?) {
-        guard let window, let content = window.contentView else { return }
-        func find(_ view: NSView) -> ImportCollectionView? {
-            (view as? ImportCollectionView) ?? view.subviews.lazy.compactMap(find).first
-        }
-        if let grid = find(content) { window.makeFirstResponder(grid) }
-    }
 
     override var acceptsFirstResponder: Bool { true }
 

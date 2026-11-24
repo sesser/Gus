@@ -95,6 +95,10 @@ public final class CardImportModel {
     /// A server import's alert: title and message (design §6.2, §6.3).
     public var serverAlert: ServerAlert?
     @ObservationIgnored var serverImportName = ""
+    /// Remove Server… pressed in the sheet: asked when the sheet is gone (S3).
+    @ObservationIgnored var removalAfterSheet: RemoteServiceRecord?
+    /// After Add or Save the grid takes the keyboard when it appears (S4).
+    @ObservationIgnored var focusesGridWhenShown = false
 
     /// A card, a folder or a server is chosen.
     public var hasSource: Bool { source != nil || browse != nil }

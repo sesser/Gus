@@ -28,7 +28,9 @@ public final class ServerSheetModel: Identifiable {
     public var address: String {
         didSet { if oldValue != address { addressEdited() } }
     }
-    @ObservationIgnored var key = ""
+    /// The key typed in the field, held here so it survives the page change
+    /// (design review S1). Memory only.
+    public private(set) var key = ""
     /// Whether a key was typed (the key itself is not observed).
     public private(set) var keyEntered = false
     public var unencryptedConfirmed = false
@@ -38,7 +40,7 @@ public final class ServerSheetModel: Identifiable {
     /// The person pressed Add or Save once: errors show from then on.
     public private(set) var submitted = false
     /// A certificate trusted on page 2, for this sheet's checks.
-    @ObservationIgnored private var trusted: (fingerprint: CertificateFingerprint, at: Date)?
+    private var trusted: (fingerprint: CertificateFingerprint, at: Date)?
     @ObservationIgnored private var checkTask: Task<Void, Never>?
 
     init(mode: Mode, model: CardImportModel, keys: any RemoteKeyStore) {
@@ -96,10 +98,13 @@ public final class ServerSheetModel: Identifiable {
             || unencryptedConfirmed != existing.allowsUnencrypted
     }
 
+    /// A certificate trusted on page 2 and not saved yet.
+    var trustedPending: Bool { trusted != nil }
+
     public var canSubmit: Bool {
         !isChecking && ServerFormRules.canSubmit(address: addressState, keyEntered: keyEntered,
                                                  unencryptedConfirmed: unencryptedConfirmed, nameTaken: nameTaken,
-                                                 isEdit: isEdit, changed: changed)
+                                                 isEdit: isEdit, changed: changed, trustedPending: trustedPending)
     }
 
     /// "Will connect to ‹address›": whenever it differs from what was typed,
@@ -118,7 +123,8 @@ public final class ServerSheetModel: Identifiable {
         submitted = true
         guard canSubmit, let address = parsedAddress, let model, let catalog = model.library?.catalog else { return }
         let name = effectiveName
-        if let existing, !ServerFormRules.needsCheck(isEdit: true, addressChanged: addressChanged, keyEntered: keyEntered) {
+        if let existing, !ServerFormRules.needsCheck(isEdit: true, addressChanged: addressChanged, keyEntered: keyEntered,
+                                                     trustedPending: trustedPending) {
             var record = existing
             record.name = name
             Task {
@@ -126,34 +132,34 @@ public final class ServerSheetModel: Identifiable {
             }
             return
         }
-        let key: String
-        if keyEntered {
-            key = self.key
-        } else if let existing {
-            do throws(RemoteKeyStoreError) {
-                guard let stored = try keys.key(account: existing.uuid) else {
-                    result = .keychain(RemoteKeyStoreError.from(errSecItemNotFound).message)
-                    return
-                }
-                key = stored
-            } catch {
-                result = .keychain(error.message)
-                return
-            }
-        } else {
-            return
-        }
+        guard keyEntered || existing != nil else { return }
         // A pin is for one address: a new address starts without one.
         let pin = trusted?.fingerprint ?? (addressChanged ? nil : existing?.pinnedFingerprint)
         let pinnedAt = trusted?.at ?? (addressChanged ? nil : existing?.certificateTrustedAt)
-        let connection = RemoteConnection(address: address, key: key, pinned: pin,
-                                          unencryptedConfirmed: unencryptedConfirmed)
+        let unencryptedConfirmed = self.unencryptedConfirmed
+        let existing = self.existing
         isChecking = true
         result = nil
         let keys = self.keys
         let enteredKey = keyEntered ? key : nil
         checkTask = Task {
             defer { isChecking = false }
+            // The Keychain is asked off the main thread: its access prompt
+            // must not block the window (code review C8).
+            let key: String
+            if let enteredKey {
+                key = enteredKey
+            } else {
+                let account = existing?.uuid ?? ""
+                switch await Task.detached(operation: { Self.storedKey(keys, account: account) }).value {
+                case .success(let stored): key = stored
+                case .failure(let error):
+                    result = .keychain(error.message)
+                    return
+                }
+            }
+            let connection = RemoteConnection(address: address, key: key, pinned: pin,
+                                              unencryptedConfirmed: unencryptedConfirmed)
             let outcome: ConnectionCheckResult
             do {
                 outcome = await (try ImmichClient(connection: connection)).check()
@@ -170,10 +176,17 @@ public final class ServerSheetModel: Identifiable {
                 record.certificateFingerprint = pin?.hex
                 record.certificateTrustedAt = pin == nil ? nil : pinnedAt
                 if let enteredKey {
-                    do throws(RemoteKeyStoreError) {
-                        try keys.setKey(enteredKey, account: record.uuid)
-                    } catch {
-                        result = .keychain(error.message)
+                    let account = record.uuid
+                    let stored = await Task.detached { () -> RemoteKeyStoreError? in
+                        do throws(RemoteKeyStoreError) {
+                            try keys.setKey(enteredKey, account: account)
+                            return nil
+                        } catch {
+                            return error
+                        }
+                    }.value
+                    if let stored {
+                        result = .keychain(stored.message)
                         return
                     }
                 }
@@ -182,7 +195,7 @@ public final class ServerSheetModel: Identifiable {
                     await model.serverSaved(saved)
                 } catch {
                     // The row and the key go together: a new server's key goes again.
-                    if self.existing == nil { try? keys.deleteKey(account: record.uuid) }
+                    if existing == nil { try? keys.deleteKey(account: record.uuid) }
                     result = .keychain(error.localizedDescription)
                 }
             case .untrustedCertificate(let summary):
@@ -190,6 +203,16 @@ public final class ServerSheetModel: Identifiable {
             default:
                 result = outcome
             }
+        }
+    }
+
+    /// The stored key, or the Keychain's refusal (a missing item included).
+    nonisolated static func storedKey(_ keys: any RemoteKeyStore, account: String) -> Result<String, RemoteKeyStoreError> {
+        do throws(RemoteKeyStoreError) {
+            guard let stored = try keys.key(account: account) else { return .failure(.from(errSecItemNotFound)) }
+            return .success(stored)
+        } catch {
+            return .failure(error)
         }
     }
 
@@ -224,11 +247,22 @@ public final class ServerSheetModel: Identifiable {
         page = .certificate(summary, changed: true)
     }
 
-    /// Remove Server… (Edit only): the window asks first.
+    /// Remove Server… (Edit only): the window asks first, once this sheet has
+    /// gone (design review S3: a dialog asked for while a sheet closes can be
+    /// dropped).
     public func remove() {
         guard let existing, let model else { return }
+        model.removalAfterSheet = existing
         model.serverSheet = nil
-        model.askToRemoveServer(existing)
+    }
+
+    /// The ideal height for the page shown (S2).
+    public var idealHeight: Double {
+        let notice = if case .unencryptedLocal = addressState { true } else { false }
+        let certificate: (shown: Bool, changed: Bool) = if case .certificate(_, let changed) = page { (true, changed) }
+            else { (false, false) }
+        return ServerSheetHeight.ideal(certificatePage: certificate.shown, changed: certificate.changed, notice: notice,
+                                       result: result != nil, windowHeight: model?.window.map { Double($0.frame.height) })
     }
 }
 
@@ -255,13 +289,13 @@ struct ServerSheet: View {
             }
         }
         .frame(width: ServerSheetMetrics.width)
+        .frame(minHeight: ServerSheetHeight.minimum, idealHeight: sheet.idealHeight)
         .presentationSizing(.fitted)
     }
 }
 
 private struct ServerFormPage: View {
     @Bindable var sheet: ServerSheetModel
-    @State private var key = ""
     @FocusState private var focus: Field?
 
     enum Field: Hashable { case name, address, key }
@@ -285,6 +319,7 @@ private struct ServerFormPage: View {
                     }
                     TextField("Server address", text: $sheet.address, prompt: Text("https://photos.example.com"))
                         .focused($focus, equals: .address)
+                        .accessibilityHint(Text(resultHint(concernsAddress: true)))
                     if let echo = sheet.echo {
                         SheetCaption(text: String(localized: "Will connect to \(echo)",
                                                   comment: "Server sheet: the normalized address"))
@@ -294,11 +329,12 @@ private struct ServerFormPage: View {
                         UnencryptedNotice(confirmed: $sheet.unencryptedConfirmed)
                     }
                     resultView(concernsAddress: true)
-                    SecureField(String(localized: "API key", comment: "Server sheet row label"), text: $key,
+                    SecureField(String(localized: "API key", comment: "Server sheet row label"),
+                                text: Binding(get: { sheet.key }, set: { sheet.setKey($0) }),
                                 prompt: Text(sheet.isEdit ? String(localized: "Leave empty to keep the current key")
                                                           : String(localized: "Paste the key here")))
                         .focused($focus, equals: .key)
-                        .onChange(of: key) { _, value in sheet.setKey(value) }
+                        .accessibilityHint(Text(resultHint(concernsAddress: false)))
                     SheetCaption(text: String(localized: "Create the key in Immich, in your account settings. It needs only these permissions: asset.read, asset.view, asset.download, album.read and user.read."))
                     SheetCaption(text: String(localized: "This Mac keeps its copy of the key in the Keychain."))
                     resultView(concernsAddress: false)
@@ -371,8 +407,17 @@ private struct ServerFormPage: View {
                     Button("Review Certificate…") { sheet.reviewCertificate() }
                 }
             }
-            .accessibilityElement(children: .combine)
+            // .contain, so Review Certificate… stays a control of its own (S5).
+            .accessibilityElement(children: .contain)
         }
+    }
+
+    /// The result under a field is also that field's hint (design §8, N1).
+    private func resultHint(concernsAddress: Bool) -> String {
+        guard let result = sheet.result,
+              let text = ServerText.result(result, host: sheet.parsedAddress?.host ?? "", name: sheet.effectiveName),
+              text.concernsAddress == concernsAddress else { return "" }
+        return text.title + ". " + text.detail
     }
 }
 

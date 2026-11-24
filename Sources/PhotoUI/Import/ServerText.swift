@@ -109,6 +109,11 @@ public enum ServerText {
         }
     }
 
+    /// The subtitle with no photos yet (design review N3).
+    public static var notEncrypted: String {
+        String(localized: "Not encrypted", comment: "Import window subtitle: a plain http server, nothing listed yet")
+    }
+
     public static var notEncryptedSuffix: String {
         String(localized: " · Not encrypted", comment: "Import window subtitle suffix: a plain http server")
     }
@@ -151,8 +156,8 @@ public enum ServerText {
         case .liveVideosLeftOut(let count):
             String(localized: "\(count) Live Photo videos were not downloaded.", comment: "Server import report")
         case .verifiedBySizeOnly(let count):
-            String(localized: "\(count) were checked by size only (photos in an Immich external library).",
-                   comment: "Server import report: photos verified by byte count only (R13)")
+            String(localized: "\(count) imported photos were checked by size only, not against the server's checksum, because they are in an Immich external library.",
+                   comment: "Server import report: photos verified by byte count only (R13; design §15 DQ-8)")
         case .couldNotImport(let count):
             String(localized: "\(count) could not be imported.", comment: "Server import report")
         case .failure(let failure):
@@ -172,8 +177,8 @@ public enum ServerText {
             return String(localized: "\(name): the download was incomplete and was discarded.",
                           comment: "Server import report: a failed photo")
         case .unverifiable:
-            return String(localized: "\(name): the server gave no size to check the download against, so it was discarded.",
-                          comment: "Server import report: an external-library photo with no size to verify")
+            return String(localized: "\(name): the server did not say how large the file is, so the download could not be checked and was discarded.",
+                          comment: "Server import report: an external-library photo with no size to verify (design §15 DQ-9)")
         case .deletedOnServer:
             return String(localized: "\(name): it was deleted on the server during the import.",
                           comment: "Server import report: a failed photo")
@@ -218,8 +223,12 @@ public enum ServerText {
                     String(localized: "\(done) photos were imported before the import stopped. Nothing more was downloaded. Choose Edit Server…, then Review Certificate…, to see the new one.",
                            comment: "Server import alert: certificate changed"))
         case .stopped?, nil:
-            return (String(localized: "Imported \(done) photos. \(result.failures.count) could not be imported.",
-                           comment: "Server import alert title: some photos failed"),
+            let title = done == 0
+                ? String(localized: "No photos were imported. \(result.failures.count) could not be imported.",
+                         comment: "Server import alert title: every photo tried failed (design review N4)")
+                : String(localized: "Imported \(done) photos. \(result.failures.count) could not be imported.",
+                         comment: "Server import alert title: some photos failed")
+            return (title,
                     String(localized: "The reasons are listed in Activity in the library window.",
                            comment: "Server import alert message"))
         }

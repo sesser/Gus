@@ -96,22 +96,47 @@ public struct ServerFormRules: Equatable, Sendable {
 
     /// Add: a valid address (confirmed when it is http), a key, a free name.
     /// Edit: the same, except an empty key keeps the stored one, and
-    /// something must have changed.
+    /// something must have changed; a certificate trusted on the certificate
+    /// page and not yet saved is a change (design review B1).
     public static func canSubmit(address: AddressState, keyEntered: Bool, unencryptedConfirmed: Bool, nameTaken: Bool,
-                                 isEdit: Bool, changed: Bool) -> Bool {
+                                 isEdit: Bool, changed: Bool, trustedPending: Bool = false) -> Bool {
         guard !nameTaken else { return false }
         switch address {
         case .encrypted: break
         case .unencryptedLocal: guard unencryptedConfirmed else { return false }
         default: return false
         }
-        return isEdit ? changed : keyEntered
+        return isEdit ? changed || trustedPending : keyEntered
     }
 
     /// Whether Save must check the server again: the address or the key
-    /// changed (a name-only edit saves without a check, design §3.3).
-    public static func needsCheck(isEdit: Bool, addressChanged: Bool, keyEntered: Bool) -> Bool {
-        !isEdit || addressChanged || keyEntered
+    /// changed, or a certificate was trusted and its pin is not saved yet (the
+    /// check confirms it, then saves it; B1). A name-only edit saves without
+    /// a check (design §3.3).
+    public static func needsCheck(isEdit: Bool, addressChanged: Bool, keyEntered: Bool, trustedPending: Bool = false) -> Bool {
+        !isEdit || addressChanged || keyEntered || trustedPending
+    }
+}
+
+/// The Server sheet's height (design §3.1, design review S2): about 380 pt
+/// for the form, 90 more with the unencrypted notice, 60 more with a result
+/// under a field; the certificate page its own; never taller than the window
+/// less 40 pt nor shorter than `minimum`. The form scrolls inside it when
+/// clamped.
+public enum ServerSheetHeight {
+    public static let minimum: Double = 300
+    public static let form: Double = 380
+    public static let notice: Double = 90
+    public static let result: Double = 60
+    public static let certificate: Double = 470
+    public static let changedCertificate: Double = 540
+
+    public static func ideal(certificatePage: Bool, changed: Bool, notice: Bool, result: Bool,
+                             windowHeight: Double?) -> Double {
+        let content = certificatePage ? (changed ? changedCertificate : certificate)
+            : form + (notice ? Self.notice : 0) + (result ? Self.result : 0)
+        guard let windowHeight, windowHeight > 0 else { return content }
+        return max(minimum, min(content, windowHeight - 40))
     }
 }
 

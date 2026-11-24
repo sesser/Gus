@@ -63,7 +63,9 @@ public protocol RemotePhotoSource: Sendable {
     func albums() async throws(RemoteError) -> [RemoteAlbum]
     func page(scope: RemoteScope, cursor: String?, ownerID: String) async throws(RemoteError) -> RemotePage
     func thumbnail(assetID: String) async throws(RemoteError) -> Data
-    func download(assetID: String, to file: URL, progress: @escaping @Sendable (Int64) -> Void)
+    /// `limit`: the most bytes the original may have (the size the server
+    /// reported, else `RemoteAsset.maximumSize`).
+    func download(assetID: String, to file: URL, limit: Int64, progress: @escaping @Sendable (Int64) -> Void)
         async throws(RemoteError) -> RemoteHTTPSession.Download
 }
 
@@ -103,7 +105,7 @@ public final class ImmichClient: RemotePhotoSource {
             case .unreachable(let reason): .unreachable(reason: reason, isLocalHost: isLocal)
             case .transportRefused, .notAllowed: .unreachable(reason: "", isLocalHost: isLocal)
             case .cancelled: .unreachable(reason: "", isLocalHost: isLocal)
-            case .status, .malformed: .notImmich
+            case .status, .malformed, .tooLarge: .notImmich
             case .disk(let reason): .unreachable(reason: reason, isLocalHost: isLocal)
             }
         }
@@ -174,8 +176,8 @@ public final class ImmichClient: RemotePhotoSource {
         try await http.data(.thumbnail(assetID: assetID))
     }
 
-    public func download(assetID: String, to file: URL, progress: @escaping @Sendable (Int64) -> Void)
+    public func download(assetID: String, to file: URL, limit: Int64, progress: @escaping @Sendable (Int64) -> Void)
         async throws(RemoteError) -> RemoteHTTPSession.Download {
-        try await http.download(.original(assetID: assetID), to: file, progress: progress)
+        try await http.download(.original(assetID: assetID), to: file, limit: limit, progress: progress)
     }
 }

@@ -47,9 +47,10 @@ public struct RemoteKeyStoreError: Error, Equatable, Sendable, CustomStringConve
 /// Generic password items in the login keychain, one per connection, under a
 /// service named from the running app's bundle identifier
 /// (`<bundle identifier>.servers`). A copy of the app with another
-/// identifier (a scripted test copy) has a service of its own, so it never
-/// reads the real app's keys; scripted launches use `InMemoryKeyStore`
-/// anyway (PRD, library launch guard).
+/// identifier has a service of its own, so it never reads the real app's
+/// keys; a launch with no bundle, or a scripted one, never uses the Keychain
+/// at all (`RemoteKeyStores.forLaunch`; code review C6). There is no
+/// fallback to the release identifier.
 ///
 /// The file-based keychain, not the data protection keychain: that one needs
 /// a keychain-access-groups entitlement, which an ad hoc signature can't
@@ -58,12 +59,12 @@ public struct RemoteKeyStoreError: Error, Equatable, Sendable, CustomStringConve
 public struct KeychainKeyStore: RemoteKeyStore {
     public let service: String
 
-    public init(bundleIdentifier: String? = Bundle.main.bundleIdentifier) {
+    public init(bundleIdentifier: String) {
         service = Self.service(bundleIdentifier: bundleIdentifier)
     }
 
-    public static func service(bundleIdentifier: String?) -> String {
-        (bundleIdentifier ?? AppBranding.bundleIdentifier) + ".servers"
+    public static func service(bundleIdentifier: String) -> String {
+        bundleIdentifier + ".servers"
     }
 
     private func query(_ account: String) -> [CFString: Any] {
@@ -142,5 +143,25 @@ public final class InMemoryKeyStore: RemoteKeyStore {
             guard !state.failing else { throw Self.refusal }
             state.keys[account] = nil
         }
+    }
+}
+
+/// Which key store a launch of the library app uses (R1; PRD, library launch
+/// guard; code review C6).
+public enum RemoteKeyStores {
+    /// Memory for a launch with no bundle (`swift run`), a scripted one
+    /// (`--debug-script`) or a benchmark (`--benchmark-scroll`); otherwise the
+    /// Keychain under the running bundle's own identifier, so a test copy with
+    /// another identifier has its own items and never the release app's.
+    public static func usesMemory(bundleIdentifier: String?, options: LaunchOptions) -> Bool {
+        bundleIdentifier == nil || options.debugScript != nil || options.benchmarkScroll
+    }
+
+    public static func forLaunch(bundleIdentifier: String? = Bundle.main.bundleIdentifier,
+                                 options: LaunchOptions = .current) -> any RemoteKeyStore {
+        guard let bundleIdentifier, !usesMemory(bundleIdentifier: bundleIdentifier, options: options) else {
+            return InMemoryKeyStore()
+        }
+        return KeychainKeyStore(bundleIdentifier: bundleIdentifier)
     }
 }

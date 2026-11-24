@@ -127,7 +127,7 @@ public final class RemoteImporter: Sendable {
         self.retry = retry
     }
 
-    private struct Target {
+    private struct Target: Sendable {
         var volume: VolumeRecord
         var volumeID: Int64
         var projectID: Int64
@@ -142,7 +142,12 @@ public final class RemoteImporter: Sendable {
                     progress report: @escaping @Sendable (CopyImportProgress) -> Void = { _ in }) async
         -> RemoteImportResult {
         var result = RemoteImportResult(nextCounter: options.firstCounter)
-        let tally = ProgressTally(total: assets.count, bytes: assets.map { $0.byteCount ?? 0 }.reduce(0, +), report: report)
+        // Sizes are the server's: checked (C3) and added without overflow.
+        let bytes = assets.reduce(Int64(0)) { total, asset in
+            let (sum, overflow) = total.addingReportingOverflow(RemoteAsset.saneSize(asset.byteCount) ?? 0)
+            return overflow ? Int64.max : sum
+        }
+        let tally = ProgressTally(total: assets.count, bytes: bytes, report: report)
         tally.publish()
         let importDate = Date()
         var target: Target?
@@ -164,14 +169,14 @@ public final class RemoteImporter: Sendable {
             tally.begin(asset.fileName)
             if linked.contains(asset.id) {
                 result.alreadyInLibrary += 1
-                tally.finishFile(skippedBytes: asset.byteCount ?? 0)
+                tally.finishFile(skippedBytes: RemoteAsset.saneSize(asset.byteCount) ?? 0)
                 continue
             }
             do {
                 try FileManager.default.createDirectory(at: options.destination, withIntermediateDirectories: true)
             } catch {
                 result.failures.append(RemoteImportFailure(name: asset.fileName, kind: .disk(error.localizedDescription)))
-                tally.finishFile(skippedBytes: asset.byteCount ?? 0)
+                tally.finishFile(skippedBytes: RemoteAsset.saneSize(asset.byteCount) ?? 0)
                 continue
             }
             let ext = (asset.fileName as NSString).pathExtension
@@ -182,7 +187,8 @@ public final class RemoteImporter: Sendable {
             var attempt = 0
             while download == nil {
                 do {
-                    download = try await source.download(assetID: asset.id, to: partial) { tally.add($0) }
+                    let limit = RemoteAsset.saneSize(asset.byteCount) ?? RemoteAsset.maximumSize
+                    download = try await source.download(assetID: asset.id, to: partial, limit: limit) { tally.add($0) }
                 } catch {
                     tally.resetFile()
                     if error == .cancelled || Task.isCancelled {
@@ -217,6 +223,9 @@ public final class RemoteImporter: Sendable {
                         break assets
                     case .disk(let reason):
                         result.failures.append(RemoteImportFailure(name: asset.fileName, kind: .disk(reason)))
+                    case .tooLarge:
+                        // More bytes than the server reported: stopped there.
+                        result.failures.append(RemoteImportFailure(name: asset.fileName, kind: .incomplete))
                     default:
                         result.stop = .unreachable
                         break assets
@@ -248,69 +257,34 @@ public final class RemoteImporter: Sendable {
                 tally.finishFile(skippedBytes: 0)
                 continue
             }
-            do {
-                // Content already in the library: not imported twice (R13), linked (R15b).
-                if try await catalog.linkRemoteDuplicate(contentHash: contentHash, remoteID: asset.id,
-                                                         fingerprint: asset.checksum, link: options.link,
-                                                         at: importDate) {
-                    try? FileManager.default.removeItem(at: partial)
-                    result.alreadyInLibrary += 1
-                    tally.finishFile(skippedBytes: 0)
-                    continue
-                }
-                if target == nil {
-                    target = try await makeTarget(options: options, importDate: importDate)
-                    result.project = try await catalog.projectSummaries(groupingPairs: false)
-                        .first { $0.id == target?.projectID }?.project
-                }
-                guard let target else { break }
-                var metadata = (try? await metadataReader.metadata(for: [partial]))?[partial] ?? .empty
-                let context = TemplateContext(
-                    captureDate: metadata.captureDate ?? asset.metadata.captureDate,
-                    captureOffsetSeconds: metadata.captureDate != nil ? metadata.captureOffsetSeconds
-                        : asset.metadata.captureOffsetSeconds,
-                    fileDate: asset.modifiedAt, importDate: importDate,
-                    make: metadata.cameraMake ?? asset.metadata.cameraMake,
-                    model: metadata.cameraModel ?? asset.metadata.cameraModel, serial: metadata.cameraSerial,
-                    lens: metadata.lensModel ?? asset.metadata.lensModel, originalName: asset.fileName,
-                    sequence: index + 1, counter: options.firstCounter + index, jobCode: options.jobCode)
-                let rendered = options.template.render(context)
-                let folder = rendered.folders.reduce(options.destination) { $0.appending(path: $1, directoryHint: .isDirectory) }
-                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                let final = try Self.freeName(rendered.fileName, in: folder)
-                try FileManager.default.setAttributes([.modificationDate: asset.modifiedAt], ofItemAtPath: partial.path)
-                try FileManager.default.moveItem(at: partial, to: final)
-                guard let relative = VolumeResolver.relativePath(of: final, inVolumeAt: target.volume.mountPath) else {
-                    try? FileManager.default.removeItem(at: final)
-                    throw CocoaError(.fileWriteInvalidFileName)
-                }
-                if let preset = options.metadata { CopyImporter.apply(preset, to: &metadata, context: context) }
-                let master = NewMaster(relativePath: relative, fileSize: download.byteCount, modifiedAt: asset.modifiedAt,
-                                       contentHash: contentHash, metadata: metadata)
-                let outcome = try await catalog.insertRemoteMaster(
-                    master, remoteID: asset.id, fingerprint: asset.checksum, link: options.link,
-                    serverDescription: asset.serverDescription, serverRating: asset.serverRating,
-                    volumeID: target.volumeID, projectID: target.projectID, importRunID: target.runID,
-                    importedAt: importDate)
-                switch outcome {
-                case .inserted(let imageID, let versionID):
-                    result.imported += 1
-                    result.insertedVersionIDs.append(versionID)
-                    if asset.hasLiveVideo { result.liveVideosLeftOut += 1 }
-                    if asset.isExternalLibrary { result.verifiedBySizeOnly += 1 }
-                    if options.metadata != nil { forcedSidecars.append(imageID) }
-                case .duplicate, .alreadyLinked:
-                    try? FileManager.default.removeItem(at: final)
-                    result.alreadyInLibrary += 1
-                case .pathTaken:
-                    try? FileManager.default.removeItem(at: final)
-                    result.failures.append(RemoteImportFailure(name: asset.fileName,
-                                                               kind: .disk(CocoaError(.fileWriteFileExists).localizedDescription)))
-                }
-            } catch {
+            // Verified: from here the photo is finished as one step that Stop
+            // does not interrupt, so a Stop never strands a moved file without
+            // its row, nor counts as a failure (code review C1). A Stop that
+            // came before this point leaves nothing.
+            if Task.isCancelled {
                 try? FileManager.default.removeItem(at: partial)
-                Self.log.error("Cataloging \(asset.fileName, privacy: .public) failed: \(String(describing: error), privacy: .public)")
-                result.failures.append(RemoteImportFailure(name: asset.fileName, kind: .disk(error.localizedDescription)))
+                result.stop = .stopped
+                break
+            }
+            let step = FinishStep(asset: asset, partial: partial, byteCount: download.byteCount, contentHash: contentHash,
+                                  sequence: index + 1, counter: options.firstCounter + index, target: target)
+            let finished = await Task { await self.finish(step, options: options, importDate: importDate) }.value
+            if let made = finished.target, target == nil {
+                target = made
+                result.project = try? await catalog.projectSummaries(groupingPairs: false)
+                    .first { $0.id == made.projectID }?.project
+            }
+            switch finished.outcome {
+            case .inserted(let imageID, let versionID):
+                result.imported += 1
+                result.insertedVersionIDs.append(versionID)
+                if asset.hasLiveVideo { result.liveVideosLeftOut += 1 }
+                if asset.isExternalLibrary { result.verifiedBySizeOnly += 1 }
+                if options.metadata != nil { forcedSidecars.append(imageID) }
+            case .alreadyInLibrary:
+                result.alreadyInLibrary += 1
+            case .failed(let kind):
+                result.failures.append(RemoteImportFailure(name: asset.fileName, kind: kind))
             }
             tally.finishFile(skippedBytes: 0)
         }
@@ -318,6 +292,90 @@ public final class RemoteImporter: Sendable {
             _ = try? await sidecars.writeSidecars(forImages: forcedSidecars, mountedVolumes: [target.volumeID])
         }
         return result
+    }
+
+    /// What one verified photo needs to be finished.
+    private struct FinishStep: Sendable {
+        var asset: RemoteAsset
+        var partial: URL
+        var byteCount: Int64
+        var contentHash: String
+        var sequence: Int
+        var counter: Int
+        var target: Target?
+    }
+
+    private enum FinishOutcome: Sendable {
+        case inserted(imageID: Int64, versionID: Int64)
+        case alreadyInLibrary
+        case failed(RemoteImportFailure.Kind)
+    }
+
+    /// Links a duplicate, or names, moves and catalogs the verified download.
+    /// Any failure removes what this step made: the partial file, or the
+    /// moved file when it has no row. Run outside the import's task, so Stop
+    /// can't cut it in half (C1).
+    private func finish(_ step: FinishStep, options: RemoteImportOptions, importDate: Date)
+        async -> (outcome: FinishOutcome, target: Target?) {
+        let asset = step.asset
+        var target = step.target
+        var moved: URL?
+        func failed(_ error: any Error) -> (outcome: FinishOutcome, target: Target?) {
+            try? FileManager.default.removeItem(at: step.partial)
+            if let moved { try? FileManager.default.removeItem(at: moved) }
+            Self.log.error("Cataloging \(asset.fileName, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            return (.failed(.disk(error.localizedDescription)), target)
+        }
+        do {
+            // Content already in the library: not imported twice (R13), linked (R15b).
+            if try await catalog.linkRemoteDuplicate(contentHash: step.contentHash, remoteID: asset.id,
+                                                     fingerprint: asset.checksum, link: options.link, at: importDate) {
+                try? FileManager.default.removeItem(at: step.partial)
+                return (.alreadyInLibrary, target)
+            }
+            if target == nil { target = try await makeTarget(options: options, importDate: importDate) }
+            guard let target else { throw CocoaError(.fileNoSuchFile) }
+            var metadata = (try? await metadataReader.metadata(for: [step.partial]))?[step.partial] ?? .empty
+            let context = TemplateContext(
+                captureDate: metadata.captureDate ?? asset.metadata.captureDate,
+                captureOffsetSeconds: metadata.captureDate != nil ? metadata.captureOffsetSeconds
+                    : asset.metadata.captureOffsetSeconds,
+                fileDate: asset.modifiedAt, importDate: importDate,
+                make: metadata.cameraMake ?? asset.metadata.cameraMake,
+                model: metadata.cameraModel ?? asset.metadata.cameraModel, serial: metadata.cameraSerial,
+                lens: metadata.lensModel ?? asset.metadata.lensModel, originalName: asset.fileName,
+                sequence: step.sequence, counter: step.counter, jobCode: options.jobCode)
+            let rendered = options.template.render(context)
+            let folder = rendered.folders.reduce(options.destination) { $0.appending(path: $1, directoryHint: .isDirectory) }
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let final = try Self.freeName(rendered.fileName, in: folder)
+            try FileManager.default.setAttributes([.modificationDate: asset.modifiedAt], ofItemAtPath: step.partial.path)
+            try FileManager.default.moveItem(at: step.partial, to: final)
+            moved = final
+            guard let relative = VolumeResolver.relativePath(of: final, inVolumeAt: target.volume.mountPath) else {
+                throw CocoaError(.fileWriteInvalidFileName)
+            }
+            if let preset = options.metadata { CopyImporter.apply(preset, to: &metadata, context: context) }
+            let master = NewMaster(relativePath: relative, fileSize: step.byteCount, modifiedAt: asset.modifiedAt,
+                                   contentHash: step.contentHash, metadata: metadata)
+            let outcome = try await catalog.insertRemoteMaster(
+                master, remoteID: asset.id, fingerprint: asset.checksum, link: options.link,
+                serverDescription: asset.serverDescription, serverRating: asset.serverRating,
+                volumeID: target.volumeID, projectID: target.projectID, importRunID: target.runID,
+                importedAt: importDate)
+            switch outcome {
+            case .inserted(let imageID, let versionID):
+                return (.inserted(imageID: imageID, versionID: versionID), target)
+            case .duplicate, .alreadyLinked:
+                try? FileManager.default.removeItem(at: final)
+                return (.alreadyInLibrary, target)
+            case .pathTaken:
+                try? FileManager.default.removeItem(at: final)
+                return (.failed(.disk(CocoaError(.fileWriteFileExists).localizedDescription)), target)
+            }
+        } catch {
+            return failed(error)
+        }
     }
 
     /// The destination's volume, the project and the import run; made when
@@ -347,7 +405,7 @@ public final class RemoteImporter: Sendable {
     /// SHA-1. An external library's photo: the size only, which must be
     /// known; its checksum may be of its path and is never compared (RI-E2).
     static func verify(_ download: RemoteHTTPSession.Download, partial: URL, asset: RemoteAsset) -> RemoteImportFailure.Kind? {
-        let expected = asset.byteCount ?? download.expectedLength
+        let expected = RemoteAsset.saneSize(asset.byteCount) ?? download.expectedLength
         if asset.isExternalLibrary {
             guard let expected else { return .unverifiable }
             return download.byteCount == expected ? nil : .incomplete

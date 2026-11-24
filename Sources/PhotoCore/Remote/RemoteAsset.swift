@@ -41,6 +41,17 @@ public struct RemoteAsset: Hashable, Sendable, Identifiable {
         self.serverRating = serverRating
     }
 
+    /// The largest original a server may report or send: 64 GiB. A size
+    /// outside 0...this is not believed (code review C3, C4).
+    public static let maximumSize: Int64 = 64 << 30
+
+    /// A size the server reported, if it is one: nil when negative or larger
+    /// than `maximumSize`.
+    public static func saneSize(_ size: Int64?) -> Int64? {
+        guard let size, size >= 0, size <= maximumSize else { return nil }
+        return size
+    }
+
     /// The URL that stands for the asset in the import grid, whose shots are
     /// keyed by URL. Never fetched: the scheme is the app's own, and the
     /// importer finds the asset by its id.

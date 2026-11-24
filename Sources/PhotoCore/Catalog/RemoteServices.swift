@@ -194,14 +194,27 @@ extension Catalog {
             }
             try Self.insertLink(db, remoteID: remoteID, fingerprint: fingerprint, link: link, versionID: versionID,
                                 at: importedAt)
+            // The photo may have just been paired: the values reach its
+            // partner too, as every write on a pair does (CLAUDE.md, RAW+JPEG
+            // pairs; code review C2), and only where the pair's own value is
+            // empty. Pairing merged the two ratings, so one empty rating means
+            // both are.
             if let description = serverDescription?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
+                let images = try Self.descriptiveImages(db, versions: [versionID])
                 try db.execute(sql: """
-                    UPDATE image SET caption = ? WHERE id = ? AND (caption IS NULL OR trim(caption) = '')
-                    """, arguments: [description, imageID])
+                    UPDATE image SET caption = ?
+                    WHERE id IN (\(databaseQuestionMarks(count: images.count))) AND (caption IS NULL OR trim(caption) = '')
+                    """, arguments: StatementArguments([description as (any DatabaseValueConvertible)?] + images))
             }
             if let rating = serverRating, Rating.range.contains(rating), rating > 0 {
-                try db.execute(sql: "UPDATE version SET rating = ? WHERE id = ? AND rating = 0",
-                               arguments: [rating, versionID])
+                let versions = [versionID] + (try ImagePairing.partnerVersionIDs(db, of: [versionID]))
+                let unrated = try Int.fetchOne(db, sql: """
+                    SELECT COUNT(*) FROM version WHERE id IN (\(databaseQuestionMarks(count: versions.count))) AND rating != 0
+                    """, arguments: StatementArguments(versions)) == 0
+                if unrated {
+                    try db.execute(sql: "UPDATE version SET rating = ? WHERE id IN (\(databaseQuestionMarks(count: versions.count)))",
+                                   arguments: StatementArguments([rating] + versions))
+                }
             }
             return .inserted(imageID: imageID, versionID: versionID)
         }
