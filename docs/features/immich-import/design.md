@@ -1,9 +1,10 @@
 # Import from Immich: design
 
 Owner: apple-ui-designer. Date: 2026-11-23.
-Issue: #271. Status: complete. Four design questions for the owner (§14.2,
-each with a default the engineer can build now) and six notes for the product
-manager (§14.1); none blocks the engineer.
+Issue: #271. Status: complete. Four design questions for the owner (§14.2),
+all answered 2026-11-23 ("Accept defaults"; rulings DQ-1 to DQ-4 in §14.3), and
+six notes for the product manager (§14.1), whose PRD revision is pending; none
+blocks the engineer.
 
 **Inputs.**
 
@@ -48,13 +49,14 @@ the person has to compare it with another screen.
 | D4 | Security prompts have **no default button** and nothing pre-checked; Return does nothing on them, Esc cancels. Wording states the fact and the consequence and never says "continue", "allow" or "proceed" | §3.5, §3.6 |
 | D5 | Key rejected, missing permission, too old, unreachable, not Immich, certificate changed, Keychain failure are **seven named results**, each shown under the field it concerns | §3.4 |
 | D6 | Scope is a **toolbar pop-up named Album** (All Photos first, then albums by name with the server's count); the date range is a second toolbar item that opens a popover (R10b) | §4.2, §4.3 |
-| D7 | A server source starts with **nothing checked**. Select All takes the photos loaded so far that are not marked | §4.6, §14.2 |
+| D7 | A server source starts with **nothing checked**. Select All takes the photos loaded so far that are not marked (owner rulings DQ-2 and DQ-3, 2026-11-23) | §4.6, §14.3 |
 | D8 | Marked photos (**In Library**) stay **visible** in a server grid; Show Videos and Show Photos Already in Library do not apply and are left out of the Selection pull-down | §4.5 |
 | D9 | **Edited** badge on the image, top-trailing; full phrase in the tooltip and to VoiceOver | §4.5 |
 | D10 | Paging: the next page loads when the visible area comes within one screen of the last loaded photo; appending never scrolls, flashes or refetches thumbnails already shown | §4.4 |
 | D11 | The inspector gets a first section, **Server** (name, address, version, how the connection is protected, Edit Server…); **After Import** is absent (nothing is ever deleted on a server); the project name is a plain text field prefilled from Q6 | §5 |
 | D12 | Outcomes: a deliberate Stop and a clean finish give **no alert** (subtitle and Activity row); a failure or an error stop gives one alert with a title and a message, and the Activity row carries the per-photo reasons | §6 |
 | D13 | The standalone importer shows **none** of this | §9 |
+| D14 | **Owner rulings of 2026-11-23** ("Accept defaults"): DQ-1 File ▸ Import from Card or Folder… is not renamed in this branch; DQ-2 Select All on a partly loaded album takes what is loaded; DQ-3 a server source starts with nothing checked; DQ-4 the Album control is a pop-up menu | §14.3 |
 
 ## 2. Where Immich appears (Q11)
 
@@ -122,8 +124,9 @@ the standalone importer. In the library app it becomes:
 | none | `ContentUnavailableView`: label **Insert a Card, Choose a Folder or Add a Server** (symbol `sdcard`), actions **Choose Folder…** and **Add Server…** |
 | one or more | the same label with **Insert a Card, Choose a Folder or Open a Server**, actions **Choose Folder…** and a `Menu` button **Open Server** listing the servers (and **Add Server…** at its end) |
 
-This is the discoverability answer to the File menu's current name (§14.2,
-DQ-1): whatever that item is called, an empty Import window says servers exist.
+This is the discoverability answer to the File menu's current name (§14.3,
+DQ-1, which keeps the name in this branch): an empty Import window says servers
+exist whatever that item is called.
 
 ### 2.5 What the Source pop-up and window do not carry
 
@@ -424,9 +427,10 @@ title = the chosen scope: **All Photos** or the album's name.
   in preferences goes stale; two clicks reach it). A candidate follow-up.
 - **Scale.** A pop-up menu does not suit hundreds of albums, though it scrolls
   and the first letters typed jump to a name. Judgment: it is right for a
-  homelab's tens of albums. §14.2 DQ-4 asks the owner how many he has; if it is
-  in the hundreds the chooser becomes a toolbar button that opens a popover with
-  a search field and a list, and nothing else in this design changes.
+  homelab's tens of albums. Owner ruling DQ-4 (§14.3, 2026-11-23): the pop-up
+  menu stands; he gave no album count. If it proves too many (more than about
+  sixty), the chooser becomes a toolbar button that opens a popover with a
+  search field and a list, a later change local to this control.
 - An album that is gone when chosen (the server answers not found) shows the
   state of §4.7 with **Show All Photos**.
 
@@ -543,15 +547,14 @@ a card tile does.
   would make Return import 250 photos the person never looked at.
   Selecting is one step (⌘A) and the Import button shows the count
   (**Import 0 Photos**, dimmed, until something is checked). This departs from
-  card import; §14.1 RI-1 and §14.2 DQ-3 record it and the PRD's repeat
+  card import; §14.1 RI-1 and the owner's ruling DQ-3 (§14.3) record it and the PRD's repeat
   scenario ("only new ones import") is met by Select All, which skips marked
   photos.
 - **Select All takes the photos loaded so far that are not marked** (R11,
   AC7). With pages left it is not "all of the album", and the window says so:
   the subtitle reads **250 selected · 250 of 3,412 loaded** and the Import button
-  reads **Import 250 Photos**, so what Return will do is on screen. §14.2 DQ-2
-  asks whether the owner would rather have Select All fetch the rest first
-  (default: no). Select All stays available while a page is loading and takes
+  reads **Import 250 Photos**, so what Return will do is on screen. Owner ruling
+  DQ-2 (§14.3, 2026-11-23): Select All does not fetch the rest first. Select All stays available while a page is loading and takes
   what is loaded at that instant.
 - Click, ⇧-click (range over loaded photos), Space, **Deselect All** (⇧⌘A) and
   the check boxes work as in a card import. The selection survives paging and
@@ -768,7 +771,8 @@ are unchanged (§9).
   as for cards and folders today; there is no File menu list of sources. This is
   the one exception to "every command in a menu" and it is the existing one
   (judgment: a selection among live, changing items, not a command).
-- **File ▸ Import…** in the library window is discussed in §14.2, DQ-1.
+- **File ▸ Import from Card or Folder…** in the library window keeps its name in
+  this branch (§14.3, DQ-1).
 - **In the library window's own menus nothing changes.** Server items appear
   only while the Import window is key.
 
@@ -1008,7 +1012,8 @@ product manager's and owner's call, not designed here.
     (PRD P1).
   - **M4** An album of a few hundred photos: thumbnails arriving, no hitch, the
     scroll position kept when pages append, Album and Date Range menus with the
-    real album list (PRD P2); this also answers DQ-4.
+    real album list (PRD P2); this shows whether DQ-4's pop-up menu is enough
+    (a later change if not).
   - **M5** The toolbar at the 900 pt window minimum: overflow, truncation,
     Import and Stop still reachable.
   - **M6** Pulling the network cable and revoking the key mid-import: the
@@ -1053,7 +1058,15 @@ product manager's and owner's call, not designed here.
    probably is wanted; the PRD is silent. Also the PRD's Info.plist list lacks
    `NSLocalNetworkUsageDescription` (§10). The design assumes both are fine.
 
-### 14.2 For the owner (each has a default; build the default until answered)
+**Status of §14.1 (2026-11-23):** the PRD revision for RI-1 to RI-6 is pending
+with the product manager. The notes above are unchanged; none has a ruling yet.
+(RI-1's "or ask the owner to flip DQ-3" is answered: the owner kept
+DQ-3's default, §14.3.)
+
+### 14.2 For the owner (answered 2026-11-23: each default stands; the rulings are in §14.3)
+
+The questions as asked, kept for the reasoning. Each "Default" below is now the
+ruling.
 
 1. **DQ-1. The name of File ▸ Import from Card or Folder…** (⌘I, also the toolbar
    item, the sidebar's menu and the library's empty state). With a server as a
@@ -1076,6 +1089,40 @@ product manager's and owner's call, not designed here.
    (§4.2). If it is more than about sixty, a searchable popover is better; the
    change is local to the Album control.
 
+### 14.3 Owner rulings on §14.2
+
+The owner answered all four on 2026-11-23 with "Accept defaults". The engineer
+builds each as stated; cite them by number.
+
+### DQ-1. File ▸ Import from Card or Folder… is not renamed in this branch
+
+Ruled by the owner, 2026-11-23: accept the default. The item (⌘I, the toolbar
+item, the sidebar's menu, the library's empty state) and the user guide keep
+their current names and sentences. No string changes for it. The Import window's
+own empty state already says servers exist (§2.4). A rename to "Import…" is a
+separate change if the owner wants it later.
+
+### DQ-2. Select All on a partly loaded album takes what is loaded
+
+Ruled by the owner, 2026-11-23: accept the default. Select All checks the
+unmarked photos loaded at that instant and does not fetch remaining pages; the
+subtitle and the Import button say how many are selected and how many are loaded
+(§4.6). No "Loading all photos…" state.
+
+### DQ-3. A server source starts with nothing checked
+
+Ruled by the owner, 2026-11-23: accept the default. Import is **Import 0
+Photos** and dimmed until something is checked; the card's all-checked start does
+not apply to a server (§4.6). RI-1 (§14.1) asks the product manager to word R11
+and AC7 to match.
+
+### DQ-4. The Album control is a pop-up menu
+
+Ruled by the owner, 2026-11-23: accept the default. The owner did not give his
+album count. The searchable popover (§4.2) stays a later, local change if the
+list proves too long (more than about sixty); M4 (§13) looks at it on a real
+album list.
+
 **Assumptions** (the design needs no answer): Q2's second half (a link to create
 the key) is **text only**, since the owner took the defaults and the PRD named no
 link as the default; the Server sheet has no Type pop-up in v1; no sandbox
@@ -1084,4 +1131,5 @@ link as the default; the Server sheet has no Type pop-up in v1; no sandbox
 ## 15. Design questions from implementation
 
 None yet. The engineer returns each as a **Design question**; each ruling is
-recorded here as `### DQ-‹n›` and cited by number.
+recorded here as `### DQ-‹n›` and cited by number. DQ-1 to DQ-4 are taken by the
+owner's rulings in §14.3, so the first question from implementation is **DQ-5**.
