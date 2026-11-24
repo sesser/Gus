@@ -4429,6 +4429,17 @@
         }
       }
     },
+    "No photos were imported" : {
+      "comment" : "Import window subtitle after a server import that imported nothing (QA Q4)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No photos were imported"
+          }
+        }
+      }
+    },
     "No photos were imported." : {
       "comment" : "Server import report: first line",
       "localizations" : {

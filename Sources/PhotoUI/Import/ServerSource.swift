@@ -396,6 +396,9 @@ extension CardImportModel {
             serverAlert = ServerAlert(title: alert.title, message: alert.message)
         } else if result.stop == .stopped {
             doneText = String(localized: "Stopped after \(result.imported) photos", comment: "Import window subtitle after Stop")
+        } else if result.imported == 0 {
+            // As Activity says it (QA Q4).
+            doneText = String(localized: "No photos were imported", comment: "Import window subtitle after a server import that imported nothing")
         } else {
             doneText = String(localized: "Imported \(result.imported) photos", comment: "Import window subtitle after a server import")
         }

@@ -381,7 +381,7 @@ public final class CardImportModel {
     public var canDeselectAll: Bool { !isCopying && !selection.isEmpty }
 
     func selectAll() {
-        selection = Set(shots.filter { !$0.isDuplicate }.map(\.id))
+        selection = ImportSelection.all(of: shots)
         doneText = nil
     }
 

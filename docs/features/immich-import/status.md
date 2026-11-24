@@ -473,6 +473,22 @@ on Return.
 
 Third pass (2026-11-23): C19 `streamingCaps` now calls `download(assetID:to:limit:)` against the chunked fake and expects `tooLarge`, at most the limit written and no file; with the streaming limit check removed it fails (checked); N-7 the certificate page footer says "…for “‹name›” at this address." (one string and its key). 1512 tests pass; CI toolchain build and `Scripts/build-app.sh` pass.
 
+## QA findings (2026-11-23)
+
+[qa.md](qa.md): 17 of 17 criteria pass. Findings Q1 to Q4:
+
+| Finding | Fix | Test or check |
+|---|---|---|
+| Q1 the debug script's `quit` hangs with the Server sheet up | `quit` also closes the import window's Server sheet, removal dialog, alert and Date Range popover | Scripted: `import open; wait 2; import server sheet add; quit` exits in 8 s |
+| Q1, the real ⌘Q | Read and checked, not changed. `applicationShouldTerminate` returns `.terminateNow` when no job runs, but AppKit does not terminate while a window has a sheet attached: `NSApp.terminate` with the Server sheet up returns and the app stays (a scripted `import terminate` timed out at 25 s), **and so does it with the library window's Copy Adjustments sheet up** (same test; without a sheet it quits in 4 s). The debug script's `quit` already closed the library's sheets for this reason. So a ⌘Q with any sheet open is ignored until the sheet is dismissed, app-wide and before this branch; the Server sheet behaves as the other sheets do, and the certificate page is part of that sheet. Not a regression of #271; P8 stays for a person. A follow-up if the owner wants ⌘Q to close sheets (proposed in the report) | Scripted controls above |
+| Q2 Select All has no Swift test | The rule is `ImportSelection.all(of:)` in PhotoCore; `selectAll()` calls it | `RemoteReviewFixTests.selectAllRule` (loaded only, marked left out) |
+| Q2 `importerHasNoServers` depends on white space | Compares with white space collapsed; each check says what it requires | `RemoteBoundaryTests.importerHasNoServers` |
+| Q2 AC12 favorite, tags, albums | The fake lists favorites and tags; an asset that is a favorite, tagged and in an album imports with flag none, no keywords and no album | `favoritesTagsAlbumsIgnored` |
+| Q3 Review Certificate page not scriptable | `import server sheet review [<seed>]` opens the Edit sheet's changed-certificate page with a made-up certificate (the fake has no TLS); `server list` prints the pin | Scripted B1 end to end: edit, review "first", trust (nothing else edited) → pinned A7:93:…:A0:8E; again with "second" → pinned 16:36:…:C7:C4 |
+| Q4 "Imported 0 photos" in the window | The window says "No photos were imported" when nothing was imported, as Activity does | Scripted: a second server with the same three photos → done "No photos were imported", Activity "No photos were imported." |
+
+1514 tests pass; CI toolchain build and `Scripts/build-app.sh` pass.
+
 ## Known limits
 
 - The check runs in the sheet and again when the saved server becomes the

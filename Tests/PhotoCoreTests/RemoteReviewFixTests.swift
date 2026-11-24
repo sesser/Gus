@@ -358,4 +358,41 @@ struct RemoteReviewFixTests {
         existing.address = "https://moved.lan"
         #expect(ServerFormRules.pin(trusted: nil, address: "https://photos.lan", existing: existing) == nil)
     }
+
+    // MARK: QA
+
+    @Test("Select All takes the loaded photos that are not marked, and nothing else (R11, AC7; QA Q2)")
+    func selectAllRule() {
+        let assets = (1...5).map { index in
+            RemoteAsset(id: "id-\(index)", fileName: "IMG_\(index).JPG", checksum: "x", byteCount: 1,
+                        metadata: ImageMetadata(), modifiedAt: Date())
+        }
+        // Three loaded so far, the second already in the library.
+        let loaded = assets.prefix(3).enumerated().map { index, asset in asset.shot(linked: index == 1) }
+        let selected = ImportSelection.all(of: loaded)
+        #expect(selected == [assets[0].gridURL, assets[2].gridURL])
+        #expect(!selected.contains(assets[3].gridURL) && !selected.contains(assets[4].gridURL))
+        #expect(ImportSelection.all(of: []).isEmpty)
+    }
+
+    @Test("A favorite, tags and album membership on the server change nothing in the library (R17, AC12; QA Q2)")
+    func favoritesTagsAlbumsIgnored() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let album = FakeImmichServer.Album(name: "Trip", assetCount: 1)
+            var assets = try FakeImmichServer.jpegAssets(count: 1, albumIDs: [album.id])
+            assets[0].isFavorite = true
+            assets[0].tags = ["Beach", "Family"]
+            let setup = try await RemoteImportTests.setup(assets: assets)
+            setup.server.setAlbums([album])
+            let result = await RemoteImportTests.importer(setup).run(try await RemoteImportTests.listed(setup),
+                                                                     options: RemoteImportTests.options(root, setup))
+            #expect(result.imported == 1)
+            let counts = try await setup.catalog.database.read { db in
+                (flag: try Int.fetchOne(db, sql: "SELECT flag FROM version") ?? -9,
+                 keywords: try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM versionKeyword") ?? -1,
+                 albums: try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM album") ?? -1)
+            }
+            #expect(counts.flag == 0 && counts.keywords == 0 && counts.albums == 0)
+        }
+    }
 }

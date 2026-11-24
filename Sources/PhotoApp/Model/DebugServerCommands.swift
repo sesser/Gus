@@ -15,6 +15,7 @@ import PhotoUI
 ///                  | fault permissions <a,b,…>
 ///     import server add <name> <address>|fake [<key>]   (Add Server… with the notice confirmed; waits for the check)
 ///     import server sheet add|edit|close|print|remove | field name|address|key <text> | confirm on|off | submit | trust | back
+///                        | review [<seed>]   (the Edit sheet's changed-certificate page, a made-up certificate)
 ///     import server list | select <name> (waits) | check | edit | remove [<name>] | confirm yes|no | print
 ///     import server keychain fail|ok   (the in-memory key store refuses, or works again)
 ///     import album <name>|all (waits) | import dates <yyyy-mm-dd|-> <yyyy-mm-dd|->|clear (waits)
@@ -76,7 +77,7 @@ enum DebugServerCommands {
         case "list":
             for service in model.servers {
                 print("debug-script: import server \(service.name) \(service.address) provider \(service.provider.rawValue) "
-                      + "pinned \(service.certificateFingerprint != nil) http \(service.allowsUnencrypted)")
+                      + "pinned \(service.pinnedFingerprint?.colonSeparated ?? "none") http \(service.allowsUnencrypted)")
             }
             if model.servers.isEmpty { print("debug-script: import server list: none") }
         case "select":
@@ -231,6 +232,19 @@ enum DebugServerCommands {
             await waitForCheck(sheet)
         case "back":
             model.serverSheet?.back()
+        case "review":
+            // The Edit sheet's Review Certificate page for a changed
+            // certificate, with a made-up one (the fake has no TLS): what
+            // Review Certificate… opens after a real change (QA Q3; B1).
+            guard let sheet = model.serverSheet, sheet.isEdit else {
+                return print("debug-script: import server sheet review: open the Edit sheet first")
+            }
+            let seed = rest.isEmpty ? UUID().uuidString : rest.joined(separator: " ")
+            let summary = CertificateSummary(subject: sheet.parsedAddress?.host ?? "", issuer: "debug script", notBefore: nil,
+                                             notAfter: nil, fingerprint: CertificateFingerprint(certificateData: Data(seed.utf8)))
+            sheet.page = .certificate(summary, changed: true)
+            try? await Task.sleep(for: .milliseconds(300))
+            print("debug-script: import server sheet review \(summary.fingerprint.colonSeparated)")
         case "remove":
             // Remove Server… in the sheet: the confirmation follows its closing.
             model.serverSheet?.remove()

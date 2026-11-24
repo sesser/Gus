@@ -20,6 +20,13 @@ public enum ImportSelection {
         return remembered.subtracting(shownIDs).union(unchecked)
     }
 
+    /// Select All (⌘A): every shot shown so far that is not already in the
+    /// library. For a server that is the photos loaded so far, marked ones
+    /// left out (R11, owner ruling DQ-2).
+    public static func all(of shots: [SourceShot]) -> Set<URL> {
+        Set(shots.filter { !$0.isDuplicate }.map(\.id))
+    }
+
     /// The selection after a scan: every shot not already in the library and
     /// not left out. Pass an empty `leftOut` for a new source.
     public static func selection(for shots: [SourceShot], leftOut: Set<URL>) -> Set<URL> {

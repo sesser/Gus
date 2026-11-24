@@ -99,15 +99,26 @@ struct RemoteBoundaryTests {
         #expect(importer.contains("ImportCommands(includesLibraryItems: false)"))
         // Every server item of the shared window is behind the library: the
         // Source pop-up's rows and Add Server…, the empty state, and the menus.
-        let window = try String(contentsOf: RepositoryFiles.url("Sources/PhotoUI/Import/ImportWindow.swift"), encoding: .utf8)
-        #expect(window.contains("if !model.copiesOnly {\n                    ForEach(model.servers)"))
-        #expect(window.contains("if !model.copiesOnly {\n                Button(\"Add Server…\")"))
-        #expect(window.contains("case .noSource where model.copiesOnly:"))
-        let commands = try String(contentsOf: RepositoryFiles.url("Sources/PhotoUI/Import/ImportCommands.swift"), encoding: .utf8)
-        #expect(commands.contains("if includesLibraryItems {\n                // Servers"))
+        // Compared with white space collapsed, so a reformat doesn't break it
+        // (QA Q2).
+        func text(_ path: String) throws -> String {
+            try String(contentsOf: RepositoryFiles.url(path), encoding: .utf8)
+                .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        }
+        let window = try text("Sources/PhotoUI/Import/ImportWindow.swift")
+        #expect(window.contains("if !model.copiesOnly { ForEach(model.servers)"),
+                "the Source pop-up's server rows must be inside `if !model.copiesOnly`")
+        #expect(window.contains("if !model.copiesOnly { Button(\"Add Server…\")"),
+                "the Source pop-up's Add Server… must be inside `if !model.copiesOnly`")
+        #expect(window.contains("case .noSource where model.copiesOnly:"),
+                "the importer's empty state must be its own case, with no server")
+        let commands = try text("Sources/PhotoUI/Import/ImportCommands.swift")
+        #expect(commands.contains("if includesLibraryItems { // Servers"),
+                "the File menu's server items must be inside `if includesLibraryItems`")
         // Servers are read from the library's catalog, which the importer has not.
-        let source = try String(contentsOf: RepositoryFiles.url("Sources/PhotoUI/Import/ServerSource.swift"), encoding: .utf8)
-        #expect(source.contains("guard let catalog = library?.catalog else { return }"))
+        let source = try text("Sources/PhotoUI/Import/ServerSource.swift")
+        #expect(source.contains("guard let catalog = library?.catalog else { return }"),
+                "servers must be read only from a library's catalog")
     }
 
     @Test("The About window's code has no network code (AC17)")

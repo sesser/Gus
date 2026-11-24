@@ -32,6 +32,9 @@ public final class FakeImmichServer: Sendable {
         /// The checksum the listing gives in place of the bytes' SHA-1 (an
         /// external library's path hash).
         public var checksumOverride: String?
+        /// Listed as a favorite, with these tags (the app maps neither, R17).
+        public var isFavorite = false
+        public var tags: [String] = []
 
         public init(id: String = UUID().uuidString.lowercased(), fileName: String, data: Data, type: String = "IMAGE",
                     visibility: String = "timeline", isTrashed: Bool = false, isEdited: Bool = false,
@@ -418,7 +421,8 @@ public final class FakeImmichServer: Sendable {
                 "id": asset.id, "type": asset.type, "originalFileName": asset.fileName, "checksum": asset.checksum,
                 "fileCreatedAt": style.format(asset.takenAt), "fileModifiedAt": style.format(asset.takenAt),
                 "localDateTime": style.format(asset.takenAt), "ownerId": asset.ownerID, "isTrashed": asset.isTrashed,
-                "isEdited": asset.isEdited, "isFavorite": false, "isArchived": asset.visibility == "archive",
+                "isEdited": asset.isEdited, "isFavorite": asset.isFavorite, "isArchived": asset.visibility == "archive",
+                "tags": asset.tags.map { ["id": UUID().uuidString.lowercased(), "name": $0, "value": $0] },
                 "visibility": asset.visibility, "livePhotoVideoId": asset.livePhotoVideoID ?? NSNull(),
                 "libraryId": asset.libraryID ?? NSNull(),
                 "exifInfo": exif,
