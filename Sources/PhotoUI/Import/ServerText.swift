@@ -176,6 +176,9 @@ public enum ServerText {
         case .incomplete:
             return String(localized: "\(name): the download was incomplete and was discarded.",
                           comment: "Server import report: a failed photo")
+        case .outsideDestination:
+            return String(localized: "\(name): its name on the server would have placed it outside the destination folder, so it was not imported.",
+                          comment: "Server import report: a photo whose server name was refused (security review F1)")
         case .unverifiable:
             return String(localized: "\(name): the server did not say how large the file is, so the download could not be checked and was discarded.",
                           comment: "Server import report: an external-library photo with no size to verify (design §15 DQ-9)")

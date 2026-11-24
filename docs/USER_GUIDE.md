@@ -55,7 +55,9 @@ only for a server on your local network (a private address such as
 192.168.x.x or 10.x.x.x, a `.local` name, or a name without dots), and only
 after you tick **Send my key and photos without encryption** under the notice
 that says the connection is not encrypted; any other `http://` address is
-refused. Such a server stays marked **Not encrypted** in the window's subtitle
+refused. The app judges the name you typed, not where it leads: a name without
+dots counts as local even if your network's settings send it elsewhere, so
+use `http://` only for a server you know is on your own network. Such a server stays marked **Not encrypted** in the window's subtitle
 and the options. An `https://` server whose certificate macOS does not trust
 (a self-signed one, or one from your own authority) shows its certificate:
 who it is issued to and by, its dates and its SHA-256 fingerprint. Compare

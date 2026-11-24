@@ -130,7 +130,9 @@ public enum LocalNetwork {
             }
             return false
         }
-        guard !host.isEmpty, host.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "." }) else {
+        // ASCII only: Unicode digits and letters ("⒏", fullwidth digits) are
+        // not judged as local names (security review note b).
+        guard !host.isEmpty, host.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == ".") }) else {
             return false
         }
         // A host that reads as a number ("134744072", "0x08080808", "08") is

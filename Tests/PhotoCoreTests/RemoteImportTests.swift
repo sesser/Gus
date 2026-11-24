@@ -177,11 +177,13 @@ struct RemoteImportTests {
             assets[0].fileName = "../../escape.JPG"
             assets[1].fileName = "/etc/other.JPG"
             let setup = try await Self.setup(assets: assets)
-            let result = await Self.importer(setup).run(try await Self.listed(setup), options: Self.options(root, setup))
-            #expect(result.imported == 2)
-            let files = Self.files(in: root)
-            #expect(files.count == 2)
-            #expect(files.allSatisfy { $0.hasPrefix("Photos/") && !$0.dropFirst(7).contains("/") })
+            // Names with a separator are not listed (security review F1);
+            // RemoteSecurityTests imports such names past the decoder.
+            let listed = try await Self.listed(setup)
+            #expect(listed.isEmpty)
+            let result = await Self.importer(setup).run(listed, options: Self.options(root, setup))
+            #expect(result.imported == 0)
+            #expect(Self.files(in: root).isEmpty)
         }
     }
 

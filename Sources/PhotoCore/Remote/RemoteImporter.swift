@@ -41,6 +41,9 @@ public struct RemoteImportFailure: Hashable, Sendable {
         /// An external library's photo whose size the server did not give: it
         /// can't be verified (R13, RI-E2).
         case unverifiable
+        /// Its name would have placed it outside the destination folder
+        /// (security review F1).
+        case outsideDestination
         /// The server no longer has it (404).
         case deletedOnServer
         /// The server answered with this status for this photo.
@@ -349,6 +352,13 @@ public final class RemoteImporter: Sendable {
             let folder = rendered.folders.reduce(options.destination) { $0.appending(path: $1, directoryHint: .isDirectory) }
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let final = try Self.freeName(rendered.fileName, in: folder)
+            // Never anywhere but under the destination, whatever the name
+            // (security review F1, defense in depth).
+            guard Self.isInside(final, folder: options.destination) else {
+                try? FileManager.default.removeItem(at: step.partial)
+                Self.log.error("Refused a name outside the destination for asset \(asset.id, privacy: .public)")
+                return (.failed(.outsideDestination), target)
+            }
             try FileManager.default.setAttributes([.modificationDate: asset.modifiedAt], ofItemAtPath: step.partial.path)
             try FileManager.default.moveItem(at: step.partial, to: final)
             moved = final
@@ -432,6 +442,29 @@ public final class RemoteImporter: Sendable {
             throw RemoteImportFailure.Kind.checksumMismatch
         }
         return sha256.finalize().hexString
+    }
+
+    /// Whether `file` is inside `folder`, by path components after `.` and
+    /// `..` are resolved (so `/a/bc` is not inside `/a/b`). Resolved by text,
+    /// not with `standardizedFileURL`, which drops `/private` from a path only
+    /// when the shorter one exists, so a new file and its existing folder
+    /// could disagree.
+    static func isInside(_ file: URL, folder: URL) -> Bool {
+        let fileParts = lexicalComponents(file)
+        let folderParts = lexicalComponents(folder)
+        return fileParts.count > folderParts.count && Array(fileParts.prefix(folderParts.count)) == folderParts
+    }
+
+    static func lexicalComponents(_ url: URL) -> [String] {
+        var parts: [String] = []
+        for part in url.path.split(separator: "/") {
+            switch part {
+            case ".": continue
+            case "..": if !parts.isEmpty { parts.removeLast() }
+            default: parts.append(String(part))
+            }
+        }
+        return parts
     }
 
     /// `name`, or `stem-1.ext`, `stem-2.ext`… when it is taken: nothing is

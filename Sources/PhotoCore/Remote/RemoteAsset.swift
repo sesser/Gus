@@ -41,6 +41,13 @@ public struct RemoteAsset: Hashable, Sendable, Identifiable {
         self.serverRating = serverRating
     }
 
+    /// A server's file name the app accepts (security review F1): not empty,
+    /// not "." or "..", and no `/`, `\`, NUL or other control character.
+    public static func isPlainFileName(_ name: String) -> Bool {
+        guard !name.isEmpty, name != ".", name != "..", name.utf8.count <= 1024 else { return false }
+        return !name.unicodeScalars.contains { $0 == "/" || $0 == "\\" || CharacterSet.controlCharacters.contains($0) }
+    }
+
     /// The largest original a server may report or send: 64 GiB. A size
     /// outside 0...this is not believed (code review C3, C4).
     public static let maximumSize: Int64 = 64 << 30

@@ -407,6 +407,37 @@ script's output are scripted checks (each run's output and the test copy's
 verified now finishes that photo (cataloged and linked) rather than discarding
 it; R18 keeps finished photos, and a verified download is finished.
 
+## Security review (2026-11-23)
+
+[security-review.md](security-review.md). F1 (medium, path traversal through a
+server's file name when the name template expands to nothing) is fixed in
+three layers: `ImportTemplate.render` sanitizes its fallback and uses `photo`
+when that is empty, keeping only a plain extension (card import renders
+ordinary names as before); a name with `/`, `\`, NUL or a control character,
+or `.`/`..`, is not listed; `RemoteImporter.finish` refuses a target outside
+the destination by path components (new failure reason, one string). F2 (low,
+a new key left beside the old address after a failed Edit save) is fixed by
+`Catalog.saveRemoteService(_:key:keys:)`, which restores the previous key.
+Note (b) fixed too: only ASCII names can be local names. Note (a) is in the
+user guide. Tests: `RemoteSecurityTests` (6); three of them fail on the
+unfixed code (checked). The older `hostileNames` test now expects such names
+not to be listed. The new failure sentence ("‹name›: its name on the server
+would have placed it outside the destination folder, so it was not imported.")
+has no design copy yet: for the designer to confirm.
+
+| When | `swift build` | `swift test` |
+|---|---|---|
+| Security fixes (2026-11-23) | `swift build --build-tests` passes, no new warnings; the CI toolchain build passes; `Scripts/build-app.sh` passes | 1507 tests in 213 suites pass |
+
+Scripted after the fixes (a fresh scratch library): an import with the
+default template and one with the file template `{job}` put three files under
+`dest/2026/…` by their original names, all marked In Library. The first build
+of the containment check used `standardizedFileURL`, which drops `/private`
+only from a path whose shorter form exists: under `/private/tmp` every new
+file looked outside the destination and every photo failed. The scripted run
+caught it; the check now resolves `.` and `..` by text, and `containment`
+tests that case.
+
 ## Known limits
 
 - The check runs in the sheet and again when the saved server becomes the

@@ -232,6 +232,9 @@ extension ImmichDTO.Asset {
     func remoteAsset(ownerID: String) -> RemoteAsset? {
         guard type == "IMAGE", isTrashed != true, visibility == nil || visibility == "timeline" else { return nil }
         guard let owner = ownerId, owner == ownerID else { return nil }
+        // A name that could name a place, not just a file, is not listed
+        // (security review F1).
+        guard RemoteAsset.isPlainFileName(originalFileName) else { return nil }
         guard let kind = FileKind(pathExtension: (originalFileName as NSString).pathExtension), kind != .video else {
             return nil
         }

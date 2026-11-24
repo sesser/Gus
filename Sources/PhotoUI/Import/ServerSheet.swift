@@ -175,28 +175,16 @@ public final class ServerSheetModel: Identifiable {
                 record.allowsUnencrypted = address.scheme == .http
                 record.certificateFingerprint = pin?.hex
                 record.certificateTrustedAt = pin == nil ? nil : pinnedAt
-                if let enteredKey {
-                    let account = record.uuid
-                    let stored = await Task.detached { () -> RemoteKeyStoreError? in
-                        do throws(RemoteKeyStoreError) {
-                            try keys.setKey(enteredKey, account: account)
-                            return nil
-                        } catch {
-                            return error
-                        }
-                    }.value
-                    if let stored {
-                        result = .keychain(stored.message)
-                        return
-                    }
-                }
-                do {
-                    let saved = try await catalog.saveRemoteService(record)
+                // The key and the row are saved together; a failed save puts
+                // the previous key back, so a key meant for a new address never
+                // stays beside the old one (security review F2).
+                switch await catalog.saveRemoteService(record, key: enteredKey, keys: keys) {
+                case .saved(let saved):
                     await model.serverSaved(saved)
-                } catch {
-                    // The row and the key go together: a new server's key goes again.
-                    if existing == nil { try? keys.deleteKey(account: record.uuid) }
-                    result = .keychain(error.localizedDescription)
+                case .keychainRefused(let error):
+                    result = .keychain(error.message)
+                case .catalogFailed(let message):
+                    result = .keychain(message)
                 }
             case .untrustedCertificate(let summary):
                 page = .certificate(summary, changed: false)

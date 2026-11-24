@@ -309,6 +309,17 @@
         }
       }
     },
+    "%@: its name on the server would have placed it outside the destination folder, so it was not imported." : {
+      "comment" : "Server import report: a photo whose server name was refused (security review F1)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: its name on the server would have placed it outside the destination folder, so it was not imported."
+          }
+        }
+      }
+    },
     "%@: the download did not match the server's checksum and was discarded." : {
       "comment" : "Server import report: a failed photo",
       "localizations" : {

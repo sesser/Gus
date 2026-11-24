@@ -122,6 +122,47 @@ extension Catalog {
         _ = try await database.write { db in try RemoteServiceRecord.deleteOne(db, key: id) }
     }
 
+    /// What saving a connection with its key came to.
+    public enum ServiceSaveOutcome: Sendable {
+        case saved(RemoteServiceRecord)
+        /// The key store refused the new key: nothing changed.
+        case keychainRefused(RemoteKeyStoreError)
+        /// The row could not be saved: the key store holds what it held
+        /// before (the previous key, or none for a new connection).
+        case catalogFailed(String)
+    }
+
+    /// Saves `service` and, when `key` is given, its key, as one change
+    /// (security review F2): the previous key is read first, the new one
+    /// written, then the row; if the row fails, the previous key is put back
+    /// (or the new one deleted when there was none). The key store is called
+    /// off the main actor.
+    public func saveRemoteService(_ service: RemoteServiceRecord, key: String?, keys: any RemoteKeyStore) async
+        -> ServiceSaveOutcome {
+        let account = service.uuid
+        var previous: String?
+        if let key {
+            do throws(RemoteKeyStoreError) {
+                previous = try keys.key(account: account)
+                try keys.setKey(key, account: account)
+            } catch {
+                return .keychainRefused(error)
+            }
+        }
+        do {
+            return .saved(try await saveRemoteService(service))
+        } catch {
+            if key != nil {
+                if let previous {
+                    try? keys.setKey(previous, account: account)
+                } else {
+                    try? keys.deleteKey(account: account)
+                }
+            }
+            return .catalogFailed(error.localizedDescription)
+        }
+    }
+
     /// Remove Server… (R4, design §3.7 and §15 DQ-5): the key leaves the key
     /// store first, then the row. If the store refuses, nothing is removed and
     /// the refusal is returned; a key already gone counts as removed. Links
