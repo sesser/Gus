@@ -122,6 +122,21 @@ extension Catalog {
         _ = try await database.write { db in try RemoteServiceRecord.deleteOne(db, key: id) }
     }
 
+    /// Remove Server… (R4, design §3.7 and §15 DQ-5): the key leaves the key
+    /// store first, then the row. If the store refuses, nothing is removed and
+    /// the refusal is returned; a key already gone counts as removed. Links
+    /// stay (R16).
+    public func removeRemoteService(_ service: RemoteServiceRecord, keys: any RemoteKeyStore) async throws
+        -> RemoteKeyStoreError? {
+        do throws(RemoteKeyStoreError) {
+            try keys.deleteKey(account: service.uuid)
+        } catch {
+            return error
+        }
+        if let id = service.id { try await deleteRemoteService(id: id) }
+        return nil
+    }
+
     // MARK: Links
 
     /// Which of `remoteIDs` are linked to a version, for the server at

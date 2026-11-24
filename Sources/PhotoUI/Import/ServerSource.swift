@@ -195,9 +195,11 @@ extension CardImportModel {
             } catch {
                 guard self.browse === browse else { return }
                 browse.albumsFailed = true
-                // The reason only, under the server's Activity title (design
-                // §4.2 gives no sentence for it: status.md, DQ-6).
-                report(Self.reason(error), name: browse.service.name, warning: true)
+                // One warning per failed load (design §15, DQ-6).
+                let name = browse.service.name
+                report(String(localized: "Couldn't load the albums of “\(name)”: \(Self.reason(error)). Choose Rescan to try again.",
+                              comment: "Activity: a server's album list could not be read; the server's name and the reason"),
+                       name: name, warning: true)
             }
             browse.albumsLoaded = true
         }
@@ -254,10 +256,11 @@ extension CardImportModel {
     }
 
     private func loadPage(keeping kept: Set<URL>) {
-        guard let browse, let client = browse.client, let address = browse.address else { return }
+        guard let browse, let client = browse.client, let address = browse.address, let owner = browse.info?.ownerID else {
+            return
+        }
         let cursor = browse.nextCursor
         let scope = browse.scope
-        let owner = browse.info?.ownerID
         let catalog = library?.catalog
         browse.isLoadingPage = true
         browse.pageTask = Task {
@@ -424,20 +427,18 @@ extension CardImportModel {
     }
 
     /// After Remove: the key leaves the Keychain, then the row (R4). The links
-    /// stay (R16). If the Keychain refuses, nothing is removed and the window
-    /// says why.
+    /// stay (R16). If the Keychain refuses, nothing is removed and an alert
+    /// says so (design §15, DQ-5); the server stays listed and chosen.
     public func removeServer(_ service: RemoteServiceRecord) {
         removingServer = nil
         guard let library, let id = service.id else { return }
-        do throws(RemoteKeyStoreError) {
-            try library.remoteKeyStore.deleteKey(account: service.uuid)
-        } catch {
-            alertText = ServerText.keychainDetail(error.message)
-            return
-        }
+        let keys = library.remoteKeyStore
         Task {
             do {
-                try await library.catalog.deleteRemoteService(id: id)
+                if let refusal = try await library.catalog.removeRemoteService(service, keys: keys) {
+                    serverAlert = ServerText.removalRefused(name: service.name, keychain: refusal.message)
+                    return
+                }
             } catch {
                 Self.serverLog.error("Removing a server failed: \(String(describing: error), privacy: .public)")
             }

@@ -29,7 +29,7 @@ struct RemoteBoundaryTests {
                 Issue.record("the check passes with the server's key")
                 return
             }
-            let page = try await client.page(scope: RemoteScope(), cursor: nil, ownerID: nil)
+            let page = try await client.page(scope: RemoteScope(), cursor: nil, ownerID: FakeImmichServer.ownerID)
             let result = await RemoteImporter(catalog: catalog, sidecars: nil, source: client,
                                               metadataReader: ImageIOMetadataReader(), retry: .none)
                 .run(page.assets, options: RemoteImportOptions(destination: root.appending(path: "Photos"),

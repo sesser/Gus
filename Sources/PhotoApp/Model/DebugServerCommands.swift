@@ -11,10 +11,12 @@ import PhotoUI
 /// "entered" or "-".
 ///
 ///     import server fake start [<count>] | stop | requests | fault drop|revoke|notimmich|clear
-///                  | fault delete|corrupt|truncate <index> | fault unavailable <index> <times> | fault slow <ms>
+///                  | fault delete|corrupt|truncate|external <index> | fault unavailable <index> <times> | fault slow <ms>
+///                  | fault permissions <a,b,…>
 ///     import server add <name> <address>|fake [<key>]   (Add Server… with the notice confirmed; waits for the check)
 ///     import server sheet add|edit|close|print | field name|address|key <text> | confirm on|off | submit | trust | back
 ///     import server list | select <name> (waits) | check | edit | remove [<name>] | confirm yes|no | print
+///     import server keychain fail|ok   (the in-memory key store refuses, or works again)
 ///     import album <name>|all (waits) | import dates <yyyy-mm-dd|-> <yyyy-mm-dd|->|clear (waits)
 /// (`import scroll <index>|end` is `ImportDebugCommands`'.)
 @MainActor
@@ -109,6 +111,12 @@ enum DebugServerCommands {
             try? await Task.sleep(for: .milliseconds(500))
         case "print":
             printServer(model)
+        case "keychain":
+            // The scripted launch's in-memory store refuses (DQ-5) or works again.
+            guard let store = model.library?.remoteKeyStore as? InMemoryKeyStore else {
+                return print("debug-script: import server keychain: not the in-memory store")
+            }
+            store.failing = rest.first == "fail"
         default:
             print("debug-script: unknown import server command")
         }
@@ -167,6 +175,17 @@ enum DebugServerCommands {
                     fake.add(.unavailable(id, times: rest.dropFirst(2).first.flatMap(Int.init) ?? 1))
                 }
             case "slow": fake.add(.slow(.milliseconds(rest.dropFirst().first.flatMap(Int.init) ?? 500)))
+            case "permissions": fake.setPermissions(rest.dropFirst().first?.split(separator: ",").map(String.init) ?? [])
+            case "external":
+                // The asset at <index> is an external library's, its checksum the path's (RI-E2).
+                guard let id = asset(rest.dropFirst().first) else { return }
+                fake.setAssets(fake.assets.map { asset in
+                    guard asset.id == id else { return asset }
+                    var external = asset
+                    external.libraryID = "library-1"
+                    external.checksumOverride = FakeImmichServer.Asset.pathChecksum("/mnt/photos/\(asset.fileName)")
+                    return external
+                })
             default: print("debug-script: import server fault: unknown")
             }
         default:

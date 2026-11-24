@@ -353,6 +353,17 @@
         }
       }
     },
+    "%@: the server gave no size to check the download against, so it was discarded." : {
+      "comment" : "Server import report: an external-library photo with no size to verify (R13)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: the server gave no size to check the download against, so it was discarded."
+          }
+        }
+      }
+    },
     "%@: the volume “%@” is not connected." : {
       "comment" : "Export report: file name, volume name",
       "localizations" : {
@@ -1635,6 +1646,29 @@
         }
       }
     },
+    "%lld were checked by size only (photos in an Immich external library)." : {
+      "comment" : "Server import report: photos verified by byte count only (R13, R19)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld was checked by size only (a photo in an Immich external library)."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld were checked by size only (photos in an Immich external library)."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "(no name)" : {
       "localizations" : {
         "en" : {
@@ -1912,13 +1946,13 @@
         }
       }
     },
-    "Add %@ to the key in Immich, or create a new key with the four permissions listed above." : {
+    "Add %@ to the key in Immich, or create a new key with the five permissions listed above." : {
       "comment" : "Server check: missing permissions, detail; the missing ones",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add %@ to the key in Immich, or create a new key with the four permissions listed above."
+            "value" : "Add %@ to the key in Immich, or create a new key with the five permissions listed above."
           }
         }
       }
@@ -3499,13 +3533,24 @@
         }
       }
     },
-    "Create the key in Immich, in your account settings. It needs only these permissions: asset.read, asset.view, asset.download and album.read." : {
+    "Couldn't load the albums of “%@”: %@. Choose Rescan to try again." : {
+      "comment" : "Activity warning: a server's album list could not be read; the server's name, then the plain reason (design §15, DQ-6)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load the albums of “%1$@”: %2$@. Choose Rescan to try again."
+          }
+        }
+      }
+    },
+    "Create the key in Immich, in your account settings. It needs only these permissions: asset.read, asset.view, asset.download, album.read and user.read." : {
       "comment" : "Server sheet: key caption; the permission names are not translated",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Create the key in Immich, in your account settings. It needs only these permissions: asset.read, asset.view, asset.download and album.read."
+            "value" : "Create the key in Immich, in your account settings. It needs only these permissions: asset.read, asset.view, asset.download, album.read and user.read."
           }
         }
       }
@@ -5058,6 +5103,17 @@
         }
       }
     },
+    "The Keychain wouldn't delete the API key: %@. Nothing was removed. Choose Remove Server… to try again. If it keeps failing, delete the key in Immich so it stops working." : {
+      "comment" : "Alert message when the Keychain refuses to delete a server's key (design §15, DQ-5); the system's text without its final period",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Keychain wouldn't delete the API key: %@. Nothing was removed. Choose Remove Server… to try again. If it keeps failing, delete the key in Immich so it stops working."
+          }
+        }
+      }
+    },
     "The mask Vision gave could not be read." : {
       "comment" : "Activity warning's detail when a detection's result is in a form the app can't use",
       "localizations" : {
@@ -5109,6 +5165,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The server rejected this API key"
+          }
+        }
+      }
+    },
+    "The server “%@” wasn't removed" : {
+      "comment" : "Alert title when the Keychain refuses to delete a server's key (design §15, DQ-5); the server's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server “%@” wasn't removed"
           }
         }
       }

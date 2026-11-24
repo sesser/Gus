@@ -59,7 +59,8 @@ public struct ImportWindow: View {
             .alert(model.serverAlert?.title ?? "", isPresented: Binding(get: { model.serverAlert != nil },
                                                                         set: { if !$0 { model.serverAlert = nil } }),
                    presenting: model.serverAlert) { _ in
-                Button("OK", role: .cancel) { model.serverAlert = nil }
+                // The default button (design §15, DQ-5): Return and Esc dismiss.
+                Button("OK") { model.serverAlert = nil }
             } message: { alert in
                 Text(alert.message)
             }

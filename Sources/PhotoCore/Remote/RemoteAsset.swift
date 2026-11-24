@@ -16,14 +16,18 @@ public struct RemoteAsset: Hashable, Sendable, Identifiable {
     public var isEdited: Bool
     /// A Live Photo's still: its video is never downloaded (R14).
     public var hasLiveVideo: Bool
+    /// It belongs to an external library (the server gave a `libraryId`): its
+    /// checksum may be of its path, so it is verified by size only (R13,
+    /// RI-E2).
+    public var isExternalLibrary: Bool
     /// The server's description, imported when the library has none (R17).
     public var serverDescription: String?
     /// The server's star rating, 1 to 5, or nil (R17).
     public var serverRating: Int?
 
     public init(id: String, fileName: String, checksum: String, byteCount: Int64?, metadata: ImageMetadata,
-                modifiedAt: Date, isEdited: Bool = false, hasLiveVideo: Bool = false, serverDescription: String? = nil,
-                serverRating: Int? = nil) {
+                modifiedAt: Date, isEdited: Bool = false, hasLiveVideo: Bool = false, isExternalLibrary: Bool = false,
+                serverDescription: String? = nil, serverRating: Int? = nil) {
         self.id = id
         self.fileName = fileName
         self.checksum = checksum
@@ -32,6 +36,7 @@ public struct RemoteAsset: Hashable, Sendable, Identifiable {
         self.modifiedAt = modifiedAt
         self.isEdited = isEdited
         self.hasLiveVideo = hasLiveVideo
+        self.isExternalLibrary = isExternalLibrary
         self.serverDescription = serverDescription
         self.serverRating = serverRating
     }

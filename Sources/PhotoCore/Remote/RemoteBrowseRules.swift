@@ -137,6 +137,8 @@ public struct RemoteImportReport: Equatable, Sendable {
         case stopCause(RemoteImportStop)
         case alreadyInLibrary(Int)
         case liveVideosLeftOut(Int)
+        /// Imported after a size check only (R13, R19).
+        case verifiedBySizeOnly(Int)
         case couldNotImport(Int)
         case failure(RemoteImportFailure)
         case more(Int)
@@ -162,6 +164,7 @@ public struct RemoteImportReport: Equatable, Sendable {
         }
         if result.alreadyInLibrary > 0 { lines.append(.alreadyInLibrary(result.alreadyInLibrary)) }
         if result.liveVideosLeftOut > 0 { lines.append(.liveVideosLeftOut(result.liveVideosLeftOut)) }
+        if result.verifiedBySizeOnly > 0 { lines.append(.verifiedBySizeOnly(result.verifiedBySizeOnly)) }
         if !result.failures.isEmpty {
             lines.append(.couldNotImport(result.failures.count))
             lines += result.failures.prefix(Self.failureListLimit).map(Line.failure)

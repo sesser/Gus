@@ -41,7 +41,7 @@ public enum ServerText {
         case .missingPermissions(let missing):
             let list = ListFormatter.localizedString(byJoining: missing)
             return Result(title: String(localized: "This API key is missing permissions", comment: "Server check: missing permissions"),
-                          detail: String(localized: "Add \(list) to the key in Immich, or create a new key with the four permissions listed above.",
+                          detail: String(localized: "Add \(list) to the key in Immich, or create a new key with the five permissions listed above.",
                                          comment: "Server check: missing permissions, detail; the argument lists them"),
                           concernsAddress: false)
         case .tooOld(let found, let needed):
@@ -60,8 +60,20 @@ public enum ServerText {
         }
     }
 
+    /// The system's text loses its own final period first (design §15, DQ-5).
     public static func keychainDetail(_ message: String) -> String {
-        String(localized: "The Keychain returned an error: \(message).", comment: "Keychain failure; the system's message")
+        let text = RemoteKeyStoreError.inSentence(message)
+        return String(localized: "The Keychain returned an error: \(text).", comment: "Keychain failure; the system's message")
+    }
+
+    /// The alert when the Keychain won't delete a server's key (design §15, DQ-5).
+    public static func removalRefused(name: String, keychain message: String) -> ServerAlert {
+        let text = RemoteKeyStoreError.inSentence(message)
+        return ServerAlert(
+            title: String(localized: "The server “\(name)” wasn't removed",
+                          comment: "Alert title: the Keychain refused to delete a server's key"),
+            message: String(localized: "The Keychain wouldn't delete the API key: \(text). Nothing was removed. Choose Remove Server… to try again. If it keeps failing, delete the key in Immich so it stops working.",
+                            comment: "Alert message: the Keychain refused to delete a server's key; the system's text"))
     }
 
     // MARK: The window
@@ -138,6 +150,9 @@ public enum ServerText {
             String(localized: "\(count) were already in the library.", comment: "Server import report")
         case .liveVideosLeftOut(let count):
             String(localized: "\(count) Live Photo videos were not downloaded.", comment: "Server import report")
+        case .verifiedBySizeOnly(let count):
+            String(localized: "\(count) were checked by size only (photos in an Immich external library).",
+                   comment: "Server import report: photos verified by byte count only (R13)")
         case .couldNotImport(let count):
             String(localized: "\(count) could not be imported.", comment: "Server import report")
         case .failure(let failure):
@@ -156,6 +171,9 @@ public enum ServerText {
         case .incomplete:
             return String(localized: "\(name): the download was incomplete and was discarded.",
                           comment: "Server import report: a failed photo")
+        case .unverifiable:
+            return String(localized: "\(name): the server gave no size to check the download against, so it was discarded.",
+                          comment: "Server import report: an external-library photo with no size to verify")
         case .deletedOnServer:
             return String(localized: "\(name): it was deleted on the server during the import.",
                           comment: "Server import report: a failed photo")

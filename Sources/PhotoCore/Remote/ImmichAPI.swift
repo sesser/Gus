@@ -9,8 +9,7 @@ public enum ImmichEndpoint: Hashable, Sendable {
     case serverVersion
     /// `GET /api-keys/me`: is the key accepted, and its permissions.
     case apiKeyMe
-    /// `GET /users/me` (`user.read`): the account's id, read only when the key
-    /// has that permission (status.md, RI-E1).
+    /// `GET /users/me` (`user.read`): the account's id (R3, R9).
     case userMe
     /// `GET /albums?isOwned=true` (`album.read`).
     case ownAlbums
@@ -126,15 +125,10 @@ enum ImmichDTO {
         var id: String
     }
 
-    struct AlbumUser: Decodable {
-        var user: User
-    }
-
     struct Album: Decodable {
         var id: String
         var albumName: String
         var assetCount: Int
-        var albumUsers: [AlbumUser]?
     }
 
     struct SearchResponse: Decodable {
@@ -159,6 +153,9 @@ enum ImmichDTO {
         var isEdited: Bool?
         var visibility: String?
         var livePhotoVideoId: String?
+        /// Set for an asset of an external library, whose checksum may be of
+        /// its path (R13, RI-E2).
+        var libraryId: String?
         var exifInfo: Exif?
     }
 
@@ -214,12 +211,13 @@ enum ImmichDTO {
 
 extension ImmichDTO.Asset {
     /// The asset as the app lists it, or nil when it must not be listed
-    /// (R9: images only; trashed, hidden, archived and locked never; another
-    /// account's photo never when the account is known; a format the library
-    /// does not catalog, as a card's scan leaves it out).
-    func remoteAsset(ownerID: String?) -> RemoteAsset? {
+    /// (R9: images only; trashed, hidden, archived and locked never; only the
+    /// account's own, so never a partner's or another contributor's, nor one
+    /// that names no owner; a format the library does not catalog, as a card's
+    /// scan leaves it out).
+    func remoteAsset(ownerID: String) -> RemoteAsset? {
         guard type == "IMAGE", isTrashed != true, visibility == nil || visibility == "timeline" else { return nil }
-        if let ownerID, let owner = ownerId, owner != ownerID { return nil }
+        guard let owner = ownerId, owner == ownerID else { return nil }
         guard let kind = FileKind(pathExtension: (originalFileName as NSString).pathExtension), kind != .video else {
             return nil
         }
@@ -238,6 +236,7 @@ extension ImmichDTO.Asset {
         return RemoteAsset(id: id, fileName: originalFileName, checksum: checksum, byteCount: exifInfo?.fileSizeInByte,
                            metadata: metadata, modifiedAt: ImmichDTO.date(fileModifiedAt) ?? created ?? Date(timeIntervalSince1970: 0),
                            isEdited: isEdited == true, hasLiveVideo: livePhotoVideoId != nil,
+                           isExternalLibrary: libraryId?.isEmpty == false,
                            serverDescription: description?.isEmpty == false ? description : nil, serverRating: rating)
     }
 }

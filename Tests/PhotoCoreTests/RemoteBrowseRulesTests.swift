@@ -99,10 +99,11 @@ struct RemoteBrowseRulesTests {
         #expect(!RemoteImportReport(result).needsAlert && !RemoteImportReport(result).isWarning)
         result.alreadyInLibrary = 3
         result.liveVideosLeftOut = 2
+        result.verifiedBySizeOnly = 5
         result.failures = (1...12).map { RemoteImportFailure(name: "IMG_\($0).HEIC", kind: .deletedOnServer) }
         let report = RemoteImportReport(result)
-        #expect(Array(report.lines.prefix(4)) == [.imported(46), .alreadyInLibrary(3), .liveVideosLeftOut(2),
-                                                  .couldNotImport(12)])
+        #expect(Array(report.lines.prefix(5)) == [.imported(46), .alreadyInLibrary(3), .liveVideosLeftOut(2),
+                                                  .verifiedBySizeOnly(5), .couldNotImport(12)])
         #expect(report.lines.filter { if case .failure = $0 { true } else { false } }.count == 10)
         #expect(report.lines.last == .more(2))
         #expect(report.needsAlert && report.isWarning)

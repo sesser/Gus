@@ -27,12 +27,17 @@ public final class FakeImmichServer: Sendable {
         public var takenAt: Date
         /// When false, the listing gives no `fileSizeInByte`.
         public var reportsSize: Bool
+        /// An external library's asset (`libraryId` in the listing).
+        public var libraryID: String?
+        /// The checksum the listing gives in place of the bytes' SHA-1 (an
+        /// external library's path hash).
+        public var checksumOverride: String?
 
         public init(id: String = UUID().uuidString.lowercased(), fileName: String, data: Data, type: String = "IMAGE",
                     visibility: String = "timeline", isTrashed: Bool = false, isEdited: Bool = false,
                     livePhotoVideoID: String? = nil, description: String? = nil, rating: Int? = nil,
                     albumIDs: [String] = [], ownerID: String = FakeImmichServer.ownerID, takenAt: Date,
-                    reportsSize: Bool = true) {
+                    reportsSize: Bool = true, libraryID: String? = nil, checksumOverride: String? = nil) {
             self.id = id
             self.fileName = fileName
             self.data = data
@@ -47,9 +52,17 @@ public final class FakeImmichServer: Sendable {
             self.ownerID = ownerID
             self.takenAt = takenAt
             self.reportsSize = reportsSize
+            self.libraryID = libraryID
+            self.checksumOverride = checksumOverride
         }
 
-        public var checksum: String { Data(Insecure.SHA1.hash(data: data)).base64EncodedString() }
+        public var checksum: String { checksumOverride ?? Data(Insecure.SHA1.hash(data: data)).base64EncodedString() }
+
+        /// Immich's checksum for an external library's file: the SHA-1 of
+        /// "path:" and its path.
+        public static func pathChecksum(_ path: String) -> String {
+            Data(Insecure.SHA1.hash(data: Data("path:\(path)".utf8))).base64EncodedString()
+        }
     }
 
     public struct Album: Sendable {
@@ -103,7 +116,7 @@ public final class FakeImmichServer: Sendable {
         var assets: [Asset] = []
         var albums: [Album] = []
         var version = (3, 4, 2)
-        var permissions = ["asset.read", "asset.view", "asset.download", "album.read"]
+        var permissions = ["asset.read", "asset.view", "asset.download", "album.read", "user.read"]
         var key = FakeImmichServer.validKey
         var faults: [Fault] = []
         var requests: [Request] = []
@@ -394,6 +407,7 @@ public final class FakeImmichServer: Sendable {
                 "localDateTime": style.format(asset.takenAt), "ownerId": asset.ownerID, "isTrashed": asset.isTrashed,
                 "isEdited": asset.isEdited, "isFavorite": false, "isArchived": asset.visibility == "archive",
                 "visibility": asset.visibility, "livePhotoVideoId": asset.livePhotoVideoID ?? NSNull(),
+                "libraryId": asset.libraryID ?? NSNull(),
                 "exifInfo": exif,
             ]
         }

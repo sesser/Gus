@@ -106,7 +106,10 @@ struct RemoteImportTests {
         let album = FakeImmichServer.Album(name: "Trip", assetCount: 5)
         let inAlbum = try FakeImmichServer.jpegAssets(count: 3, albumIDs: [album.id])
         let outside = try FakeImmichServer.jpegAssets(count: 2, startingAt: 10)
-        let setup = try await Self.setup(assets: inAlbum + outside)
+        // Another contributor's photo in the (shared) album: never listed (R9, RI-E1).
+        var contributed = try FakeImmichServer.jpegAssets(count: 1, startingAt: 20, albumIDs: [album.id])[0]
+        contributed.ownerID = "someone-else"
+        let setup = try await Self.setup(assets: inAlbum + outside + [contributed])
         setup.server.setAlbums([FakeImmichServer.Album(name: "zebra", assetCount: 1), album])
         let albums = try await setup.client.albums()
         #expect(albums.map(\.name) == ["Trip", "zebra"])
@@ -121,7 +124,7 @@ struct RemoteImportTests {
         #expect(ranged.map(\.id) == [inAlbum[1].id])
         // An album that is gone answers as not found.
         await #expect(throws: RemoteError.status(400)) {
-            _ = try await setup.client.page(scope: RemoteScope(albumID: "gone"), cursor: nil, ownerID: nil)
+            _ = try await setup.client.page(scope: RemoteScope(albumID: "gone"), cursor: nil, ownerID: FakeImmichServer.ownerID)
         }
     }
 
@@ -232,6 +235,64 @@ struct RemoteImportTests {
             #expect(pairs == 1)
             #expect(!setup.server.requests.contains { $0.path.contains("video-of-live-photo") })
         }
+    }
+
+    @Test("An external library's photo is verified by size only, deduplicated and counted (AC9, R13, RI-E2)")
+    func externalLibrary() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            var assets = try FakeImmichServer.jpegAssets(count: 4)
+            for index in 0..<3 {
+                assets[index].libraryID = "library-1"
+                assets[index].checksumOverride = FakeImmichServer.Asset.pathChecksum("/mnt/photos/\(assets[index].fileName)")
+            }
+            // One external photo is already in the library, from a card.
+            let card = root.appending(path: "Card")
+            try FileManager.default.createDirectory(at: card, withIntermediateDirectories: true)
+            try assets[2].data.write(to: card.appending(path: "same.jpg"))
+            let setup = try await Self.setup(assets: assets)
+            _ = try await Importer(catalog: setup.catalog, metadataReader: ImageIOMetadataReader()).importFolder(card)
+            let listed = try await Self.listed(setup)
+            #expect(listed.filter(\.isExternalLibrary).count == 3)
+            // An external photo served short fails; an uploaded one whose bytes
+            // don't match its checksum still fails.
+            let short = try #require(listed.first { $0.id == assets[1].id })
+            setup.server.add(.truncate(short.id))
+            setup.server.add(.corrupt(assets[3].id))
+            let result = await Self.importer(setup).run(listed, options: Self.options(root, setup))
+            #expect(result.imported == 1)
+            #expect(result.verifiedBySizeOnly == 1)
+            #expect(result.alreadyInLibrary == 1)
+            #expect(Set(result.failures) == [RemoteImportFailure(name: assets[1].fileName, kind: .incomplete),
+                                             RemoteImportFailure(name: assets[3].fileName, kind: .checksumMismatch)])
+            #expect(Self.files(in: root.appending(path: "Photos")) == [assets[0].fileName])
+            let name = assets[0].fileName
+            let hash = try await setup.catalog.database.read { db in
+                try String.fetchOne(db, sql: "SELECT contentHash FROM image WHERE fileName = ?", arguments: [name])
+            }
+            #expect(hash == Digest.sha256Hex(assets[0].data))
+            #expect(RemoteImportReport(result).lines.contains(.verifiedBySizeOnly(1)))
+        }
+    }
+
+    @Test("Size-only verification: the size must be known and exact (R13, RI-E2)")
+    func sizeOnlyRules() {
+        let base = RemoteAsset(id: "a", fileName: "a.jpg", checksum: "path-hash", byteCount: 100, metadata: ImageMetadata(),
+                               modifiedAt: Date(), isExternalLibrary: true)
+        let url = URL(fileURLWithPath: "/tmp/a.jpg")
+        func download(_ count: Int64, length: Int64?) -> RemoteHTTPSession.Download {
+            RemoteHTTPSession.Download(byteCount: count, sha1: "bytes-hash", expectedLength: length)
+        }
+        #expect(RemoteImporter.verify(download(100, length: 100), partial: url, asset: base) == nil)
+        #expect(RemoteImporter.verify(download(99, length: 99), partial: url, asset: base) == .incomplete)
+        #expect(RemoteImporter.verify(download(101, length: 101), partial: url, asset: base) == .incomplete)
+        var unsized = base
+        unsized.byteCount = nil
+        #expect(RemoteImporter.verify(download(100, length: 100), partial: url, asset: unsized) == nil)
+        #expect(RemoteImporter.verify(download(100, length: nil), partial: url, asset: unsized) == .unverifiable)
+        // An uploaded photo still needs its SHA-1.
+        var uploaded = base
+        uploaded.isExternalLibrary = false
+        #expect(RemoteImporter.verify(download(100, length: 100), partial: url, asset: uploaded) == .checksumMismatch)
     }
 
     // MARK: Links (R15, R16, AC11)

@@ -108,15 +108,16 @@ struct RemoteCheckTests {
     @Test("Each failure of the check has its own result (AC2)")
     func sevenResults() async throws {
         let server = try await FakeImmichServer()
-        // Passes with exactly the four permissions, and with more.
+        // Passes with exactly the five permissions, and with more.
         guard case .passed(let info) = try await RemoteConnectionTests.client(server).check() else {
             Issue.record("expected a pass")
             return
         }
         #expect(info.version == ImmichVersion(3, 4, 2))
         #expect(!info.hasMoreThanNeeded)
-        #expect(info.ownerID == FakeImmichServer.ownerID || info.ownerID == nil)
-        server.setPermissions(ImmichClient.neededPermissions + ["asset.delete", "user.read"])
+        #expect(info.ownerID == FakeImmichServer.ownerID)
+        #expect(ImmichClient.neededPermissions == ["asset.read", "asset.view", "asset.download", "album.read", "user.read"])
+        server.setPermissions(ImmichClient.neededPermissions + ["asset.delete", "server.about"])
         guard case .passed(let more) = try await RemoteConnectionTests.client(server).check() else {
             Issue.record("a key with more permissions passes (R3)")
             return
@@ -126,14 +127,15 @@ struct RemoteCheckTests {
         server.setPermissions(["all"])
         #expect(try await RemoteConnectionTests.client(server).check().kind == "passed")
 
-        // A key missing each permission names that one.
+        // A key missing each permission names that one; user.read too, with
+        // no fallback that lists photos unfiltered (RI-E1).
         for permission in ImmichClient.neededPermissions {
             server.setPermissions(ImmichClient.neededPermissions.filter { $0 != permission })
             #expect(try await RemoteConnectionTests.client(server).check() == .missingPermissions([permission]))
         }
         server.setPermissions(["asset.read"])
         #expect(try await RemoteConnectionTests.client(server).check()
-            == .missingPermissions(["asset.view", "asset.download", "album.read"]))
+            == .missingPermissions(["asset.view", "asset.download", "album.read", "user.read"]))
         server.setPermissions(ImmichClient.neededPermissions)
 
         // A rejected key.
@@ -203,7 +205,7 @@ struct RemoteCheckTests {
         let client = try RemoteConnectionTests.client(server)
         _ = await client.check()
         _ = try await client.albums()
-        let page = try await client.page(scope: RemoteScope(), cursor: nil, ownerID: nil)
+        let page = try await client.page(scope: RemoteScope(), cursor: nil, ownerID: FakeImmichServer.ownerID)
         _ = try await client.thumbnail(assetID: page.assets[0].id)
         try await RepositoryFiles.withTemporaryDirectory { folder in
             _ = try await client.download(assetID: page.assets[0].id, to: folder.appending(path: "x.jpg")) { _ in }
@@ -263,5 +265,35 @@ struct RemoteCheckTests {
         #expect(KeychainKeyStore.service(bundleIdentifier: "com.example.copy") == "com.example.copy.servers")
         #expect(KeychainKeyStore.service(bundleIdentifier: "com.example.copy")
             != KeychainKeyStore.service(bundleIdentifier: AppBranding.bundleIdentifier))
+        // An item already gone is a successful delete; a Deny is a refusal (DQ-5).
+        #expect(KeychainKeyStore.deleted(errSecSuccess) && KeychainKeyStore.deleted(errSecItemNotFound))
+        #expect(!KeychainKeyStore.deleted(errSecAuthFailed) && !KeychainKeyStore.deleted(errSecUserCanceled))
+        // The system's text loses one final period inside a sentence.
+        #expect(RemoteKeyStoreError.inSentence("The specified item could not be found in the keychain. ")
+            == "The specified item could not be found in the keychain")
+        #expect(RemoteKeyStoreError.inSentence("No period") == "No period")
+        #expect(RemoteKeyStoreError.from(errSecItemNotFound).inSentence.hasSuffix(".") == false)
+    }
+
+    @Test("Remove Server: a refusing store leaves the row and the key; a key already gone removes the row (DQ-5, R4)")
+    func removal() async throws {
+        let catalog = try Catalog.makeInMemory()
+        let store = InMemoryKeyStore()
+        let service = try await catalog.saveRemoteService(RemoteServiceRecord(name: "Home", address: "https://photos.example.com"))
+        try store.setKey("k", account: service.uuid)
+        store.failing = true
+        let refusal = try await catalog.removeRemoteService(service, keys: store)
+        #expect(refusal != nil)
+        store.failing = false
+        #expect(try await catalog.remoteServices().map(\.id) == [service.id])
+        #expect(try store.key(account: service.uuid) == "k")
+        // Removed: the key, then the row.
+        #expect(try await catalog.removeRemoteService(service, keys: store) == nil)
+        #expect(try store.key(account: service.uuid) == nil)
+        #expect(try await catalog.remoteServices().isEmpty)
+        // A key already gone (the store's errSecItemNotFound) still removes the row.
+        let other = try await catalog.saveRemoteService(RemoteServiceRecord(name: "Other", address: "https://other.example.com"))
+        #expect(try await catalog.removeRemoteService(other, keys: store) == nil)
+        #expect(try await catalog.remoteServices().isEmpty)
     }
 }

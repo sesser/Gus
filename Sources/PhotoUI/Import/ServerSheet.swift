@@ -299,7 +299,7 @@ private struct ServerFormPage: View {
                                                           : String(localized: "Paste the key here")))
                         .focused($focus, equals: .key)
                         .onChange(of: key) { _, value in sheet.setKey(value) }
-                    SheetCaption(text: String(localized: "Create the key in Immich, in your account settings. It needs only these permissions: asset.read, asset.view, asset.download and album.read."))
+                    SheetCaption(text: String(localized: "Create the key in Immich, in your account settings. It needs only these permissions: asset.read, asset.view, asset.download, album.read and user.read."))
                     SheetCaption(text: String(localized: "This Mac keeps its copy of the key in the Keychain."))
                     resultView(concernsAddress: false)
                 }

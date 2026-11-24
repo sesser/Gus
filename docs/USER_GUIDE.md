@@ -39,8 +39,9 @@ it is the address's host), its address and an API key. An address without
 dropped, a port and a path such as `/immich` are kept, and **Will connect to**
 shows where the key will go. Create the key in Immich, in your account
 settings; it needs only these permissions: asset.read, asset.view,
-asset.download and album.read (a key that can do more is accepted, and the
-app still only reads). This Mac keeps its copy of the key in the Keychain and
+asset.download, album.read and user.read (user.read tells the app which photos
+are your own; a key that can do more is accepted, and the app still only
+reads). This Mac keeps its copy of the key in the Keychain and
 nowhere else. **Add** (Return) checks the server; while it does, the sheet
 says **Checking the server…**. Each problem is named under the field it
 concerns: the server can't be reached; it doesn't look like an Immich server;
@@ -70,10 +71,12 @@ macOS may ask once whether the app may reach devices on your local network.
 Choosing a server checks it again (**Connecting to ‹name›…**); the app
 contacts a server only when you choose it, or press **Add**, **Save**, **Try
 Again** or **Rescan**. The grid lists your own photos, newest first: images
-only, never videos, archived, hidden, locked or trashed photos. More load as
+only, never videos, archived, hidden, locked or trashed photos, and never a
+partner's photos or other people's photos in an album you share. More load as
 you scroll near the end (**Loading more photos…**). The **Album** pop-up
 chooses All Photos or one of your albums (with the number of items the
-server gives for it, which can include videos), and **Date Range** shows only
+server gives for it, which can include videos and other people's photos), and
+**Date Range** shows only
 photos taken between two days, either end open. Nothing is checked when a
 server opens: check photos as for a card, or **Select All** (⌘A), which takes
 the photos loaded so far (the subtitle says, for example, **250 selected ·
@@ -91,7 +94,10 @@ text you can change; there is no After Import section, since nothing on the
 server is ever changed or deleted. **Import N Photos** downloads each
 original under a hidden temporary name, checks its size and the SHA-1 the
 server gave, and moves it into place under your file name template; a
-download that does not match is discarded. Photos whose content is already
+download that does not match is discarded. A photo in an Immich external
+library is checked by its size only, since Immich's checksum for it can be of
+its path rather than its content (Activity says how many were); one whose size
+the server doesn't give is not imported. Photos whose content is already
 in the library are not imported again. Imported photos are ordinary photos
 in a new project, each remembering which Immich photo it came from. A
 description and a star rating from Immich are added to a new photo when it
@@ -106,7 +112,10 @@ the library, the Live Photo videos left out and each photo that could not be
 imported, with the reason. **Edit Server…** changes the name, address or key
 (an empty key field keeps the stored key); **Remove Server…** asks first,
 then deletes the key from the Keychain (it still works on the server until
-you delete it in Immich) and keeps every photo already imported. The
+you delete it in Immich) and keeps every photo already imported. If the
+Keychain won't delete the key, nothing is removed and an alert says so; try
+again, or delete the key in Immich. If a server's albums can't be read, the
+photos are still listed and Activity says so; **Rescan** tries again. The
 standalone importer has no servers.
 
 Choose **File ▸ Add Folder Without Copying…** (⇧⌘I) to add photos where they are, without

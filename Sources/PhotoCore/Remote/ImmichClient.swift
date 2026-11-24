@@ -5,10 +5,11 @@ public struct RemoteServerInfo: Hashable, Sendable {
     public var version: ImmichVersion
     /// The key's permissions as the server listed them.
     public var permissions: [String]
-    /// The account the key belongs to, when the server says (status.md, RI-E1).
-    public var ownerID: String?
+    /// The account the key belongs to (`GET /users/me`): only its photos are
+    /// listed (R9, RI-E1).
+    public var ownerID: String
 
-    public init(version: ImmichVersion, permissions: [String], ownerID: String?) {
+    public init(version: ImmichVersion, permissions: [String], ownerID: String) {
         self.version = version
         self.permissions = permissions
         self.ownerID = ownerID
@@ -60,7 +61,7 @@ public protocol RemotePhotoSource: Sendable {
     var connection: RemoteConnection { get }
     func check() async -> ConnectionCheckResult
     func albums() async throws(RemoteError) -> [RemoteAlbum]
-    func page(scope: RemoteScope, cursor: String?, ownerID: String?) async throws(RemoteError) -> RemotePage
+    func page(scope: RemoteScope, cursor: String?, ownerID: String) async throws(RemoteError) -> RemotePage
     func thumbnail(assetID: String) async throws(RemoteError) -> Data
     func download(assetID: String, to file: URL, progress: @escaping @Sendable (Int64) -> Void)
         async throws(RemoteError) -> RemoteHTTPSession.Download
@@ -69,8 +70,9 @@ public protocol RemotePhotoSource: Sendable {
 /// Immich over `RemoteHTTPSession`.
 public final class ImmichClient: RemotePhotoSource {
     /// The smallest set of permissions importing needs (R3), in the order
-    /// the sheet's caption lists them.
-    public static let neededPermissions = ["asset.read", "asset.view", "asset.download", "album.read"]
+    /// the sheet's caption lists them. `user.read` gives the account's id, so
+    /// only its own photos are listed (R9, RI-E1).
+    public static let neededPermissions = ["asset.read", "asset.view", "asset.download", "album.read", "user.read"]
     /// Photos per page (status.md: 1 to 1000; a first screen never needs a
     /// second page).
     public static let pageSize = 250
@@ -128,23 +130,23 @@ public final class ImmichClient: RemotePhotoSource {
         }
         let missing = Self.missing(from: permissions)
         guard missing.isEmpty else { return .missingPermissions(missing) }
-        // 3. Whose photos are the account's own (status.md, RI-E1).
-        let owner = await ownerID(permissions: permissions)
-        return .passed(RemoteServerInfo(version: version, permissions: permissions, ownerID: owner))
-    }
-
-    /// `/users/me` when the key may read it; otherwise the owner of one of
-    /// the account's own albums (the first of an album's users is its owner);
-    /// otherwise unknown.
-    private func ownerID(permissions: [String]) async -> String? {
-        if permissions.contains("all") || permissions.contains("user.read"),
-           let data = try? await http.data(.userMe),
-           let user = try? JSONDecoder().decode(ImmichDTO.User.self, from: data) {
-            return user.id
+        // 3. The account's id: only its own photos are listed (R9, RI-E1).
+        // There is no fallback that guesses it.
+        let owner: String
+        do throws(RemoteError) {
+            let data = try await http.data(.userMe)
+            guard let user = try? JSONDecoder().decode(ImmichDTO.User.self, from: data), !user.id.isEmpty else {
+                return .notImmich
+            }
+            owner = user.id
+        } catch .status(401) {
+            return .keyRejected
+        } catch .status(403) {
+            return .missingPermissions(["user.read"])
+        } catch {
+            return failure(error)
         }
-        guard let data = try? await http.data(.ownAlbums),
-              let albums = try? JSONDecoder().decode([ImmichDTO.Album].self, from: data) else { return nil }
-        return albums.lazy.compactMap { $0.albumUsers?.first?.user.id }.first
+        return .passed(RemoteServerInfo(version: version, permissions: permissions, ownerID: owner))
     }
 
     // MARK: Browsing
@@ -155,7 +157,7 @@ public final class ImmichClient: RemotePhotoSource {
         return RemoteAlbum.sorted(albums.map { RemoteAlbum(id: $0.id, name: $0.albumName, assetCount: $0.assetCount) })
     }
 
-    public func page(scope: RemoteScope, cursor: String?, ownerID: String?) async throws(RemoteError) -> RemotePage {
+    public func page(scope: RemoteScope, cursor: String?, ownerID: String) async throws(RemoteError) -> RemotePage {
         let body: Data
         do {
             body = try ImmichDTO.searchBody(scope: scope, cursor: cursor, size: Self.pageSize)

@@ -38,6 +38,9 @@ public struct RemoteImportFailure: Hashable, Sendable {
         case checksumMismatch
         /// Fewer or more bytes than the server reported.
         case incomplete
+        /// An external library's photo whose size the server did not give: it
+        /// can't be verified (R13, RI-E2).
+        case unverifiable
         /// The server no longer has it (404).
         case deletedOnServer
         /// The server answered with this status for this photo.
@@ -72,6 +75,9 @@ public struct RemoteImportResult: Sendable {
     public var alreadyInLibrary = 0
     /// Live Photo stills imported without their videos (R14).
     public var liveVideosLeftOut = 0
+    /// Photos imported after a size check only: external-library photos,
+    /// whose checksum may be of their path (R13, R19, RI-E2).
+    public var verifiedBySizeOnly = 0
     public var failures: [RemoteImportFailure] = []
     /// Nil when every photo was tried.
     public var stop: RemoteImportStop?
@@ -230,7 +236,7 @@ public final class RemoteImporter: Sendable {
             }
             let contentHash: String
             do {
-                contentHash = try Self.verifyStored(partial, sha1: asset.checksum)
+                contentHash = try Self.verifyStored(partial, sha1: asset.isExternalLibrary ? nil : asset.checksum)
             } catch let failure as RemoteImportFailure.Kind {
                 try? FileManager.default.removeItem(at: partial)
                 result.failures.append(RemoteImportFailure(name: asset.fileName, kind: failure))
@@ -291,6 +297,7 @@ public final class RemoteImporter: Sendable {
                     result.imported += 1
                     result.insertedVersionIDs.append(versionID)
                     if asset.hasLiveVideo { result.liveVideosLeftOut += 1 }
+                    if asset.isExternalLibrary { result.verifiedBySizeOnly += 1 }
                     if options.metadata != nil { forcedSidecars.append(imageID) }
                 case .duplicate, .alreadyLinked:
                     try? FileManager.default.removeItem(at: final)
@@ -335,16 +342,25 @@ public final class RemoteImporter: Sendable {
         return Target(volume: volume, volumeID: volumeID, projectID: projectID, runID: run.id)
     }
 
-    /// Size and checksum of the bytes as they arrived.
+    /// Size and checksum of the bytes as they arrived (R13). An uploaded
+    /// photo (no `libraryId`): the size when the server gave one, and the
+    /// SHA-1. An external library's photo: the size only, which must be
+    /// known; its checksum may be of its path and is never compared (RI-E2).
     static func verify(_ download: RemoteHTTPSession.Download, partial: URL, asset: RemoteAsset) -> RemoteImportFailure.Kind? {
-        if let expected = asset.byteCount ?? download.expectedLength, download.byteCount != expected { return .incomplete }
+        let expected = asset.byteCount ?? download.expectedLength
+        if asset.isExternalLibrary {
+            guard let expected else { return .unverifiable }
+            return download.byteCount == expected ? nil : .incomplete
+        }
+        if let expected, download.byteCount != expected { return .incomplete }
         guard download.sha1 == asset.checksum else { return .checksumMismatch }
         return nil
     }
 
     /// Reads the stored file back around the file cache: its SHA-1 must
-    /// still be the server's, and its SHA-256 is the catalog's content hash.
-    static func verifyStored(_ url: URL, sha1 expected: String) throws -> String {
+    /// still be `expected` (nil for a photo verified by size only), and its
+    /// SHA-256 is the catalog's content hash.
+    static func verifyStored(_ url: URL, sha1 expected: String?) throws -> String {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
         _ = fcntl(handle.fileDescriptor, F_NOCACHE, 1)
@@ -354,7 +370,9 @@ public final class RemoteImporter: Sendable {
             sha1.update(bufferPointer: $0)
             sha256.update(bufferPointer: $0)
         }
-        guard Data(sha1.finalize()).base64EncodedString() == expected else { throw RemoteImportFailure.Kind.checksumMismatch }
+        if let expected, Data(sha1.finalize()).base64EncodedString() != expected {
+            throw RemoteImportFailure.Kind.checksumMismatch
+        }
         return sha256.finalize().hexString
     }
 

@@ -27,6 +27,17 @@ public struct RemoteKeyStoreError: Error, Equatable, Sendable, CustomStringConve
 
     public var description: String { message }
 
+    /// The system's text for use inside a sentence: one trailing period and
+    /// the white space around it trimmed ("…in the keychain." becomes "…in
+    /// the keychain"), so "…: %@." doesn't end in two (design §15, DQ-5).
+    public var inSentence: String { Self.inSentence(message) }
+
+    public static func inSentence(_ text: String) -> String {
+        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasSuffix(".") { trimmed.removeLast() }
+        return trimmed.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     public static func from(_ status: OSStatus) -> RemoteKeyStoreError {
         let text = SecCopyErrorMessageString(status, nil) as String? ?? "OSStatus \(status)"
         return RemoteKeyStoreError(status: status, message: text)
@@ -86,7 +97,13 @@ public struct KeychainKeyStore: RemoteKeyStore {
 
     public func deleteKey(account: String) throws(RemoteKeyStoreError) {
         let status = SecItemDelete(query(account) as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else { throw .from(status) }
+        guard Self.deleted(status) else { throw .from(status) }
+    }
+
+    /// An item already gone is a successful delete; any other status but
+    /// success, the person's Deny included, is a refusal (design §15, DQ-5).
+    public static func deleted(_ status: OSStatus) -> Bool {
+        status == errSecSuccess || status == errSecItemNotFound
     }
 }
 
