@@ -643,3 +643,124 @@ Info.plist permission text. Unchanged by this pass.
 ### Requirements issues
 
 None.
+
+## Fourth pass
+
+Owner: apple-ui-designer. Date: 2026-11-24. Branch `feature/immich-import` at
+54760d1. Scope: DQ-13 and DQ-14 only (f334d9d, 54760d1). Checked from source
+with no shell and no run of the app (the inspector is a glass pane, so there is
+no screenshot either): `ImportWindow.swift` 379 to 531, `ServerSource.swift`
+211 to 262, `ServerText.swift` 93 to 100, `RemoteBrowseRules.swift` 169 to 197,
+`Localizable.xcstrings` (the new entry), `RemoteProjectReuseTests.reuseNote`,
+`docs/USER_GUIDE.md` 93 to 129, design.md §5.3 and §15 DQ-12 to DQ-14, and
+`status.md` "DQ-13 and DQ-14 built". I did not re-run the engineer's scripted
+checks; they are read as reported.
+
+### Verdict
+
+**Ready for the owner's sign-off checks. DQ-13 and DQ-14 are built as ruled; no
+blocking finding and nothing that should be fixed first.** Two nits (N-8, N-9),
+neither needs a change to pass. DQ-12's rule is described the same way in
+design.md, `status.md` and the user guide.
+
+### Confirmations
+
+| Requirement | Result | From the source |
+|---|---|---|
+| DQ-13 string, exact | **Pass** | `ServerText.addsToExistingProject` and the catalog key are "Adds to the existing project with this name." (period, sentence case); one `en` entry, state `translated`, comment word for word as ruled (`Localizable.xcstrings:2369-2379`); sorted between "Address" and "Adjust" as the catalog is. The key is the English text and the call is `String(localized:comment:)`, like its neighbours |
+| Caption style, one line vs wrapping | **Pass** | The file's own `Caption` (11 pt, `.secondary`, `fixedSize(horizontal: false, vertical: true)`), the one under Preset and Server, so it wraps and never truncates. No icon, colour, button or confirmation |
+| Placement | **Pass** | Inside the field's `VStack(alignment: .leading, spacing: 6)`, directly under the field, 6 pt below it (`ImportWindow.swift:419-433`) |
+| Shown when | **Pass** | `CardImportModel.addsToExistingProject` is false without a server source or a library (standalone importer, card, folder), false when `existingProjectID != nil` (the field is absent then anyway), false while `library.projects` is empty; otherwise `RemoteProjectName.cleaned(typed, address:) == any project name`. That is the very call and the very address (`address.normalized`) `RemoteImporter.makeTarget` and `Catalog.projectForImport` use (`RemoteImporter.swift:408`, `ServerSource.swift:393`), so the note and the import cannot disagree, an empty field included |
+| Computed, not stored; follows typing, prefill, Add to, project list | **Pass** | A computed property read in the view body, so it follows `browse.projectName` and `library.projects`; nothing is cached. `reuseNote` covers match, match after cleaning, case, NFD against NFC, empty field as the address, no match, no projects, Add to set |
+| Announcement: once, only when it appears because the name changed | **Pass** | `setServerProjectName` and `chooseAlbum`'s prefill take the state before, change the name, and call `announceProjectNote(wasShown:)`, which speaks only for `!wasShown && shown`, medium priority. Never on window open, source change, Add to change or a change of the project list (none of those call it), never when the note goes. Typing past a match and back (delete a letter, retype it) announces again: the note did appear again because of the name, as DQ-13 says |
+| VoiceOver: hint plus a single announcement, visible label hidden | **Pass** | The field has `.accessibilityHint` of the sentence while the note shows and an empty text otherwise; the `Caption` is `.accessibilityHidden(true)`, so the sentence is not read twice; the visible `Text("Project name")` is `.accessibilityHidden(true)` and the field keeps its title "Project name" through `labelsHidden()` (which hides the label visually and keeps it for assistive technology). `Text(String)` for the hint is verbatim, not looked up again. Not tested with VoiceOver (owner's standing ruling) |
+| DQ-14 layout | **Pass** | `VStack(alignment: .leading, spacing: 6)`: plain `Text("Project name")`, `TextField` with `.textFieldStyle(.roundedBorder)`, `.labelsHidden()`, `.multilineTextAlignment(.leading)`, `.frame(maxWidth: .infinity)`: the shape `TemplateField` has (`TemplateField.swift:45-70`), system field, no custom control. No new string; Job code, the two pop-ups and the card's template Project name are untouched, as ruled |
+| No fixed widths at 300 pt | **Pass** | None in the stack: the field takes the column (`maxWidth: .infinity`), the caption has no horizontal size constraint of its own. The inspector is `inspectorColumnWidth(min: 300, ideal: 320, max: 400)` (`ImportWindow.swift:21`). Nothing in the new rows can widen the column or be cut at its trailing edge (the `print inspectorwidth` verdict is not available in this window and was not asked to be added) |
+| Increase Contrast, Light, Dark | **Pass in code, look is M12** | Only system pieces: rounded-border field (the system strengthens its border), primary label, `.secondary` caption. No hard-coded colour or border |
+| User guide terms | **Pass, with N-9** | **Project name**'s sentence and the quoted caption match the string character for character; **Import N Photos**, **Edit Server…** and **New Project** match the UI |
+| DQ-12 consistent in the three places | **Pass** | design.md §5.3 (lines 644-648), DQ-12 (1396-1408), `status.md` O1 and the guide (lines 95-103) all say: exact name after the field's cleaning, case counts, spaces collapsed, the **oldest** when several, a reused project keeps its folder, card and folder imports unchanged. design.md has no other sentence that says one project per run or a new project for a server (`grep` of "project" in the file: lines 57, 421, 608, 951 and 1070 are all still true; line 1070 is RI-3's history). The guide adds the empty-field fallback nowhere; DQ-12 has it (see N-9) |
+
+### New findings
+
+**Blocking: none. Should fix: none.**
+
+**Nits (no change needed to pass)**
+
+- **N-8. My "two lines at the narrowest" in DQ-13 is an estimate and is probably
+  wrong.** The sentence is 44 characters; at 11 pt SF Pro that is roughly 230 to
+  245 pt, and the grouped form's column at the 300 pt minimum is roughly 250 to
+  260 pt (my estimate: the form's insets are not in the code). It may fit on one
+  line at every width, or wrap only at 300 pt. Either is right; the rule is that
+  it wraps and never truncates, and the code does that. No change to code or
+  design.md; M12 asks the owner to report which, so the number can be corrected
+  if anyone cares. (design.md is read-only for this pass; I will correct the
+  sentence at the next edit of §15.)
+- **N-9. The user guide never says the reuse rule belongs to Add to = New
+  Project, and never names the pop-up.** It says a card or folder import "set to
+  **New Project**" makes a new project, which reads as if **Add to** had been
+  introduced; it is not in the guide for any source. Someone who picks an
+  existing project in **Add to** has no field and no note and no sentence about
+  it. Optional wording for the server paragraph, if the engineer touches it:
+  "With **Add to** set to **New Project**, a project that already has that
+  name..." and "Choosing a project in **Add to** puts the photos in it, and the
+  field is hidden." The empty-field fallback (the name becomes the server's
+  address) is also unsaid; it is a corner and can stay out.
+- **Two things to know, not findings.** (1) The Project section now mixes three
+  row shapes: the **Add to** pop-up (label left, value right), the stacked
+  **Project name**, and **Job code** (label left, field right). DQ-14 ruled this
+  deliberately and named the follow-up (a stacked Job code, the owner's to file);
+  M12 asks the owner to look at whether it reads as untidy. (2) `status.md`'s
+  "For a person, M1" is the DQ-14 look and collides with this file's M1 (the
+  certificate page); the engineer's file can keep its name, but the owner should
+  use this file's numbers: the combined check is **M12**.
+
+### What's working
+
+The note is a pure function of the same inputs the importer uses, so it is
+accurate by construction and cheap; the announcement rule is one `wasShown`
+comparison in the two places the name changes; the caption doubles as the hint
+without being read twice; and the stacked field is the `TemplateField` shape with
+the system field, so it needed no custom layout.
+
+### Manual checks for a person
+
+For the owner at the bundled app, on a scratch library (`Scripts/build-app.sh`,
+then the bundle with `--library-root`, a fake server with at least one photo
+imported so a project named "Home - All Photos" exists). No VoiceOver, macOS 15
+or macOS 26. **Optional but recommended before sign-off: the look is the only
+thing this pass could not see.**
+
+12. **M12. The server Project name field and its note (DQ-13, DQ-14).** Open the
+    fake server in the Import window with **Add to** set to **New Project**.
+    - **Short name.** The field is "Home - All Photos": label **Project name**
+      above, the field across the column, the text starting at its left edge
+      (not flush right), and the line **Adds to the existing project with this
+      name.** under it in small grey type. Type "Trip": the line disappears and
+      the form below moves up by its height, with nothing else jumping. Type
+      "Home - All Photos" again: it returns.
+    - **Long name.** Paste a 60-character name that does not match: the field
+      shows its start while at rest, scrolls to the caret while typing, and
+      nothing is cut at the trailing edge of the inspector. Paste a long name that
+      matches (rename a project to it first): the note shows.
+    - **Narrowest width.** Drag the inspector to its minimum (300 pt) and to its
+      maximum (400): the label, field and note stay on one left edge; the note is
+      one or two lines (say which at 300 pt, N-8) and never cut with "…"; the
+      field is not wider than the section's other rows.
+    - **Add to a project.** Choose an existing project in **Add to**: the field
+      and the note both go; back to **New Project**: both return.
+    - **Appearance.** Light, Dark and System Settings ▸ Accessibility ▸ Display ▸
+      Increase Contrast: the field's border is the stronger one, the label is
+      black or white text and the note stays legible (not fainter than the
+      captions under **Server** and **Preset**).
+    - **Neighbours.** Does the Project section read tidily with a pop-up row, a
+      stacked field and the Job code row together? A "no" is a follow-up to
+      stack Job code, not a fault of this branch.
+
+### Held for the owner, not decided here
+
+Nothing new. The follow-up for a stacked Job code (DQ-14) remains the owner's to
+file.
+
+### Requirements issues
+
+None.
