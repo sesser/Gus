@@ -531,6 +531,8 @@ public final class CardImportModel {
     /// when the window closes).
     public var progressDetail: String? {
         guard let progress else { return nil }
+        // A server request being tried again (design §6.1).
+        if progress.waitingForServer, let name = sourceName { return ServerText.waiting(name) }
         let done = ByteCountFormatter.string(fromByteCount: progress.bytesDone, countStyle: .file)
         let total = ByteCountFormatter.string(fromByteCount: progress.bytesTotal, countStyle: .file)
         return String(localized: "File \(progress.filesDone) of \(progress.filesTotal) · \(done) of \(total)",

@@ -167,6 +167,21 @@ struct RemoteImportTests {
         }
     }
 
+    @Test("A server's file name can't place a file outside the destination")
+    func hostileNames() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            var assets = try FakeImmichServer.jpegAssets(count: 2)
+            assets[0].fileName = "../../escape.JPG"
+            assets[1].fileName = "/etc/other.JPG"
+            let setup = try await Self.setup(assets: assets)
+            let result = await Self.importer(setup).run(try await Self.listed(setup), options: Self.options(root, setup))
+            #expect(result.imported == 2)
+            let files = Self.files(in: root)
+            #expect(files.count == 2)
+            #expect(files.allSatisfy { $0.hasPrefix("Photos/") && !$0.dropFirst(7).contains("/") })
+        }
+    }
+
     @Test("Content already in the library is not imported twice, and is linked (AC9, R15b)")
     func duplicates() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
@@ -184,6 +199,38 @@ struct RemoteImportTests {
             let linked = try await setup.catalog.linkedRemoteIDs(provider: .immich, address: setup.link.address,
                                                                  among: assets.map(\.id))
             #expect(linked == Set(assets.map(\.id)))
+        }
+    }
+
+    @Test("A RAW and a JPEG of one stem form a pair; a Live Photo's video is left out and counted (AC10, R14)")
+    func pairsAndLivePhotos() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let dng = root.appending(path: "IMG_0100.DNG")
+            try SyntheticDNG.write(to: dng, options: .init(width: 400, height: 300, seed: 7,
+                                                           dateTimeOriginal: "2026:10:01 10:00:00"))
+            let jpeg = root.appending(path: "IMG_0100.JPG")
+            try SyntheticImages.writeJPEG(to: jpeg, width: 64, height: 48, seed: 8,
+                                          exif: .init(dateTimeOriginal: "2026:10:01 10:00:00"))
+            let taken = Date(timeIntervalSince1970: 1_790_848_800)
+            var live = try FakeImmichServer.jpegAssets(count: 1, startingAt: 50)[0]
+            live.livePhotoVideoID = "video-of-live-photo"
+            let assets = [
+                FakeImmichServer.Asset(fileName: "IMG_0100.DNG", data: try Data(contentsOf: dng), takenAt: taken),
+                FakeImmichServer.Asset(fileName: "IMG_0100.JPG", data: try Data(contentsOf: jpeg), takenAt: taken),
+                // The Live Photo's motion part: a hidden video, never listed.
+                FakeImmichServer.Asset(id: "video-of-live-photo", fileName: "IMG_0050.MOV", data: Data("mov".utf8),
+                                       type: "VIDEO", visibility: "hidden", takenAt: live.takenAt),
+                live,
+            ]
+            let setup = try await Self.setup(assets: assets)
+            let listed = try await Self.listed(setup)
+            #expect(listed.count == 3)
+            let result = await Self.importer(setup).run(listed, options: Self.options(root, setup))
+            #expect(result.imported == 3 && result.failures.isEmpty)
+            #expect(result.liveVideosLeftOut == 1)
+            let pairs = try await setup.catalog.database.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM imagePair") }
+            #expect(pairs == 1)
+            #expect(!setup.server.requests.contains { $0.path.contains("video-of-live-photo") })
         }
     }
 

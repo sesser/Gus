@@ -103,9 +103,9 @@ struct ActivityToolbarItem: View {
         }
         // A copy goes on when the import window closes (final review Q1).
         let copy = model.cardImport
-        if let progress = copy.progress, let source = copy.source {
-            jobs.append(ActivityJob(id: "copy", title: CardImportModel.activityTitle(source),
-                                    toolbarTitle: ToolbarMetrics.statusLine(name: source.name) {
+        if let progress = copy.progress, let name = copy.sourceName {
+            jobs.append(ActivityJob(id: "copy", title: CardImportModel.activityTitle(name: name),
+                                    toolbarTitle: ToolbarMetrics.statusLine(name: name) {
                                         CardImportModel.activityTitle(name: $0)
                                     },
                                     detail: copy.progressDetail,

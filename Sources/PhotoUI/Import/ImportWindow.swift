@@ -252,25 +252,18 @@ private struct SourceMenu: View {
 private struct ImportActivity: View {
     let model: CardImportModel
 
-    /// "Waiting for “‹name›”…" while a server request is tried again (design §6.1).
-    private var waitingText: String? {
-        guard model.progress?.waitingForServer == true, let name = model.sourceName else { return nil }
-        return ServerText.waiting(name)
-    }
-
     var body: some View {
         if let progress = model.progress {
             HStack(spacing: 8) {
                 ProgressView(value: Double(progress.bytesDone), total: Double(max(progress.bytesTotal, 1)))
                     .frame(width: 160)
-                Text(waitingText ?? model.progressDetail ?? "")
+                Text(model.progressDetail ?? "")
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                     .toolbarStatusText()
             }
             .toolbarCapsuleInset()
             .help(progress.currentName)
-            .accessibilityValue(Text(waitingText ?? ""))
         } else if model.isScanning, let source = model.source {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
