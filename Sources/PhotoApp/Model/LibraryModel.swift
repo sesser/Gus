@@ -528,6 +528,8 @@ final class LibraryModel {
     @ObservationIgnored var comparisonMemory: [Int64: ComparisonState] = [:]
     /// Headroom of the HDR image each pane shows, for its caption's badge.
     var comparisonHDRHeadroom: [ComparisonSide: Float] = [:]
+    /// Each comparison pane's version badge for a gain-map photo (issue #282, design §9).
+    var comparisonHDRStatus: [ComparisonSide: HDRVersionBadge] = [:]
     /// The inspector's tab, remembered separately for the grid and the loupe.
     var inspectorTab: InspectorTab {
         get { mode == .loupe ? loupeInspectorTab : gridInspectorTab }
@@ -579,6 +581,11 @@ final class LibraryModel {
     /// have one (RI-3).
     @ObservationIgnored private var gainMapFiles: [String: Bool] = [:]
 
+    /// Whether `item`'s file has a gain map, nil while its header hasn't been read.
+    func gainMapKnown(_ item: CatalogItem) -> Bool? {
+        item.hdr ? true : gainMapFiles[item.contentHash]
+    }
+
     func noteGainMap(_ hasGainMap: Bool, for item: CatalogItem) {
         if gainMapFiles.count > 50_000 { gainMapFiles.removeAll(keepingCapacity: true) }
         gainMapFiles[item.contentHash] = hasGainMap
@@ -595,6 +602,9 @@ final class LibraryModel {
     var loupeHDRStatus = HDRVersionBadge.none
     /// The HDR version has been loading for more than 0.5 s: the caption's spinner (design §4).
     var loupeHDRSpinner = false
+    /// The loupe's visit shows a gain-map photo's HDR version, a map over it
+    /// included: the inspector's histogram is the HDR one (design §7.2).
+    var loupeHistogramIsHDR = false
     /// The HDR histogram of the active comparison pane's photo while it shows
     /// its HDR version (issue #282, design §7.2); nil otherwise.
     var comparisonHDRHistogram: HDRHistogram?
@@ -1009,6 +1019,7 @@ final class LibraryModel {
         case .ended(let remaining):
             comparison = nil
             comparisonHDRHeadroom = [:]
+            comparisonHDRStatus = [:]
             return .ended(remaining: remaining)
         }
     }

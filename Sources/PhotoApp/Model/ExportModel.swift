@@ -38,6 +38,8 @@ final class ExportModel {
     /// The versions the window exports (pairs resolved to their RAW).
     private(set) var versionIDs: [Int64] = []
     private(set) var skippedVideos = 0
+    /// Photos being exported whose HDR choice is on (issue #282, R13), known when the sheet opens.
+    private(set) var hdrPhotos = 0
     /// A rendition of the first photo, for placing the watermark.
     private(set) var previewImage: CGImage?
     private(set) var watermarkImage: CGImage?
@@ -121,6 +123,7 @@ final class ExportModel {
         let resolved = ExportTargets.resolve(targets)
         versionIDs = resolved.versionIDs
         skippedVideos = resolved.videos
+        hdrPhotos = ExportTargets.hdrCount(targets)
         issue = nil
         conflict = nil
         loadPreview(targets.first { !$0.isVideo })

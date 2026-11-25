@@ -168,7 +168,10 @@ final class AdjustmentEditor {
     /// for the new headroom.
     @ObservationIgnored var hdrDisplayHeadroom: Float? {
         didSet {
-            guard hdrDisplayHeadroom != oldValue, state == .ready, showsLive else { return }
+            guard hdrDisplayHeadroom != oldValue, state == .ready else { return }
+            // The image under the crop frame follows too (design §8).
+            if cropSession != nil, adjustments.hdr.isOn { renderCropImage() }
+            guard showsLive else { return }
             requestRender(interactive: false)
         }
     }
@@ -1868,7 +1871,8 @@ final class AdjustmentEditor {
         guard let session else { return nil }
         var values = adjustments
         values.crop = Crop(rect: .full)
-        return try? await session.render(values).image.cgImage
+        // A gain-map photo in HDR: the HDR version under the frame (issue #282, design §8).
+        return try? await session.render(values, hdrHeadroom: hdrHeadroom(for: values)).image.cgImage
     }
 
     /// Renders the image under the crop frame again after another adjustment changed.

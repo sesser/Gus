@@ -151,6 +151,18 @@ public struct PreviewGenerator: Sendable {
         return (output, map.headroom, map.ceiling)
     }
 
+    /// The histogram of a gain-map photo's whole HDR version with `stack`
+    /// (issue #282, R10), counted from a decode about `sampleSize` pixels
+    /// long; nil when the file is not a gain-map photo. For photos shown
+    /// without a live editor (a comparison pane).
+    public func gainMapHDRHistogram(source: URL, stack: EditStack, sampleSize: Int = 512) throws -> HDRHistogram? {
+        guard let map = GainMap.load(source) else { return nil }
+        let decoded = try Self.decode(source, longEdge: sampleSize, draft: true, settings: renderer.decodeSettings(for: stack))
+        let rendered = try renderer.apply(stack, to: decoded.image, context: decoded.context)
+        let placed = map.placed(over: decoded.image.extent, values: Adjustments(stack: stack), context: decoded.context)
+        return HDRHistogram(image: map.fullHDR(rendered, placed: placed), engine: engine)
+    }
+
     /// Full-resolution (or capped) rendition for 1:1 viewing, in `colorSpace`
     /// (Display P3 when nil), rendered before it returns (`makeSurfaceImage`):
     /// never by its first draw on the main thread.

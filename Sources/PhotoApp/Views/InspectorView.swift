@@ -326,7 +326,7 @@ private struct InfoHistogram: View {
     /// loupe's photo, or the active comparison pane's.
     private var hdrHistogram: HDRHistogram? {
         if model.isComparing { return model.comparisonHDRHistogram }
-        guard model.mode == .loupe, case .hdr = model.loupeHDRStatus else { return nil }
+        guard model.mode == .loupe, model.loupeHistogramIsHDR else { return nil }
         let editor = model.editor
         guard editor.state == .ready, editor.item?.versionID == model.focusedItem?.versionID else { return nil }
         return editor.hdrHistogram

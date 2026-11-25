@@ -71,6 +71,12 @@ enum HDRText {
         }
     }
 
+    /// The Export sheet's notice (design §10).
+    static func exportNotice(_ count: Int) -> String {
+        String(localized: "\(count) photos have HDR on. Exports are SDR.",
+               comment: "Export sheet header: how many of the exported photos have their HDR choice on; plural variations")
+    }
+
     static let loading = String(localized: "Loading the HDR version", comment: "Help tag and VoiceOver label of the loupe's SDR badge and spinner while the HDR version loads")
 
     /// The badge's VoiceOver label, which stands alone (design §12).

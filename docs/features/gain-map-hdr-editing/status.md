@@ -107,6 +107,30 @@ Built (commit "The gain map follows Distortion and spots; every adjustment teste
   pixel by one factor (flat colors, ISO maps: exact; IMG_0561's map: within
   3%), so a gray picture stays gray in HDR.
 
+Built (commit "Crop, comparison and the export notice in HDR"):
+- Crop session (§8): the image under the frame is the HDR version (the live
+  session renders it with the choice's headroom), in an extended-range layer
+  of its own, rendered again when the headroom moves; the shade, frame,
+  handles and grid are drawn as before.
+- Maps (§8, RI-4): no version badge while a map shows; the HDR histogram's
+  last counts stay (`LibraryModel.loupeHistogramIsHDR`, set by the visit, not
+  by the badge).
+- Comparison and review (§9): each pane shows its photo's choice (gain-map
+  HDR rendition at fit and 100%, never replaced by SDR in that showing, a
+  failure keeping it SDR), its own version badge (`comparisonHDRStatus`),
+  which never drops from a narrow caption and takes its short form last; a
+  choice-off photo's header is read once so its pane can say SDR. Panes read
+  the screen into the same per-screen memory as the loupe (§18.1) and
+  re-render when it moves. The inspector's HDR histogram follows the active
+  pane (`PreviewService.gainMapHDRHistogram`, a 512 px render of the whole HDR
+  version). Review is the loupe.
+- Export notice (§10): "1 photo has HDR on. Exports are SDR." / "%lld photos
+  have HDR on. …" (plural variations) under the subtitle, `info.circle`,
+  counted over the sheet's photos when it opens (`ExportTargets.hdrCount`: a
+  pair that exports its raw doesn't count; videos never).
+- VoiceOver (§12): the loupe canvas's value includes the badge's phrase,
+  without announcing a change of it alone.
+
 ## Stage 1: what it is for
 
 Only what E1 to E4 need: one gain-map file shown and edited in HDR in the

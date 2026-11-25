@@ -1514,7 +1514,10 @@ enum DebugScript {
                   + " allowed \(value(report.allowedHeadroom)) allowed now \(value(report.allowedNow))"
                   + " known limit \(value(report.settledReading)) request \(value(report.requestedHeadroom))"
                   + " file \(value(report.fileHeadroom)) ceiling \(value(report.ceiling)) refits \(report.refits)"
-                  + " live frame \(frame) showsLive \(model.editor.showsLive)")
+                  + " live frame \(frame) showsLive \(model.editor.showsLive)"
+                  + " crop image \(model.editor.cropImage.map { String(format: "%.2f", $0.contentHeadroom) } ?? "none")"
+                  + " histogram \(model.editor.hdrHistogram.map { String(format: "hdr above white %.3f", $0.shareAboveWhite) } ?? "none")"
+                  + " shows hdr histogram \(model.loupeHistogramIsHDR)")
             print("debug-script: hdr badge text '\(HDRText.badge(model.loupeHDRStatus) ?? "")'"
                   + " help '\(HDRText.help(model.loupeHDRStatus) ?? "")'")
         case "messages":

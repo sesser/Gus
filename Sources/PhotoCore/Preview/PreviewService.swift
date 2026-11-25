@@ -399,6 +399,18 @@ public final class PreviewService: Sendable {
         return made.image.cgImage
     }
 
+    /// The histogram of the request's photo's whole HDR version
+    /// (`PreviewGenerator.gainMapHDRHistogram`), nil for a file without a gain map or offline.
+    public func gainMapHDRHistogram(for request: PreviewRequest) async throws -> HDRHistogram? {
+        guard let source = request.sourceURL else { return nil }
+        let generator = interactiveGenerator
+        let stack = try await Self.stack(self.editStack, versionID: request.versionID, for: request.key)
+        try Task.checkCancellation()
+        return try await Task.detached(priority: .userInitiated) {
+            try generator.gainMapHDRHistogram(source: source, stack: stack)
+        }.value
+    }
+
     /// Puts a gain-map photo's HDR frame rendered elsewhere (the loupe's
     /// live edit, at the request's tier size) in memory as its HDR version
     /// for the request, so the loupe shows it again with no render.

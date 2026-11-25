@@ -97,12 +97,18 @@ enum DebugComparisonCommands {
             guard let item = model.comparisonItem(side), let index = model.indexOfVersion(item.versionID) else { continue }
             var badges: [String] = []
             if side == .right, model.isFiltered { badges.append("Filtered") }
-            if model.comparisonHDRHeadroom[side] != nil { badges.append("HDR") }
+            if let status = model.comparisonHDRStatus[side], status != .none {
+                // Issue #282: the pane's version badge, its words and help tag.
+                badges.append("version '\(HDRText.badge(status) ?? "")' (\(status.name)): \(HDRText.help(status) ?? "")")
+            } else if model.comparisonHDRHeadroom[side] != nil {
+                badges.append("HDR")
+            }
             if item.isCopy { badges.append("copy") }
             if model.isOffline(item) { badges.append("Offline") }
             print("debug-script: compare caption \(side) '\(PhotoName.inFull(item))' \(state.active == side ? "active" : "inactive")"
                   + " position '\(PhotoAccessibility.position(index, of: model.items.count))'"
-                  + " marks '\(PhotoAccessibility.value(for: item, offline: false))' badges [\(badges.joined(separator: ", "))]")
+                  + " marks '\(PhotoAccessibility.value(for: item, offline: false))' badges [\(badges.joined(separator: ", "))]"
+                  + " histogram \(model.comparisonHDRHistogram.map { String(format: "hdr %.3f", $0.shareAboveWhite) } ?? "none")")
         }
     }
 

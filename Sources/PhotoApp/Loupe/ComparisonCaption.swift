@@ -40,9 +40,10 @@ enum ComparisonCaptionMetrics {
 /// One pane's caption: the photo's name (a copy's own, as in the window
 /// title) and position, the culling marks in the middle, the badges at the
 /// trailing end. Short of room, it drops the position, then middle-truncates
-/// the name, then drops the HDR badge; the marks, with the label's name, and
-/// the Copy and Offline badges never go (side-by-side-comparison design §9,
-/// §16 D15).
+/// the name, then drops the HDR badge of an HLG, PQ or DNG photo and gives a
+/// gain-map photo's version badge its short form; the marks, with the label's
+/// name, the version badge and the Copy and Offline badges never go
+/// (side-by-side-comparison design §9, §16 D15; issue #282 design §9).
 private struct ComparisonPaneCaption: View {
     let model: LibraryModel
     let side: ComparisonSide
@@ -54,13 +55,15 @@ private struct ComparisonPaneCaption: View {
                 row(item, index, showsPosition: false, truncatesName: false, showsHDR: true)
                 row(item, index, showsPosition: false, truncatesName: true, showsHDR: true)
                 row(item, index, showsPosition: false, truncatesName: true, showsHDR: false)
+                row(item, index, showsPosition: false, truncatesName: true, showsHDR: false, compactVersion: true)
             }
         }
     }
 
     private var isActive: Bool { model.comparison?.active == side }
 
-    private func row(_ item: CatalogItem, _ index: Int, showsPosition: Bool, truncatesName: Bool, showsHDR: Bool) -> some View {
+    private func row(_ item: CatalogItem, _ index: Int, showsPosition: Bool, truncatesName: Bool, showsHDR: Bool,
+                     compactVersion: Bool = false) -> some View {
         HStack(spacing: ComparisonCaptionMetrics.spacing) {
             HStack(spacing: 0) {
                 name(item, truncates: truncatesName)
@@ -74,7 +77,7 @@ private struct ComparisonPaneCaption: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             CullingMarks(item: item)
                 .fixedSize()
-            badges(item, showsHDR: showsHDR)
+            badges(item, showsHDR: showsHDR, compactVersion: compactVersion)
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
@@ -98,14 +101,17 @@ private struct ComparisonPaneCaption: View {
     }
 
     @ViewBuilder
-    private func badges(_ item: CatalogItem, showsHDR: Bool) -> some View {
+    private func badges(_ item: CatalogItem, showsHDR: Bool, compactVersion: Bool) -> some View {
         HStack(spacing: 6) {
             // About the source, so once: in the right caption only.
             if side == .right, model.isFiltered {
                 CaptionBadge(title: String(localized: "Filtered"),
                              help: String(localized: "A filter hides some of this source's photos"))
             }
-            if showsHDR, let headroom = model.comparisonHDRHeadroom[side] {
+            if let status = model.comparisonHDRStatus[side], status != .none {
+                // A gain-map photo's version badge never drops (issue #282, design §9).
+                HDRVersionBadgeView(status: status, compact: compactVersion)
+            } else if showsHDR, let headroom = model.comparisonHDRHeadroom[side] {
                 CaptionBadge(title: String(localized: "HDR"),
                              help: String(localized: "Highlights up to \(headroom.formatted(.number.precision(.fractionLength(1))))× SDR white are shown with the display's extended range"))
             }

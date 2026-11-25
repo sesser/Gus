@@ -967,6 +967,29 @@
         }
       }
     },
+    "%lld photos have HDR on. Exports are SDR." : {
+      "comment" : "Export sheet header: how many of the exported photos have their HDR choice on",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo has HDR on. Exports are SDR."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos have HDR on. Exports are SDR."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld photos loaded" : {
       "comment" : "VoiceOver: a server's first page arrived",
       "localizations" : {

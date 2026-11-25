@@ -351,6 +351,7 @@ final class LoupeController: NSObject {
         model.loupeHDRHeadroom = nil
         model.loupeHDRStatus = .none
         model.loupeHDRSpinner = false
+        model.loupeHistogramIsHDR = false
         spinnerTask?.cancel()
         model.editor.hdrDisplayHeadroom = nil
         clearRequest()
@@ -867,6 +868,7 @@ final class LoupeController: NSObject {
     func updateHDRStatus() {
         guard let index = shownIndex, model.items.indices.contains(index) else {
             if model.loupeHDRStatus != .none { model.loupeHDRStatus = .none }
+            if model.loupeHistogramIsHDR { model.loupeHistogramIsHDR = false }
             return
         }
         let item = model.items[index]
@@ -883,6 +885,8 @@ final class LoupeController: NSObject {
             isMap: isMap, fileHeadroom: shownGainMap?.file,
             allowedNow: model.debugDisplayHeadroom ?? headroomReading.allowedNow)
         if model.loupeHDRStatus != status { model.loupeHDRStatus = status }
+        let histogramIsHDR = visitIsGainMap && visit.shown == .hdr && gainMapHeadroom != nil
+        if model.loupeHistogramIsHDR != histogramIsHDR { model.loupeHistogramIsHDR = histogramIsHDR }
         if status != .loading, model.loupeHDRSpinner { model.loupeHDRSpinner = false }
         if model.loupeGainMapReport.badge != status.name { model.loupeGainMapReport.badge = status.name }
     }
@@ -1400,8 +1404,15 @@ final class LoupeController: NSObject {
     /// "Picked, 13 of 87"; "Sharpening map, Picked, 13 of 87" while the map is on screen;
     /// "Picked, Machine learning not applied, 13 of 87" (ml-denoise design §8).
     var accessibilityValue: String? {
+        accessibilityValue(withVersion: true)
+    }
+
+    /// `withVersion`: with a gain-map photo's version phrase (issue #282,
+    /// design §12), which never by itself makes VoiceOver announce a change.
+    private func accessibilityValue(withVersion: Bool) -> String? {
         guard let item = accessibilityItem, let index = model.focusIndex else { return nil }
-        let notes = model.editor.machineLearningNotApplied == nil ? [] : [MachineLearningText.canvasValue]
+        var notes = model.editor.machineLearningNotApplied == nil ? [] : [MachineLearningText.canvasValue]
+        if withVersion, let version = HDRText.accessibilityLabel(model.loupeHDRStatus) { notes.append(version) }
         let value = PhotoAccessibility.loupeValue(for: item, offline: model.isOffline(item), notes: notes, index: index,
                                                   count: model.items.count)
         if model.editor.pixelMagnifierIsPicking { return LensText.pickingCanvasValue(value) }
@@ -1419,7 +1430,7 @@ final class LoupeController: NSObject {
     /// canvas's value; VoiceOver is told. (The move itself is announced by
     /// the key's handler, or with the culling result after auto-advance.)
     func updateAccessibility() {
-        let value = accessibilityValue
+        let value = accessibilityValue(withVersion: false)
         defer { describedValue = value }
         if describedValue != nil, value != nil, describedValue != value {
             NSAccessibility.post(element: hostView, notification: .valueChanged)

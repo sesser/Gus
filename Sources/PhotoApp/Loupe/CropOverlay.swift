@@ -93,6 +93,13 @@ final class CropOverlayView: NSView {
         if image !== self.image {
             self.image = image
             imageLayer.contents = image
+            // A gain-map photo in HDR shows its HDR version under the frame (issue #282, design §8);
+            // the shade, frame, handles and grid stay SDR. macOS 26 and later (R18).
+            if #available(macOS 26.0, *) {
+                let headroom = image.contentHeadroom
+                imageLayer.preferredDynamicRange = headroom > 1 ? .high : .standard
+                imageLayer.contentsHeadroom = headroom > 1 ? CGFloat(headroom) : 0
+            }
         }
         self.session = session
         if previous == nil || previous?.crop.quarterTurns != session.crop.quarterTurns
@@ -108,6 +115,10 @@ final class CropOverlayView: NSView {
         session = nil
         image = nil
         imageLayer.contents = nil
+        if #available(macOS 26.0, *) {
+            imageLayer.preferredDynamicRange = .standard
+            imageLayer.contentsHeadroom = 0
+        }
         drag = nil
         needsFit = true
     }

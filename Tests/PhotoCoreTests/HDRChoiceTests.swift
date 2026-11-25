@@ -189,6 +189,25 @@ struct HDRChoiceTests {
         #expect(Self.badge(failed: true).name == "sdr failed")
     }
 
+    @Test("AC12: the export notice counts exported photos with HDR on, once each; a pair exporting its raw doesn't count")
+    func exportCount() {
+        func item(_ id: Int64, _ path: String, hdr: Bool, partner: Int64? = nil, partnerKind: FileKind? = nil) -> CatalogItem {
+            var item = CatalogItem(versionID: id, imageID: id, volumeID: 1, rating: .unrated, flag: .none, colorLabel: .none,
+                                   contentHash: String(repeating: "a", count: 64), editStackHash: EditStack.identity.renderHash,
+                                   relativePath: path, pixelWidth: 10, pixelHeight: 10, orientation: 1)
+            item.hdr = hdr
+            item.partnerVersionID = partner
+            item.partnerKind = partnerKind
+            return item
+        }
+        let on = item(1, "a/IMG_1.HEIC", hdr: true)
+        let off = item(2, "a/IMG_2.HEIC", hdr: false)
+        let pairJPEG = item(3, "a/IMG_3.JPG", hdr: true, partner: 4, partnerKind: .raw)
+        let video = item(5, "a/IMG_5.MOV", hdr: true)
+        #expect(ExportTargets.hdrCount([on, off, on, pairJPEG, video]) == 1)
+        #expect(ExportTargets.hdrCount([off]) == 0)
+    }
+
     // MARK: photocli (AC15)
 
     @Test("AC15: develop sets and resets the choice on a gain-map photo, query reads it, other files are refused")
