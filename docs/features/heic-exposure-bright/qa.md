@@ -308,4 +308,10 @@ open -R /Users/randy/gus-qa/heic-exposure-bright/photos/IMG_0546.HEIC
 
 ## Follow-up
 
-No reruns yet. Owner's sign-off (step 5): pending.
+No reruns: QA raised no findings.
+
+**Owner's sign-off (step 5): signed off on 2026-11-24, at commit 53a496b**
+(the branch head, working tree clean). The owner replied "Sign off" to "Do you
+sign off on the #277 fix?", after being given the build commands and checks P1
+to P5. Results were not recorded one by one for P1 to P5, and the owner named
+no check as left open.
