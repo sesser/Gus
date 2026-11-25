@@ -87,7 +87,7 @@ struct LoupeCanvas: NSViewRepresentable {
         context.coordinator.hdrSetting = model.showsHDR && !model.debugNoExtendedRange
         context.coordinator.debugHeadroom = model.debugDisplayHeadroom
         // The HDR choice of the photo being edited (issue #282): turning it on or off reloads the photo.
-        _ = (model.editor.adjustments.hdr, model.editor.state, model.editor.hasGainMap)
+        _ = (model.editor.adjustments.hdrIsOn, model.editor.state, model.editor.hasGainMap)
         context.coordinator.show(index: model.focusIndex)
         context.coordinator.showLiveFrame(revision: model.editor.frameRevision, active: model.editor.showsLive)
         context.coordinator.showCrop(model.editor.cropSession, image: model.editor.cropImage)
@@ -781,7 +781,7 @@ final class LoupeController: NSObject {
     /// (they change before the write lands), else the catalog's.
     private func hdrChoice(for item: CatalogItem) -> Bool {
         let editor = model.editor
-        if editor.item?.versionID == item.versionID, editor.state == .ready { return editor.adjustments.hdr.isOn }
+        if editor.item?.versionID == item.versionID, editor.state == .ready { return editor.adjustments.hdrIsOn }
         return item.hdr
     }
 

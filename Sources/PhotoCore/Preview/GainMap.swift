@@ -13,9 +13,10 @@ import ImageIO
 /// same in both versions, and nothing that renders SDR (previews, exports,
 /// `photocli`) changes.
 ///
-/// Only files whose HDR comes from a gain map alone: not raws (their gain
-/// maps are out of scope), not videos, and not HLG or PQ encoded images,
-/// which keep their own HDR rendition (`PreviewGenerator.hdrImage`, R16).
+/// Only HEIC and JPEG files whose HDR comes from a gain map alone: not raws
+/// (their gain maps are out of scope), not other file types, and not HLG or
+/// PQ encoded images, which keep their own HDR rendition
+/// (`PreviewGenerator.hdrImage`, R16).
 public struct GainMap: @unchecked Sendable {
     // @unchecked: CIImage is an immutable recipe, safe to share.
 
@@ -32,9 +33,9 @@ public struct GainMap: @unchecked Sendable {
     /// headroom; a gain map can also hold larger gains for darker parts.
     public let ceiling: Float
 
-    /// Whether `url` is a gain-map photo, from its header: a non-raw,
-    /// non-video file with a gain map (ISO 21496-1 or Apple's) and no HLG or
-    /// PQ encoding. Nothing is decoded.
+    /// Whether `url` is a gain-map photo, from its header: a HEIC or JPEG
+    /// with a gain map (ISO 21496-1 or Apple's) and no HLG or PQ encoding.
+    /// Nothing is decoded.
     public static func exists(_ url: URL) -> Bool {
         guard let source = eligibleSource(url) else { return false }
         return hasGainMap(source)
@@ -123,8 +124,8 @@ public struct GainMap: @unchecked Sendable {
     /// The HDR version of `rendered`, the photo's edited SDR version in the
     /// working space, for a display that can show `displayHeadroom` times
     /// SDR white now: the SDR picture as it is shown (clipped to SDR white in
-    /// Display P3), brightened by `placed` (from `placed(over:crop:)` with
-    /// the same decode and crop) by the gain map's own rule for the display
+    /// Display P3), brightened by `placed` (from `placed(over:values:context:)`
+    /// with the same decode and values) by the gain map's own rule for the display
     /// (`GainMapHeadroom.weighting`), and limited to what the display can
     /// show. Returns the image with that limit, the headroom to tag it with
     /// (`GainMapHeadroom.tag`).
@@ -166,16 +167,22 @@ public struct GainMap: @unchecked Sendable {
     }
 
     /// The file's image source, when the file may be a gain-map photo at
-    /// all: not a raw, not a video, not HLG or PQ encoded.
+    /// all: a HEIC (or HEIF) or JPEG by its name and its content (PRD,
+    /// Terms; gain maps in other file types are a non-goal), and not HLG or
+    /// PQ encoded. ImageIO also reads gain maps from other containers (an
+    /// AVIF's, measured on macOS 27.2), which a misnamed file could carry.
     private static func eligibleSource(_ url: URL) -> CGImageSource? {
-        guard !SupportedFormats.isRaw(pathExtension: url.pathExtension),
-              FileKind(pathExtension: url.pathExtension) != .video,
+        guard let kind = FileKind(pathExtension: url.pathExtension), kind == .heic || kind == .jpeg,
               let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+              let type = CGImageSourceGetType(source) as String?, eligibleTypes.contains(type),
               CGImageSourceGetCount(source) > 0,
               !PreviewGenerator.hasHDREncoding(source)
         else { return nil }
         return source
     }
+
+    /// The content types a gain-map photo can be (`CGImageSourceGetType`).
+    static let eligibleTypes: Set<String> = ["public.heic", "public.heif", "public.jpeg"]
 
     private static func hasGainMap(_ source: CGImageSource) -> Bool {
         [kCGImageAuxiliaryDataTypeISOGainMap, kCGImageAuxiliaryDataTypeHDRGainMap].contains {

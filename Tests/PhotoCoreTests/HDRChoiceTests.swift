@@ -35,6 +35,28 @@ struct HDRChoiceTests {
         #expect(!EditStack.identity.hdrChoice)
     }
 
+    @Test("Code review C4: a turned-off `hdr` operation reads as off in the editor's values and the catalog's copy alike")
+    func turnedOffOperationIsOff() throws {
+        let written = EditStack(operations: [EditOperation(kind: HDRChoice.kind, isEnabled: false,
+                                                           parameters: ["on": .bool(true)])])
+        let stack = try EditStack.decode(from: written.jsonData())
+        var values = Adjustments(stack: stack)
+        #expect(!stack.hdrChoice)
+        #expect(!values.hdrIsOn)
+        // Kept as it was until the choice is set: written back unchanged.
+        #expect(values.editStack.hasSameContent(as: stack))
+        // Turning it on turns the operation on; both readings agree again.
+        values.hdrIsOn = true
+        #expect(values.hdrIsOn && values.editStack.hdrChoice)
+        #expect(values.editStack.hasSameContent(as: Self.on().editStack))
+        values.hdrIsOn = false
+        #expect(values.editStack == .identity)
+        // Show Original keeps the choice as it applies (`AdjustmentEditor.originalValues`).
+        var original = Adjustments.none
+        original.hdrIsOn = Adjustments(stack: stack).hdrIsOn
+        #expect(!original.hdrIsOn)
+    }
+
     @Test("R12: the choice is not in the render hash, so SDR previews are the same with it on or off")
     func notInRenderHash() {
         #expect(Self.on().editStack.renderHash == EditStack.identity.renderHash)

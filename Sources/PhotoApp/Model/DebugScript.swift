@@ -1505,7 +1505,7 @@ enum DebugScript {
             func value(_ number: Float?) -> String { number.map { String(format: "%.2f", $0) } ?? "none" }
             let frame = model.editor.frame.map { $0.headroom.map { String(format: "hdr %.2f", $0) } ?? "sdr" } ?? "none"
             let item = model.focusedItem
-            print("debug-script: gainmap has choice \(model.editor.hasGainMap) choice \(model.editor.adjustments.hdr.isOn)"
+            print("debug-script: gainmap has choice \(model.editor.hasGainMap) choice \(model.editor.adjustments.hdrIsOn)"
                   + " item \(item?.hdr ?? false) wants \(report.wantsHDR)"
                   + " gain-map \(report.isGainMap) shown \(report.visit.shown?.rawValue ?? "none")"
                   + " changes \(report.visit.changes) versions \(report.shownVersions.map(\.rawValue).joined(separator: ","))"

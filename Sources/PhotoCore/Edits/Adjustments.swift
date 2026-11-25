@@ -56,8 +56,22 @@ public struct Adjustments: Hashable, Sendable {
     public var grain = Grain()
     /// A gain-map photo's HDR choice (issue #282). Not one of the `Group`s:
     /// presets, copy and paste never carry it (R3); Reset All Adjustments
-    /// turns it off. Renders no SDR pixel (`HDRChoice`).
+    /// turns it off. Renders no SDR pixel (`HDRChoice`). Read and set the
+    /// choice through `hdrIsOn`, which agrees with `EditStack.hdrChoice`.
     public var hdr = HDRChoice()
+
+    /// The HDR choice as it applies: on, and its operation not turned off.
+    /// Nothing here turns the operation off, but a stack can hold a turned-off
+    /// one (a hand edit, a later build); it then reads as off everywhere, as
+    /// `EditStack.hdrChoice` (the catalog's copy) reads it. Setting it turns
+    /// the operation back on.
+    public var hdrIsOn: Bool {
+        get { hdr.isOn && !disabled.contains(HDRChoice.kind) }
+        set {
+            hdr.isOn = newValue
+            disabled.remove(HDRChoice.kind)
+        }
+    }
     /// Modules that keep their values but are turned off. Change it through
     /// `setEnabled(_:_:)`, which only records modules away from their defaults.
     public private(set) var disabled: Set<EditOperationKind> = []

@@ -156,7 +156,9 @@ struct GainMapAdjustmentTests {
     static func reference(_ url: URL, _ values: Adjustments, longEdge: Int) throws -> Pixels {
         let expanded = try GainMapHDRTests.systemHDR(url)
         let moved = AdjustmentRenderer.gainMapGeometry(values, expanded, context: RenderContext())
-        return Pixels(moved, size: try #require(try sizeOf(url, values, longEdge: longEdge)))
+        // Unwrapped here: `Pixels` takes an optional size, through which `#require` passed nil before.
+        let size: CGSize = try #require(try sizeOf(url, values, longEdge: longEdge))
+        return Pixels(moved, size: size)
     }
 
     static func sizeOf(_ url: URL, _ values: Adjustments, longEdge: Int) throws -> CGSize? {

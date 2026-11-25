@@ -170,7 +170,7 @@ final class AdjustmentEditor {
         didSet {
             guard hdrDisplayHeadroom != oldValue, state == .ready else { return }
             // The image under the crop frame follows too (design §8).
-            if cropSession != nil, adjustments.hdr.isOn { renderCropImage() }
+            if cropSession != nil, adjustments.hdrIsOn { renderCropImage() }
             guard showsLive else { return }
             requestRender(interactive: false)
         }
@@ -182,7 +182,7 @@ final class AdjustmentEditor {
     /// The headroom a frame of `values` is rendered for: HDR only for values
     /// whose HDR choice is on (`LiveRenderSession` gives other files SDR).
     private func hdrHeadroom(for values: Adjustments) -> Float? {
-        values.hdr.isOn ? hdrDisplayHeadroom : nil
+        values.hdrIsOn ? hdrDisplayHeadroom : nil
     }
     /// Drags on the photo paint into the selected mask's brush.
     var isBrushing = false {
@@ -819,10 +819,10 @@ final class AdjustmentEditor {
     /// Turns the photo's HDR choice on or off, one undo step and one History
     /// entry (issue #282, design §2.3). Only for a gain-map photo.
     func setHDR(_ isOn: Bool) {
-        guard hasGainMap, cropSession == nil, adjustments.hdr.isOn != isOn else { return }
+        guard hasGainMap, cropSession == nil, adjustments.hdrIsOn != isOn else { return }
         change(isOn ? HDRText.turnOn
                     : HDRText.turnOff,
-               phase: .committed) { $0.hdr.isOn = isOn }
+               phase: .committed) { $0.hdrIsOn = isOn }
     }
 
     func toggleOriginal() {
@@ -1891,7 +1891,7 @@ final class AdjustmentEditor {
     /// R8).
     var originalValues: Adjustments {
         var values = Adjustments.none
-        values.hdr = adjustments.hdr
+        values.hdrIsOn = adjustments.hdrIsOn
         return values
     }
 

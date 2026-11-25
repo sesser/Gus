@@ -141,6 +141,44 @@ struct GainMapHDRTests {
         }
     }
 
+    @Test("AC1: only a HEIC or JPEG, by name and content, is a gain-map photo; a gain map in another file type gives no choice")
+    func onlyHEICAndJPEG() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let heic = root.appending(path: "map.heic")
+            let jpeg = root.appending(path: "map.jpg")
+            try HDRTestImages.writePatternedGainMap(to: heic, width: 200, height: 150, seed: 2824)
+            try HDRTestImages.writePatternedGainMap(to: jpeg, width: 200, height: 150, seed: 2825, container: .jpeg)
+            // HEIF and upper-case names are HEIC and JPEG files too.
+            for (source, name) in [(heic, "map.HEIF"), (jpeg, "map.JPEG")] {
+                let copy = root.appending(path: name)
+                try FileManager.default.copyItem(at: source, to: copy)
+                #expect(GainMap.exists(copy), "\(name)")
+            }
+            // The same bytes under a TIFF or PNG name are not (the app treats a file by its name).
+            for name in ["map.tif", "map.tiff", "map.png"] {
+                let copy = root.appending(path: name)
+                try FileManager.default.copyItem(at: jpeg, to: copy)
+                #expect(!GainMap.exists(copy), "\(name)")
+                #expect(GainMap.load(copy) == nil, "\(name)")
+            }
+            // Another container with a gain map ImageIO reads (AVIF), named as a HEIC: not by its content.
+            let avif = root.appending(path: "avif.heic")
+            let read = try #require(CGImageSourceCreateWithURL(heic as CFURL, nil))
+            let gainMap = try #require(CGImageSourceCopyAuxiliaryDataInfoAtIndex(read, 0, kCGImageAuxiliaryDataTypeISOGainMap))
+            let picture = try #require(CGImageSourceCreateImageAtIndex(read, 0, nil))
+            let destination = try #require(CGImageDestinationCreateWithURL(avif as CFURL, "public.avif" as CFString, 1, nil))
+            CGImageDestinationAddImage(destination, picture, nil)
+            CGImageDestinationAddAuxiliaryDataInfo(destination, kCGImageAuxiliaryDataTypeISOGainMap, gainMap)
+            try #require(CGImageDestinationFinalize(destination))
+            let written = try #require(CGImageSourceCreateWithURL(avif as CFURL, nil))
+            #expect(CGImageSourceGetType(written) as String? == "public.avif")
+            // ImageIO reads its gain map, so only the content check keeps it out.
+            #expect(CGImageSourceCopyAuxiliaryDataInfoAtIndex(written, 0, kCGImageAuxiliaryDataTypeISOGainMap) != nil)
+            #expect(!GainMap.exists(avif))
+            #expect(GainMap.load(avif) == nil)
+        }
+    }
+
     // MARK: Orientation (R19, AC17)
 
     @Test("Unedited at the file's headroom, the HDR version is the system's HDR decode, in every orientation",

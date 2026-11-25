@@ -288,8 +288,9 @@ public actor LiveRenderSession {
     /// (issue #282): the same frame with the gain map applied last
     /// (`GainMap.hdr`), as a half-float image tagged with the headroom it was
     /// rendered for (`Frame.headroom`), the mask overlay's tint brightened
-    /// with the photo. Its histogram is the SDR frame's, until the HDR one
-    /// is built. Maps and other files ignore it.
+    /// with the photo. Its `histogram` is the SDR frame's (the Tone Curve's
+    /// backdrop) and `hdrHistogram` the whole HDR version's at the file's
+    /// full brightening (design §7). Maps and other files ignore it.
     public func render(_ adjustments: Adjustments, interactive: Bool = false, allowsDrafts: Bool = true,
                        overlayMask: UUID? = nil, content: Content = .photo, hdrHeadroom: Float? = nil,
                        cancellation: RenderCancellation? = nil) throws -> Frame {

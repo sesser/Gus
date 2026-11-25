@@ -467,6 +467,16 @@ enum CatalogSchema {
         }
     }
 
+    /// Issue #282: each version's HDR choice, a copy of its edit stack's
+    /// (`EditStack.hdrChoice`), written with the stack (`setEditStacks`), so
+    /// the loupe knows it from the item without reading the stack. No stack
+    /// written before this migration holds the choice, so every row starts off.
+    private static func addHDRChoice(_ db: Database) throws {
+        try db.alter(table: "version") { t in
+            t.add(column: "hdr", .boolean).notNull().defaults(to: false)
+        }
+    }
+
     /// Servers photos are imported from (issue #271, R22) and the link from a
     /// cataloged version to the remote asset it came from (R15). Generic: the
     /// provider is a value (`immich`), so another source adds rows, not
@@ -480,16 +490,6 @@ enum CatalogSchema {
     /// its version (`ON DELETE CASCADE`), so removing a photo removes it in the
     /// same transaction. One remote asset is linked to at most one version,
     /// and a version to at most one asset of a server.
-    /// Issue #282: each version's HDR choice, a copy of its edit stack's
-    /// (`EditStack.hdrChoice`), written with the stack (`setEditStacks`), so
-    /// the loupe knows it from the item without reading the stack. No stack
-    /// written before this migration holds the choice, so every row starts off.
-    private static func addHDRChoice(_ db: Database) throws {
-        try db.alter(table: "version") { t in
-            t.add(column: "hdr", .boolean).notNull().defaults(to: false)
-        }
-    }
-
     private static func addRemoteServices(_ db: Database) throws {
         try db.create(table: "remoteService") { t in
             t.autoIncrementedPrimaryKey("id")

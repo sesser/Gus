@@ -622,7 +622,7 @@ struct LibraryCommands: Commands {
             Divider()
             // The photo's HDR choice (issue #282, design §2.2): dimmed, as Turn On HDR, where it can't change.
             Button(menu?.state.hdrIsOn == true ? HDRText.turnOff : HDRText.turnOn) {
-                if let editor = model?.editor { editor.setHDR(!editor.adjustments.hdr.isOn) }
+                if let editor = model?.editor { editor.setHDR(!editor.adjustments.hdrIsOn) }
             }
             .disabled(!can { $0.canSetHDR })
             Button("Auto Exposure") { model?.autoExposure() }
