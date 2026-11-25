@@ -159,6 +159,10 @@ final class LoupeController: NSObject {
     private var shownFrameRevision: Int?
     /// Loads the shown version's renditions again on the next `show`.
     private var reloadsSameKey = false
+    /// The next `show` of the same version begins a new visit where it is:
+    /// HDR became possible or impossible in place (code review C9). Zoom
+    /// and position stay, as in a comparison pane.
+    private var beginsVisitInPlace = false
     private var shownIndex: Int?
     private var zoom: Zoom = .fit {
         // Zoomed in, live frames are already stretched: drafts would make that worse.
@@ -446,14 +450,18 @@ final class LoupeController: NSObject {
         // A change of the HDR choice (turning it on or off, its undo, Reset All, a History revert) is a
         // new visit: the version changes with it (RI-1). The picture on screen stays until the new one.
         let choiceChanged = sameVersion && key.hdrChoice != shownKey?.hdrChoice
+        // HDR became possible or impossible for the photo on screen (`reloadIfHDRPossibilityChanged`).
+        let inPlace = sameVersion && beginsVisitInPlace
         shownKey = key
         reloadsSameKey = false
+        beginsVisitInPlace = false
         loadTask?.cancel()
         hdrTask?.cancel()
         fullTask?.cancel()
         sizeTask?.cancel()
-        if !sameVersion || choiceChanged {
-            // Another photo, the same one after a change of a setting or screen, or of its choice: a new visit.
+        if !sameVersion || choiceChanged || inPlace {
+            // Another photo, the same one after a change of a setting or screen, of its choice, or of
+            // whether HDR can be shown: a new visit.
             beginVisit(versionID: item.versionID)
         }
         model.editor.hdrDisplayHeadroom = editorHeadroom
@@ -477,7 +485,7 @@ final class LoupeController: NSObject {
                 self.resizeImageView(toPixels: size)
             }
         }
-        if rendition == .live, sameVersion, !choiceChanged {
+        if rendition == .live, sameVersion, !choiceChanged, !inPlace {
             // The edit being shown live was saved; its frame stays until the
             // editor hands back to the cached renditions.
             rendition = .live
@@ -497,6 +505,10 @@ final class LoupeController: NSObject {
             imageView.setTile(nil, unit: .zero)
             model.editor.loupeAwaitsFullRendition = false
             applyZoom(animated: false)
+        } else if inPlace {
+            // The tile is of the version the visit no longer shows; the photo stays where it is.
+            imageView.setTile(nil, unit: .zero)
+            model.editor.loupeAwaitsFullRendition = false
         }
 
         if let request = model.previewRequest(for: item, tier: .preview) {
@@ -841,11 +853,15 @@ final class LoupeController: NSObject {
     /// shown photo without anything else asking for a reload: its original
     /// went offline or came back (code review C1), or its screen started or
     /// stopped reporting extended range in place (review F6). True when it
-    /// reloaded.
+    /// reloaded. The same version stays where it is, at its zoom and
+    /// position, as a comparison pane's does (code review C9).
     @discardableResult
     private func reloadIfHDRPossibilityChanged() -> Bool {
-        guard shownKey != nil, hostView.window != nil, (possibleHeadroom != nil) != visitHDRPossible else { return false }
-        reload()
+        guard shownKey != nil, hostView.window != nil, (possibleHeadroom != nil) != visitHDRPossible,
+              let index = shownIndex else { return false }
+        reloadsSameKey = true
+        beginsVisitInPlace = true
+        show(index: index)
         return true
     }
 
