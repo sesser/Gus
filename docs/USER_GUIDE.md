@@ -524,9 +524,11 @@ saved with the photo's edits: it is one undo step and a History entry
 that entry had (entries from before you turned it on have it off), **Reset All
 Adjustments** turns it off, and a copy made with **File ▸ Duplicate** starts
 with its original's choice and keeps its own after that. Presets, **Copy
-Adjustments** and **Paste Adjustments** never carry it or change it. Raws, HLG
-and PQ files, TIFFs and videos have no such choice. The choice can't be changed
-while the original is offline or while comparing.
+Adjustments** and **Paste Adjustments** never carry it or change it. Only HEIC
+and JPEG files have the choice: raws, HLG and PQ files, TIFFs, PNGs and videos
+don't. The check box and the menu item can't change it while the original is
+offline, while comparing or while cropping; **Reset All Adjustments** chosen in
+the grid still turns it off for a photo whose original is offline.
 
 There is one set of adjustments: each edit changes the HDR version by as much,
 in stops, as the SDR version, and every control of the Adjust tab works on the
@@ -538,15 +540,23 @@ brightening with the picture, so a healed light leaves no glow.
 The badge in the caption line says which version is on screen: **HDR**, or
 **SDR** for a photo with HDR off. Right after you open a photo with HDR on, the
 cached SDR preview may show for a moment, with **SDR** and, after half a second,
-a spinner, before the HDR version takes its place once. When HDR is on but can't
-be shown, a warning sign and **SDR** say why, in the help tag and VoiceOver
-when the line is too narrow for the words: **SDR: HDR Hidden** (**View ▸ Hide
-HDR** is on), **SDR: No HDR Display** (the display has no extended range, or
-HDR is turned off for it in System Settings), **SDR: HDR Failed** (the HDR
-version couldn't be made; open the photo again to retry), or the **Offline**
-badge beside **SDR** (the cached SDR preview is shown). While a sharpening or
-fringe map is shown there is no version badge, and the photo returns in HDR
-when the map ends.
+a spinner, before the HDR version takes its place once.
+
+When HDR is on but can't be shown, a warning sign and **SDR** say so, followed
+by the reason. Where the caption line is too narrow for the reason, only the
+warning sign and **SDR** remain, and the help tag and VoiceOver give the
+reason. The reasons are:
+
+- **SDR: HDR Hidden**: HDR is hidden; choose **View ▸ Show HDR** to see it.
+- **SDR: No HDR Display**: the display has no extended range, or HDR is turned
+  off for it in System Settings.
+- **SDR: HDR Failed**: the HDR version couldn't be made; open the photo again to
+  retry.
+- The **Offline** badge beside **SDR**: the original is offline, so the cached
+  SDR preview is shown. HDR returns when its volume is connected again.
+
+While a sharpening or fringe map is shown there is no version badge, and the
+photo returns in HDR when the map ends.
 
 How much extra brightness a display allows depends on the display, its
 settings and brightness, and whether the app is in front. Where a photo goes
@@ -557,12 +567,15 @@ still says **HDR**; its help tag gives how bright the file goes and what the
 display allows now. Where a display allows little, the HDR version can look
 close to SDR. The first HDR photo shown on a display may adjust its brightness
 once more, a moment after it appears, while the app learns what the display
-allows; later photos on that display open fitted to it.
+allows; later photos on that display open fitted to it. This normally happens
+once per display each time the app runs, and can happen again if what the
+display allows has changed since (its brightness, say).
 
 Show Original shows the unedited HDR version; the mask overlay, Crop and Edit
 Spots show the photo in HDR, with their handles and lines as before. The Pixel
 Magnifier's plate and values stay SDR. Side-by-side comparison and review show
-each photo as its choice says, each pane with its own badge. Thumbnails, the
+each photo as its choice says, each pane with its own badge and, while its HDR
+version loads, its own spinner. Thumbnails, the
 film strip, cached previews, `photocli render` and exports are always SDR, the
 same with HDR on or off; the Export sheet says so when photos with HDR on are
 among those exported. HDR editing needs macOS 26 or later.
@@ -723,8 +736,10 @@ whole HDR version, at the file's full brightness, the same on every display:
 the left three fifths run from black to SDR white as before, a line marks SDR
 white, and the right two fifths run up to 3 stops above it (anything brighter
 collects at the right edge), with **HDR** in the corner. A picture fitted to the
-display can differ from it. The histogram behind the Tone Curve stays the SDR
-version's, since the curve works on SDR tones.
+display can differ from it. For a moment after the HDR version appears, the
+histogram may show only its frame, with no curve, while it is counted; it never
+shows the SDR version's counts under an HDR picture. The histogram behind the
+Tone Curve stays the SDR version's, since the curve works on SDR tones.
 
 A raw always opens with its decoder's own contrast and color rendering; the
 Adjust tab has no choice of base rendering, and photos edited in an earlier
