@@ -141,8 +141,12 @@ I built this with Claude. AI did the work, I did the orchestration.
   presets (`.lrtemplate`, `.xmp`, `.dng`) and Luminar preset packs (`.lnpc`,
   several at once) with a report of anything that doesn't carry over. Luminar's
   conversion is approximate, and the report says where
-- HDR display of HDR sources (floating-point DNG, gain-map HEIC and JPEG,
-  HLG and PQ) on EDR screens
+- HDR display of HDR sources (floating-point DNG, HLG and PQ) on EDR screens.
+  Photos whose HDR comes only from a gain map (most iPhone HEIC and JPEG
+  photos) show in standard range, the same picture you edit and export, so a
+  slider's edit stays as it looked while you dragged. They can look darker
+  than in an app that shows the HDR version. HLG photos can still change
+  brightness when you let go of a slider (#283)
 - Merge to HDR (⇧⌘L): select two to nine photos of one scene (all raws, or
   all JPEG, HEIC, TIFF or PNG) and Gus merges them into one new, tone-mapped
   photo, a 16-bit TIFF or a DNG, saved next to the frame you choose as the
@@ -209,8 +213,9 @@ burst stacks, black and white for part of a photo (through a mask), mapping of L
 hierarchical keywords, importing straight from a camera over USB, a second
 backup destination on import, importing from servers other than Immich,
 sending edited photos back to Immich (publishing is planned, #28), importing
-videos or Immich's own edits. Metadata is never written into original
-files; it goes to XMP sidecars.
+videos or Immich's own edits, showing and editing gain-map photos in HDR
+(#282). Metadata is never written into original files; it goes to XMP
+sidecars.
 
 ## Requirements
 

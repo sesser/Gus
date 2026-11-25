@@ -341,10 +341,14 @@ compatible and never put `#` comment lines inside pasted command snippets.
   extended linear Rec. 2020 working space, output converted to Display P3.
   Caches are SDR. On EDR displays the loupe swaps in an HDR render from the
   master (half-float extended linear Display P3, tagged with its content
-  headroom), memory-only, for HDR content only: floating-point DNGs, gain maps,
-  HLG/PQ. Camera raws stay SDR. The layer enables extended range only while it
-  shows an HDR image. Every `CIRAWFilter` whose image is rendered takes it
-  from `RAWDecodeGraph.output(of:)`, which gives each decode a render graph
+  headroom), memory-only, for HDR content only: floating-point DNGs and
+  HLG/PQ-encoded images. A gain map alone is not HDR content (issue #277): its
+  HDR rendition is a different, often brighter picture, and live frames,
+  previews and exports are its SDR rendition, so gain-map photos show their SDR
+  rendition (HDR editing of them is #282). Camera raws stay SDR. The layer
+  enables extended range only while it shows an HDR image. Every `CIRAWFilter`
+  whose image is rendered takes it from `RAWDecodeGraph.output(of:)`, which
+  gives each decode a render graph
   of its own: the decoder's lens correction reads a table that is not in Core
   Image's graph digest, and a context reusing one decode's prepared graph for
   another smeared its edges. This rests on Core Image behavior observed on
@@ -1491,6 +1495,29 @@ toolbar at 900 pt, the Keychain prompt, ⌘Q with the sheet up, the Project name
 field), no checks left open (`docs/features/immich-import/qa.md`). Covered by CI
 only: VoiceOver, macOS 15 and macOS 26.
 
+Gain-map photos shown SDR (`docs/features/heic-exposure-bright/`, bug fix, issue
+#277, branch `bug/heic-exposure-bright`): on an extended-range display the loupe
+showed an iPhone gain-map HEIC's HDR rendition (0.86 stops brighter by mean
+luminance on the owner's file, mid-tones and shadows too) while live frames,
+previews and exports were SDR, so the picture jumped on every slider release. A
+gain map alone is no longer HDR content (the owner's ruling RI-1, 2026-11-24):
+`decodeHDR` makes no HDR rendition for a non-raw file without HLG or PQ encoding
+(`PreviewGenerator.hasHDREncoding`), so the loupe and comparison panes show the
+SDR rendition, with no HDR badge, at fit, at 100% and after a release.
+Floating-point DNGs and HLG or PQ images, with or without a gain map, keep their
+HDR rendition; camera raws stay SDR. View ▸ Show / Hide HDR Highlights is
+unchanged. No `PreviewCacheKey.currentPipelineVersion` bump (13), no golden
+moved, previews and exports render as before. The opt-in real-file test is
+`HEIC_GAINMAP_SAMPLE=path/to/IMG.HEIC swift test --filter
+GainMapRenditionTests` (the owner's file is never committed). Known: HDR editing
+of gain-map photos is #282; HLG HEICs still jump on release and their fitted
+render is darker than their 100% render (about 1.6 stops on synthetic files; no
+real file measured; #283); HDR photos show SDR while a slider is held, as before
+this fix. Shipped; the owner signed off 2026-11-24 at 53a496b, no check named as
+left open (P1 to P5 were not recorded one by one,
+`docs/features/heic-exposure-bright/qa.md`). Covered by CI only: VoiceOver,
+macOS 15 and macOS 26.
+
 Not yet: publishing back to Immich or Apple Photos (#28; it will build on the
 `remoteService` and `remoteLink` tables and the connection layer, widen the
 key's permissions and the read-only allowlist, and change the network wording
@@ -1515,7 +1542,8 @@ and built-in look profiles (dropped 2026-11-18, #89 and #216; a profile's
 hue/saturation and look tables are not applied), a Profile group or any
 Neutral or Flat base look (#219 removed it; the loss is accepted),
 a sharper X-Trans demosaic (#199),
-general (hand-made or burst) stacks, hierarchical
+general (hand-made or burst) stacks, showing and
+editing gain-map photos in HDR (#282), hierarchical
 keywords, PTP cameras, a second backup destination. Writing metadata into
 originals was dropped (2026-11-04, `docs/roadmap.md`): originals are never
 written.
