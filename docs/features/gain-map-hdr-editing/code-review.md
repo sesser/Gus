@@ -266,3 +266,48 @@ No `/security-review` for this pass. `GainMap` passes through a dictionary
 ImageIO already parsed and adds no parser. `HDRTestImages` writes test files to
 temporary folders only. There is no subprocess, no file writing near masters
 and no network code.
+
+Fifth pass, 2026-11-25. Reviewed `b391a9c..06338f7` (`4b7ad86`, `39c5057`,
+`66a935f`, `06338f7`): the fixes for QA's Q6 and Q7 (`qa.md`, second pass) as
+design §20.1 and §20.2 rule them, the user guide and their record in
+`status.md` ("QA round 2"). Build and tests at `06338f7`: `swift build` clean;
+full `swift test` **1581 tests in 222 suites passed** (100.0 s), the six new
+`LoupeCaptionLevelsTests` included. The app was not launched; the widths below
+are the engineer's debug-script measurements, which I read against the code.
+
+**Verdict, fifth pass:** ready for the designer's confirmation and QA's third
+pass. Q6's guarantee and order and Q7's extra arrangement are built as §20.1
+and §20.2 say. One new nit (C11) is a design call: the transient parts are
+counted when the caption chooses its level, so a spinner can drop the film
+strip button or compact the stars while not shown itself.
+
+| # | Outcome | Commit | Check |
+| --- | --- | --- | --- |
+| C10 | Closed by the design ruling | — | Design §19.6 chose option (a) and names the transient movers it accepts (Hide HDR, Copy, a map, Show Original, the caption spinner). C11 is what §20.1's longer order adds to it. |
+| Q6 (QA) | Fix sound | `4b7ad86` | **Guarantee.** `LoupeCaption` ends in `.padding(.horizontal, 12)`, then `.frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)`, `.frame(height:)`, `.clipped()`, as §20.1 gives it, with the frame outside the padding. When even the last level doesn't fit, its `HStack` of fixed-size parts reports more than the proposal. The flexible frame takes the proposal, aligns the content trailing, and the clip cuts the leading edge, so the version badge and **Offline** stay. That matches the engineer's 20 pt column run (the trailing end of **Offline** shown, the window and the inspector unmoved). **Order.** `ViewThatFits` over `ForEach(LoupeCaptionLevel.all)` takes each level as a candidate, as the measured levels 1 to 13 show. Every part the table can drop or reshape is read from the level in the view: `filtered`, `original`, `spotLimit`, `spinner`, `machineLearning`, `copy`, `filmStripToggle` and `position` through `shows`, the version badge, rating, label name and map badge through `form`, and the mark spacing. The never-dropped parts (version badge, HDR badge, **Offline**, flag, dot, rating) are drawn without a level check, which agrees with the table. Levels 1 and 2 keep the position, which `CenteredCaptionRow`'s three subviews need (tested). From level 3 the row is the position, 8 pt, the marks, a spacer of at least 8 pt and the badges, at spacing 0. That is §20.1's 8 pt in all. The marks and badges have layout priority 1, so a truncating name or map badge gets the room before the spacer does. **Truncation.** `TruncatingSlot`'s ideal width is its minimum (`min(minimumWidth, whole)`), so `ViewThatFits` tests levels 11 to 13 at their narrowest. Laid out, it takes `min(whole, max(floor, offered))`. The label name's slot is clipped, so at level 13 the ellipsis Text drawn wider than 0 pt doesn't spill. The map badge's Text truncates inside its border down to 80 pt. Each badge is now `fixedSize` on its own; the row-wide `fixedSize` that made the row the column's minimum is gone. **Compact marks.** One `star.fill` in the rating color, 2 pt, the digit (`Text(_:format: .number)`, secondary), nothing when unrated, 6 pt between marks; the VoiceOver label and a help tag with the five stars' words. The label name is one line at every level (`lineLimit(1)`, `fixedSize` until level 11), with the "%@ label" help tag. No new UI string. The `LoupeCaptionLevelsTests` table test restates §20.1's rows and fails on any drift in either direction; the guarantee itself is a layout property that PhotoCore can't test, and the debug script's `print loupe` (column, level, caption width) is the right check. |
+| Q7 (QA) | Fix sound | `39c5057` | One more arrangement at the end of the pane caption's list, the fifth with `CullingMarks(compact: true, spacing: 6)`. No clamp on the comparison caption, as §20.2 says. `CullingMarks`'s other users keep their behavior through the defaults (spacing 10, not compact, name whole). The name's new `lineLimit(1).fixedSize()` changes nothing in the pane, where the marks were already `fixedSize`. `CaptionBadge`'s new `lineLimit(1)` changes nothing either, since the pane's badge row is `fixedSize`. The engineer's widths fall below `develop`'s in every pair (`status.md`), which is §20.2's condition for keeping the fix. |
+| User guide | Matches | `66a935f` | The paragraph is design §20.1's text, word for word, and describes what the build does. |
+
+New code, checked and fine:
+
+- **Debug script.** `print loupe` adds the column (the scroll view's frame), the
+  level last shown (`onAppear` of the chosen candidate) and the caption width
+  (`onGeometryChange`). `LoupeCaptionReport` is main-actor static state read
+  only by the script. `panes [<split> <divider> <x>]` lists split views and can
+  move a divider with `setPosition(_:ofDividerAt:)`. It changes no photo, so it
+  needs no undo group.
+- **Concurrency, rules.** All of it is main-actor view code. No rendering path,
+  stack, catalog, sidecar or pipeline version is touched, and no golden moved.
+  `LocalizationTests` and `BrandingTests` pass in the full run.
+- **Determinism.** `LoupeCaptionLevelsTests` reads a constant table built once
+  from constants: no rendering, timing, shared mutable state or pool order. I
+  accept that structural argument.
+
+New finding, fifth pass:
+
+| # | Severity | Where | Finding | Failure | Rule |
+| --- | --- | --- | --- | --- | --- |
+| C11 | Nit (a design call) | `Sources/PhotoApp/Loupe/LoupeView.swift:1978–1983` (`ViewThatFits` over the levels), `:2060` (the spinner, shown at levels 1 to 5), `:2048` (Original, to level 11), `:2054` (Spot Limit, to level 9); `Sources/PhotoCore/Browser/LoupeCaptionLevels.swift:108` (level 6) | The caption chooses its level by what is on screen now, transient parts included. A transient part that doesn't fit at the current level pushes the caption to a later one, which can take away something unrelated, or the part itself. The sharpest case is level 6, which drops the spinner and makes the marks compact in one step. | Take a width where level 5 fits with less than about 20 pt to spare, for example a 5-star photo with a flag and label in a narrow window. At 100%, pan or release a slider. 0.5 s later `isAwaitingSharpFrame` adds the spinner, level 5 no longer fits, and level 6 is chosen: the spinner is dropped, so it doesn't appear, and the five stars turn into **★ 5** until the sharp frame lands, then turn back. The same happens on opening a gain-map photo while its HDR version loads for more than 0.5 s. One level higher, the spinner hides the **Film Strip** button (4 → 5) or the position (3 → 4) for the wait. On a gain-map photo with a reason, it can shorten the version badge (1 → 2). Pressing `\` (Original) at a tight width can likewise drop **Copy** and **Filtered** and end at level 12, where Original isn't shown either: the photo changes and the caption shows nothing new. Found by reading the layout and the table; no width was measured for a specific photo. §19.6 accepted marks that move with the spinner; flicker of the stars' form and of a control is more than that. Options for the designer: measure levels 1 to 5 with the spinner's slot reserved whether or not it shows, or drop the spinner before anything else (a level of its own before level 2). | Design §20.1; §19.6's scope |
+
+No `/security-review` for this pass: SwiftUI layout and debug-script commands
+only. No parser, subprocess, file writing or network code.

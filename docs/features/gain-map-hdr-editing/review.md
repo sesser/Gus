@@ -1,6 +1,6 @@
 # Edit and show gain-map photos in HDR: design review
 
-Issue: #282 · Against `design.md` (with §19) and the PRD (issue body, revised
+Issue: #282 · Against `design.md` (with §19 and §20) and the PRD (issue body, revised
 2026-11-25) and the HIG.
 
 | Pass | Reviewed | Verdict |
@@ -9,15 +9,79 @@ Issue: #282 · Against `design.md` (with §19) and the PRD (issue body, revised
 | Second, 2026-11-25 | `2e98a11` | Changes needed, narrowly: F1 partly open (at 100%), F11 new (low). F2 to F10 fixed |
 | Third, 2026-11-25 | `1f5dd6a` | **Passed**: no open findings |
 | Fourth, 2026-11-25 (QA Q2, Q3; DQ-2) | `e1e6fa0` | **Passed**: DQ-2 ruled (a). F12 new, low, not blocking unless M18 fails. Manual checks M1 to M19 are open |
-| Ruling on QA Q6, Q7, 2026-11-25 | `e335a84` | **Changes needed**: F12 (M18 failed) and F13, design §20. Replaces the fourth pass's verdict |
+| Ruling on QA Q6, Q7, 2026-11-25 | `e335a84` | **Changes needed**: F12 (M18 failed) and F13, design §20. Replaced the fourth pass's verdict |
+| Fifth, 2026-11-25 (fixes for Q6, Q7) | `06338f7` | **Passed**: F12 and F13 fixed, no open design findings. Manual checks M1 to M20 are for a person |
 
-**How this was checked.** By reading the source (and, in the first, second and
-fourth passes, `docs/USER_GUIDE.md`). Nothing was built, run or looked at. Test,
-snapshot and debug-script results are the engineer's (`status.md`) or QA's
-(`qa.md`) and were not re-run. "Pass" below means the code does what the design
-says; anything that depends on how it looks or behaves on a screen is "manual".
+**How this was checked.** By reading the source (and, in the first, second,
+fourth and fifth passes, `docs/USER_GUIDE.md`). Nothing was built, run or looked
+at. Test, snapshot and debug-script results are the engineer's (`status.md`) or
+QA's (`qa.md`) and were not re-run. "Pass" below means the code does what the
+design says; anything that depends on how it looks or behaves on a screen is
+"manual".
 
-## After QA's second pass (Q6, Q7)
+## Fifth pass: the Q6 and Q7 fixes (`06338f7`)
+
+### Verdict
+
+**Passed.** The fixes build design §20.1 and §20.2, and the user guide carries
+§20.1's passage word for word. No open design findings, no new ruling, no
+Requirements issues. How the caption looks as items leave it is still unseen
+(M8, M18, M20).
+
+| Finding | Result | What was confirmed in the code | The engineer's measurements (`status.md`, "QA round 2") |
+| --- | --- | --- | --- |
+| F12 (QA Q6) | **Fixed**; look manual (M8, M18) | The guarantee is §20.1's modifier chain, flexible frame outside the padding, trailing, clipped. `LoupeCaptionLevel.all` is the thirteen-row table row for row, with tests for the never-dropped parts and each level's change. Version badge, **HDR**, **Offline**, a map's badge and the flag are not conditional on any level (a map's badge only truncates, from 11). 8 pt from level 3. Compact rating: one star and digit 2 pt apart, nothing when unrated, 6 pt between marks, same VoiceOver words and help tag. Label name one line, cut to 24 pt then 0, with the "%@ label" help tag | 240 pt in every state at 760; no level 13 there; the label name whole in every non-map state, for Orange, Purple and Yellow; the inspector button stays put |
+| F13 (QA Q7, this branch's part) | **Fixed**; look manual (M20) | A sixth pane arrangement, the fifth with compact marks. Name, version badge, **Copy**, **Offline** and the label name never drop; no clamp | At 760, each gain-map pane 173.75 (**HDR**) and 186.25 (**SDR** warning) against `develop`'s 213.25; rated 273.75 and 286.25 against 297.75. Unrated at 1,050: side panes whole |
+
+**User guide:** pass. **Film Strip**, **Copy**, **Filtered** and **Offline**
+match the UI, and in the loupe the code puts the copy's name in the window title
+and **Filtered** in the subtitle. Whether both stay readable in a 760 pt window
+is in M18.
+
+**Below 240 pt.** §20.1 left open whether the split view allows it. It does: with
+the side panes dragged to 320 and 420 pt in a 760 pt window the loupe is 20 pt,
+the caption clips at its leading edge and the window keeps its size (engineer,
+debug script). That is the specified behavior. A column that narrow shows no
+usable photo either, which is a matter of pane minimums, not of the caption; it
+is added to the follow-up below.
+
+**From reading, not seen, not a finding.** From level 11 the marks and the badges
+share one layout priority. With a map's badge and a second badge such as
+**Offline** together, the marks may be given room the badges need, clipping the
+stars at the leading edge. I know of no confirmed way to reach that pair; the
+window stays whole either way. M18 tries it.
+
+### Follow-up proposed: the older part of Q7
+
+Revised with the engineer's measurements. This is the text to file: `status.md`
+has the same issue without the sentence on the loupe's width.
+
+- **Title:** Comparison captions are wider than a narrow window allows and push
+  the side panes off the window
+- **Labels:** `bug`. Proposed Complexity: Routine.
+- **Body:** In the library window with the sidebar and inspector shown at their
+  default widths, compare two photos (**S**). Expected: both panes and their
+  captions stay within the loupe's column and the side panes don't move. Actual
+  (`develop` `4561cb3`, measured in #282): at 760 pt each pane is 213.25 pt wide
+  for an unrated pair and 297.75 for a pair rated 5 with a flag and a color
+  label, where the whole comparison has 240, so the comparison is wider than its
+  column and the side panes are pushed partly off the window; the rated pair
+  still overflows at 1,050 pt. #282 lowers the width needed (design §20.2: for a
+  plain pair 136.75 and 236.75 at 760; a gain-map pair is wider, up to 286.25)
+  without removing the fault. Likely cause (inferred from the widths): the two
+  captions' minimum widths set the comparison's minimum. Wants a design first:
+  each caption must never ask for more than its half, and at under 100 pt a side
+  the name, marks and version badge don't fit on one line, so clamping alone
+  would cut badges (#282 R4 keeps the version badge visible). Check first whether
+  the film strip or the pane views also set a minimum. Related, measured on
+  #282's branch and not checked on `develop`: at 760 pt the side panes can be
+  dragged to 320 and 420 pt, leaving the loupe 20 pt; consider a minimum width
+  for the center column. Slug: `comparison-narrow-window-overflow`.
+
+The fourth pass's proposed bug **Narrowest loupe caption…** is replaced by the
+F12 fix; do not file it.
+
+## Ruling after QA's second pass (history, at `e335a84`)
 
 ### Verdict
 
@@ -37,31 +101,8 @@ every photo, and `develop` does not do it.
 | **F12** (QA Q6): a crowded caption makes the loupe column wider than its space; the color label name also wraps to two cut lines | High: regression, controls can't be seen or clicked | Design §20.1: the caption never asks for more than it is offered; the thirteen-level order; one line for the label name |
 | **F13** (QA Q7, the part this branch added): the version badges widen each comparison pane by about 35 pt | Low | Design §20.2: one more arrangement with compact marks, no clamp |
 
-The fourth pass proposed F12 as a follow-up (**Narrowest loupe caption…**); do not
-file it.
-
-### Follow-up proposed: the older part of Q7
-
-QA's title and body, revised:
-
-- **Title:** Comparison captions are wider than a narrow window allows and push
-  the side panes off the window
-- **Labels:** `bug`. Proposed Complexity: Routine.
-- **Body:** In the library window with the sidebar and inspector shown at their
-  default widths, compare two photos (**S**). Expected: both panes and their
-  captions stay within the loupe's column and the side panes don't move. Actual
-  (`develop`, measured in #282's QA): at 760 pt each pane is 235.75 pt wide where
-  the whole comparison has 240, so the comparison is wider than its column and
-  the side panes are pushed partly off the window. By arithmetic from those
-  widths (estimates, not measured), two photos rated 5 with a flag and a color
-  label overflow at window widths up to about 1,150 pt. #282 lowers the width
-  needed (design §20.2) without removing the fault. Likely cause (inferred from
-  the widths): the two captions' minimum widths set the comparison's minimum.
-  Wants a design first: each caption must never ask for more than its half, and
-  at under 100 pt a side the name, marks and version badge don't fit on one line,
-  so clamping alone would cut badges (#282 R4 keeps the version badge visible).
-  Check first whether the film strip or the pane views also set a minimum. Slug:
-  `comparison-narrow-window-overflow`.
+Both are fixed (fifth pass). The follow-up for the older part of Q7 is under the
+fifth pass.
 
 ## Fourth pass (history, at `e1e6fa0`)
 
@@ -88,7 +129,7 @@ the culling marks. §2.1, §2.2, §4 and §5 are amended to match.
 | Q3: marks covered the version badge at the minimum width | **Fixed** for the cases QA reported; manual (M8) | `ViewThatFits` takes the four arrangements of §19.6 in order; `CenteredCaptionRow` asks for the width that keeps both sides clear of centered marks, and the badge row is fixed-size. Comparison captions are a separate view; QA saw their version badge whole at 760 pt |
 | User guide for Q2 and Q3 | Pass | The offline sentence and the narrowest-window sentence match the UI |
 
-### Open finding at that pass (superseded above)
+### Open finding at that pass (since fixed; its follow-up is not to be filed)
 
 **F12 (low; from reading, not seen): nothing gives way after the last
 arrangement.** `LoupeCaption`'s fourth arrangement is used even when it doesn't
@@ -209,16 +250,19 @@ comparing at high zoom.
 | §19.2 empty frame while counts load; counts made whenever HDR comes on screen | Pass in code; manual | M3, M16 |
 | §19.6 narrow caption: four arrangements in order, badges whole, 8 pt from the marks | Pass in code for the four; continued by §20.1 | M8, M18 |
 | §19.7 offline while open: box and menu item dimmed, both return | Pass in code; manual | M15 |
-| §20.1 the caption never asks for more than its column | **Fail** (F12; QA T10, T11) | M18 |
-| §20.1 levels 5 to 13, compact marks, one-line label name with help tag, user guide | **Fail** (not built) | M8, M18 |
-| §20.2 comparison: compact-rating step, no wider than `develop` for a gain-map pair | **Fail** (F13; QA T12) | M20 |
+| §20.1 the caption never asks for more than its column | Pass (code; engineer's script); manual | M18 |
+| §20.1 levels 5 to 13, compact marks, one-line label name with help tag, user guide | Pass (code and `LoupeCaptionLevelsTests`); look manual | M8, M18 |
+| §20.2 comparison: compact-rating step, no wider than `develop` for a gain-map pair | Pass (code; engineer's measurements); look manual | M20 |
 
 ## Improvements (judgment, not required)
 
-- New in the fourth pass: in the widths where the spinner alone tips the caption
-  from one arrangement to another, the culling marks move and move back (HDR
-  loading, a sharp frame at 100%). If M8 shows it as jumpy, measure the
-  arrangements with the spinner's slot always counted.
+- New in the fourth pass, wider since the fifth: in the widths where the spinner
+  alone tips the caption from one level to another, things change and change back
+  (HDR loading, a sharp frame at 100%). The spinner is dropped only at level 6,
+  so besides the marks moving, the position or the **Film Strip** button can
+  leave, or the stars turn compact, for as long as it shows. That follows
+  §20.1's order. If M8 shows it as jumpy, measure the levels above 6 with the
+  spinner's slot always counted.
 - Dropped in the fourth pass: the note about badges wrapping under a half-line
   cap. The badge row is now fixed-size.
 
@@ -269,9 +313,9 @@ now. VoiceOver, macOS 15 and macOS 26 are left to CI.
 | M15 | With copies of the photos on an external drive or disk image: eject it with an HDR-on photo open, look at the **HDR** box and the **Adjust** menu, reconnect; open an HDR-off one while ejected | Triangle **SDR** beside **Offline**, no HDR picture; the box stays, dimmed and checked, and the menu item is dimmed as **Turn On HDR**; on reconnect HDR returns, the box is enabled and the item reads **Turn Off HDR**. HDR off: **SDR** and **Offline** if the photo was already known to have a gain map, the help tag not naming Turn On HDR. A photo first opened while ejected may keep an empty histogram until reopened (§19.4) |
 | M16 | At 100%: **View ▸ Hide HDR**, wait, **Show HDR**; then, with the mask overlay on and again with Show Original, lower and raise screen brightness on a screen that allows less than the photo needs | The HDR histogram fills within a moment (F1); the picture follows brightness as it does at fit (F11), with no spinner |
 | M17 | At 200%, panned to a corner: eject and reconnect the photo's volume; then turn the display's HDR off and on in System Settings (external display) | Same zoom and place throughout; a briefly soft picture is acceptable, and while offline it stays soft. If only the System Settings change returns to 100%, macOS reported it as a screen change: note it on the Show / Hide HDR follow-up under the third pass |
-| M18 | At 760 pt with sidebar and inspector shown (the debug script can measure and snapshot this): a gain-map photo with 5 stars, a pick flag, a color label (try the longest name), a filter on and **View ▸ Hide HDR**; then press \\ for Original; then a virtual copy of it; then with its volume ejected; a plain JPEG the same way; a sharpening map with Amount 0. Then, by hand, drag both side panes to their widest | §20.1. The loupe stays 240 pt, no side pane or window moves, nothing is drawn outside the loupe. Warning mark, **SDR** and **Offline** whole; the label name on one line and whole except beside a map; hovering the label names it. With panes dragged wider, the panes still don't leave the window; record what is clipped |
+| M18 | At 760 pt with sidebar and inspector shown (widths already measured by script; this is the look and the pointer): a gain-map photo with 5 stars, a pick flag, a color label (Orange, Purple or Yellow), a filter on and **View ▸ Hide HDR**; then press \\ for Original; then a virtual copy of it; then with its volume ejected; a plain JPEG the same way; a sharpening map with Amount 0, then, if the map stays up, eject the volume. Then drag both side panes to their widest by hand | §20.1. No side pane or window moves, nothing is drawn outside the loupe. Warning mark, **SDR** and **Offline** whole; the label name on one line and whole except beside a map; hovering the label or the compact rating names it. With **Copy** or **Filtered** gone, note whether the window title still reads "copy" and the subtitle **Filtered**, or are cut off. With a map and **Offline** together, note any clipped star. At the widest panes the loupe is a sliver, the caption clipped at its left; the panes stay in the window |
 | M19 | **HDR** on for a photo with only Apple's kind of gain map (or the renamed-`tmap` copy, `qa.md` Q1) | It brightens as the other photos do, and the badge **HDR** is true of what is on screen |
-| M20 | Compare a gain-map photo with its copy at 760 pt, then at about 1,050 pt, both panes shown; unrated, then both rated 5 with a flag and label | §20.2. No pane is wider than on `develop`; unrated at 1,050 pt the side panes are whole. Version badges, **Copy** and **Offline** never drop; the rating becomes a star and a number only when tight. Overflow that remains at 760 pt is the follow-up |
+| M20 | Compare a gain-map photo with its copy at 760 pt, then at about 1,050 pt, both panes shown; unrated, then both rated 5 with a flag and label | §20.2. Unrated at 1,050 pt the side panes are whole. Version badges, **Copy** and **Offline** never drop; the rating becomes a star and a number only when tight, each pane deciding for itself. Overflow at 760 pt, and for the rated pair still at 1,050 pt, is the follow-up (less than on `develop`) |
 
 ## Second pass rulings and findings (history, at `2e98a11`)
 
