@@ -159,7 +159,8 @@ First match wins, so one reason is shown.
   and can still be changed. Under reason 1 the check box and menu item can't
   change it, though Reset All from the grid still turns it off (RI-2).
 - When a reason ends, HDR returns: at once for the View setting and a display
-  move; on the next opening for offline and failure (AC4).
+  move; on the next opening for offline and failure (AC4). For offline, §19.4
+  now allows the return in place.
 - After a failure the photo stays SDR for the rest of that opening, even if a
   later frame would succeed. Flipping between versions is the fault #277 fixed.
   No alert: the badge is the report.
@@ -620,3 +621,19 @@ side switch.
 
 The **HDR** help tag "Showing the HDR version." before the file's headroom is
 known (not in §4's table).
+
+### 19.4 HDR returns in place when the original comes back (second review pass)
+
+Accepted as built, and it replaces "on the next opening for offline" in §5's
+last-but-one bullet: a photo that is open when its volume is connected again
+returns to HDR without being reopened. AC4 asks for HDR "by the next time the
+photo is opened", which this meets sooner, and a badge that went on saying
+**Offline** or **SDR** for a photo that can be shown would be untrue. A failure
+(reason 4) still lasts for the rest of the opening.
+
+One limit is accepted with it. A photo that was **opened** while offline keeps
+the Adjust tab's offline state after the volume returns (an older fault,
+proposed as its own bug in `status.md`), so its HDR histogram has no counts and
+stays an empty frame (§19.2) until the photo is opened again. The empty frame is
+right while there are no counts; the cure is that bug's fix, which should check
+the histogram too.

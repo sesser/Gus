@@ -106,4 +106,74 @@ preview-size one (C2). Both are small, local fixes. The rest are nits.
 
 ## Follow-up
 
-(After the engineer's fixes.)
+Second pass, 2026-11-25. Reviewed `6b8fff9..2e98a11` (`507edc2`, `27f5899`,
+`4790f7f`, `d5e2486`, `2e98a11`), the fixes for this file and for `review.md`.
+Build and tests at `2e98a11`: `swift build` clean; full `swift test` **1572
+tests in 221 suites passed** (88.6 s); the HDR suites (`GainMapHDRTests`,
+`HDRChoiceTests`, `HDRChoiceOutputTests`, `GainMapAdjustmentTests`, with
+`GainMapTimingTests` skipped as opt-in: 39 tests in 5 suites) passed 10 of 10
+repeated runs (`--skip-build`). The app was not launched.
+
+**Verdict, second pass:** ready for QA. Every first-pass finding is fixed or
+closed by the owner, and the new code is sound. Two new nits (C8, C9) are
+narrow and can be fixed now or filed as follow-ups. Neither blocks.
+
+| # | Outcome | Commit | Check |
+| --- | --- | --- | --- |
+| C1 | Fixed | `4790f7f`, `27f5899` | `possibleHeadroom` (loupe and pane) is nil while `model.isOffline(item)`, so `immediateImage` no longer returns the memory-cached HDR version offline, and no HDR request goes out. `reloadIfHDRPossibilityChanged` runs from `show`'s same-key branch and from the 0.25 s poll. When going offline or coming back flips the possibility, `reload()` sets `shownKey = nil`, so `show` takes `!sameVersion` and `beginVisit` resets `visitFailed`. A remount then brings HDR back without reopening. `gainMapHDROutcome` maps a nil source URL to `.superseded`. I checked `WorkLane`: cancellation is per waiter, and a shared job runs on while any waiter remains, so a visible request never gets a `CancellationError` that belongs to a cancelled prefetch. One narrower path remains: C8. |
+| C2 | Fixed | `4790f7f` | `ComparisonPane.display` is `guard kind >= rendition`, as in the loupe. A refit renders at the size already shown (`full = rendition == .hdrFull`), so it still passes. |
+| C3 | Fixed | `27f5899`, `4790f7f` | `PreviewService.supersedes` treats `CancellationError`, `staleEditStack` and `sourceUnavailable` as replaced requests, not failures. Both loupe paths and both pane paths switch on the outcome, and `.superseded` does nothing. The save that made the stack stale calls `show` with the new hash, and that asks again. The `outcomes` test covers each case. |
+| C4 | Fixed | `507edc2` | `Adjustments.hdrIsOn` reads `hdr.isOn && !disabled.contains(.hdr)`, which matches `EditStack.hdrChoice`. Its setter turns the operation back on. Every app read and write goes through it (grep: no `hdr.isOn` left outside `Adjustments.swift`). That includes the frame-fit checks, `originalValues`, the menu, the check box and the editor's `hdrHeadroom(for:)`. `turnedOffOperationIsOff` checks both readings and the unchanged write-back. |
+| C5 | Withdrawn (owner's ruling) | — | The owner, 2026-11-25, asked whether an older build ever needs to edit a library this build has opened: "No, ignore it". Q1 is closed with it. |
+| C6 | Fixed | `507edc2` | The v17 comment now sits above `addHDRChoice`, and the v16 comment above `addRemoteServices` again. Only the function moved: the migration list and the migration body are unchanged. |
+| C7 | Fixed | `507edc2` | Both comments are corrected (`LiveRenderSession.render`, `GainMap.hdr`). |
+
+New code from the designer's findings, checked and fine:
+
+- **F1, F2 (histogram).** The editor requests a non-interactive frame when
+  `hdrDisplayHeadroom` goes from nil to a value with the choice on. That frame
+  is never shown unless the editor is live, because the loupe checks
+  `showsLive`. An SDR frame of other values clears the HDR counts. Every HDR
+  frame that is not overlaid carries both histograms
+  (`LiveRenderSession.render`), so HDR drags don't clear them.
+  `showsHDRHistogram` and `hdrHistogramCounts` replace the inspector's private
+  property, and comparison clears the old counts when a new active key comes in.
+- **F3 (stale frames).** `frameFits` and `tileFits` drop a frame of the other
+  choice, and an HDR frame once `gainMapHeadroom` is nil, without moving
+  `shownFrameRevision`, so the next frame of the right values is still shown.
+  The editor's headroom (`editorHeadroom`) and the loupe's (`gainMapHeadroom`)
+  are both nil after a failure or while offline, so the editor stops making
+  frames the loupe would refuse.
+- **F5 (refiner in HDR).** `SharpeningMapRefiner.renderWhole` applies the gain
+  map only for content `.photo` with a headroom. It uses the same
+  `placed(over:values:context:)` and `makeHDRCGImage` as
+  `PreviewGenerator.gainMapHDRImage`, and the new test pins it to that render
+  within 0.005 and 0.01 stops. Maps stay SDR.
+- **F6, F7 (screen changes, a failure with HDR on screen).** `failVisit` reloads
+  with `reloadsSameKey`, keeping `shownKey`, so `sameVersion` holds and
+  `visitFailed` survives. `failGainMap` does the same through `keepsFailure`,
+  and the pane's `reloads` keeps its zoom. The `.failed` branch in both full
+  loads falls through to SDR after a cancelled reload. That is duplicate work
+  only: the shown key is unchanged, so its result is still correct.
+- **F4, F8, F9.** The spinner task is main-actor and cancelled in teardown,
+  and `publishHDRStatus` clears it once the status leaves `.loading`. The new
+  help string is in the String Catalog. The pane's value has the version
+  phrase, and change detection leaves the phrase out (`withVersion: false`).
+- **HEIC and JPEG only.** `eligibleSource` checks the name (`FileKind`) and the
+  content type (`public.heic`, `public.heif`, `public.jpeg`), so
+  `GainMap.exists`, `load`, `photocli develop` and the editor agree. The test
+  fails without the fix (`status.md`), and I accept that.
+- **Determinism.** The four tests added in this pass render fixed synthetic
+  files or test pure values, and none shares state or depends on timing. The
+  outcome test's stale case depends only on the service's stack closure. I
+  accept the structural argument, and the 10 of 10 runs agree with it.
+
+New findings, second pass:
+
+| # | Severity | Where | Finding | Failure | Rule |
+| --- | --- | --- | --- | --- | --- |
+| C8 | Nit | `Sources/PhotoCore/Preview/PreviewService.swift:389` (`guard let made else { standardRange.insert … }`), `:426`; `GainMap.load` | `gainMapHDRImage` treats a nil from `GainMap.load` as "this file has no gain map" and remembers that in `standardRange` under the photo's memory key for the rest of the run. `GainMap.load` also returns nil when the file can't be read. `gainMapHDROutcome` now turns that remembered nil into `.failed` whenever the request has a source URL. | A request is made while the original is readable, or while the app still thinks it is. Then the file stops being readable before the lane job reads it: the volume is ejected with an HDR render queued, or a network volume stops answering but stays mounted. The photo shows **SDR: HDR Failed**, which is right at that moment. After a remount or a reconnect, the possibility check reloads it, but every request now returns the remembered nil, so it stays **SDR: HDR Failed**. Opening the photo again doesn't help either, although the user guide says "open the photo again to retry". It clears only when the stack's render hash changes (any edit) or the app quits. Found by reading; timing-dependent and not reproduced. Fix: remember only a file that was read and has no gain map (for example, `GainMap.load` distinguishing an unreadable file, or throwing `sourceUnavailable`), so an unreadable file is `.superseded` or a retryable failure. | C1's intent (a remount brings HDR back); user guide |
+| C9 | Nit | `Sources/PhotoApp/Loupe/LoupeView.swift:846` (`reloadIfHDRPossibilityChanged`) → `:420` (`reload()`) → `:499` (`applyZoom`) | In the single loupe, the new possibility reload goes through `reload()`, which clears `shownKey`. `show` then counts it as another photo (`!sameVersion`): it sets the frame size, clears the tile and calls `applyZoom(animated: false)`, which centers on the photo's middle. The comparison pane's reload keeps `sameVersion` (`reloads`), so it doesn't do this. | An HDR-on photo at 100%, panned to a corner. Its volume goes offline or comes back, or its screen starts or stops reporting extended range in place. The loupe jumps to the photo's center. Before this pass nothing reloaded in these cases. A View ▸ Show / Hide HDR or a screen move already recentered this way, so this is the same behavior on new triggers. Found by reading, not reproduced. Fix if wanted: reload the possibility change as the pane does, as the same version with a new visit, keeping zoom and position. | R8 spirit (no jump the person didn't cause) |
+
+Neither nit needs `/security-review`: this pass adds no parser, subprocess,
+file writing or network code. The `.heic` and `.jpg` check narrows what is read.
