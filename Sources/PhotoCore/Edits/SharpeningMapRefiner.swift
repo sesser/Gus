@@ -52,10 +52,16 @@ public actor SharpeningMapRefiner {
     /// (the loupe's frame size at fit), or whole when `longEdge` is nil
     /// (zoomed in). Cancellable before and after the expensive stage; an
     /// input rendered before a cancellation is kept for the next request.
+    ///
+    /// With `hdrHeadroom` (a display's headroom now) and content `.photo`, a
+    /// gain-map photo's frame is its HDR version fitted to that headroom, as
+    /// `LiveRenderSession.render`'s (issue #282, review F5): a fringe slot
+    /// picked again at 100% sharpens in HDR. Maps and other files ignore it.
     public func render(_ adjustments: Adjustments, longEdge: Int?, content: LiveRenderSession.Content = .sharpeningMap,
-                       cancellation: RenderCancellation? = nil) throws -> LiveRenderSession.Frame {
+                       hdrHeadroom: Float? = nil, cancellation: RenderCancellation? = nil) throws -> LiveRenderSession.Frame {
         if content != .sharpeningMap {
-            return try renderWhole(adjustments, longEdge: longEdge, content: content, cancellation: cancellation)
+            return try renderWhole(adjustments, longEdge: longEdge, content: content, hdrHeadroom: hdrHeadroom,
+                                   cancellation: cancellation)
         }
         let clock = ContinuousClock()
         let started = clock.now
@@ -95,7 +101,7 @@ public actor SharpeningMapRefiner {
     /// picking, chromatic-aberration design §4), from the full-resolution
     /// master: rendered whole each time, nothing kept.
     private func renderWhole(_ adjustments: Adjustments, longEdge: Int?, content: LiveRenderSession.Content,
-                             cancellation: RenderCancellation?) throws -> LiveRenderSession.Frame {
+                             hdrHeadroom: Float?, cancellation: RenderCancellation?) throws -> LiveRenderSession.Frame {
         let clock = ContinuousClock()
         let started = clock.now
         guard let renderer = generator.renderer as? AdjustmentRenderer else { throw PreviewGenerator.Failure.renderFailed }
@@ -105,17 +111,29 @@ public actor SharpeningMapRefiner {
         var image = content == .fringeMap
             ? AdjustmentRenderer.sharpeningMapDisplay(renderer.fringeMap(adjustments, to: decoded.image, context: decoded.context))
             : renderer.render(adjustments, to: decoded.image, context: decoded.context)
+        // A gain-map photo in HDR: its gain map applied last, as every HDR frame's.
+        var hdr: (headroom: Float, file: Float, ceiling: Float)?
+        if let hdrHeadroom, content == .photo, let map = GainMap.load(source) {
+            let placed = map.placed(over: decoded.image.extent, values: adjustments, context: decoded.context)
+            let made = map.hdr(image, placed: placed, displayHeadroom: hdrHeadroom)
+            image = made.image
+            hdr = (made.headroom, map.headroom, map.ceiling)
+        }
         if let longEdge { image = image.scaledToFit(longEdge: longEdge) }
         try cancellation?.check()
-        guard let rendered = generator.engine.makeCGImage(image, colorSpace: colorSpace) else {
-            throw PreviewGenerator.Failure.renderFailed
+        let output = if let hdr {
+            generator.engine.makeHDRCGImage(image, contentHeadroom: hdr.headroom)
+        } else {
+            generator.engine.makeCGImage(image, colorSpace: colorSpace)
         }
+        guard let rendered = output else { throw PreviewGenerator.Failure.renderFailed }
         let elapsed = (clock.now - started).components
         return LiveRenderSession.Frame(image: DecodedImage(cgImage: rendered), histogram: nil, content: content,
                                        hasOverlay: false, adjustments: adjustments,
                                        maskFrameSize: decoded.image.extent.size, scale: 1,
                                        seconds: Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18,
-                                       filledCache: true, machineLearning: decoded.machineLearning)
+                                       filledCache: true, machineLearning: decoded.machineLearning,
+                                       headroom: hdr?.headroom, fileHeadroom: hdr?.file, ceiling: hdr?.ceiling)
     }
 
     /// Frees the full-resolution input (the map was hidden).

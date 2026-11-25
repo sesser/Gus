@@ -49,9 +49,13 @@ enum HDRText {
                               comment: "Help tag of the loupe's HDR badge. The argument is a number such as 2.6")
             }
             return String(localized: "Showing the HDR version.", comment: "Help tag of the loupe's HDR badge before the file's headroom is known")
-        case .sdr:
+        case .sdr(offline: false):
             return String(localized: "Showing the SDR version. This file also has an HDR version. To use it, choose Adjust ▸ Turn On HDR.",
                           comment: "Help tag of the loupe's SDR badge for a gain-map photo with HDR off")
+        case .sdr(offline: true):
+            // Turn On HDR is dimmed while the original is offline: the tag doesn't send people there (design §19.1).
+            return String(localized: "Showing the cached SDR preview. This file also has an HDR version, which needs the original.",
+                          comment: "Help tag of the loupe's SDR badge for a gain-map photo with HDR off whose original is offline")
         case .loading:
             return loading
         case .blocked(let reason):

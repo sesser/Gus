@@ -15387,6 +15387,17 @@
         }
       }
     },
+    "Showing the cached SDR preview. This file also has an HDR version, which needs the original." : {
+      "comment" : "Help tag of the loupe's SDR badge for a gain-map photo with HDR off whose original is offline",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the cached SDR preview. This file also has an HDR version, which needs the original."
+          }
+        }
+      }
+    },
     "Showing the fringe map." : {
       "comment" : "Announcement",
       "localizations" : {

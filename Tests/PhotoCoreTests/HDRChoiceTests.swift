@@ -185,10 +185,12 @@ struct HDRChoiceTests {
         #expect(Self.badge() == .hdr(fileHeadroom: 3.7, allowedNow: nil))
         #expect(Self.badge(shown: .sdr) == .loading)
         #expect(Self.badge(shown: nil) == .loading)
-        #expect(Self.badge(choice: false, shown: .sdr) == .sdr)
+        #expect(Self.badge(choice: false, shown: .sdr) == .sdr(offline: false))
         // RI-3: offline with the choice off, SDR only when the file is known to have a gain map.
         #expect(Self.badge(hasGainMap: false, choice: false, offline: true) == .none)
-        #expect(Self.badge(choice: false, offline: true) == .sdr)
+        // Design §19.1: its help tag can't name Turn On HDR, dimmed while offline.
+        #expect(Self.badge(choice: false, offline: true) == .sdr(offline: true))
+        #expect(Self.badge(choice: false, offline: true).name == "sdr cached")
         // A file without a gain map has no badge; a map shows none (RI-4).
         #expect(Self.badge(hasGainMap: false, choice: false) == .none)
         #expect(Self.badge(isMap: true) == .none)

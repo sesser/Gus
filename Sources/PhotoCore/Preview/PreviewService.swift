@@ -399,6 +399,46 @@ public final class PreviewService: Sendable {
         return made.image.cgImage
     }
 
+    /// What became of a request for a gain-map photo's HDR version
+    /// (`gainMapHDROutcome`).
+    public enum GainMapHDROutcome: Sendable {
+        case image(CGImage)
+        /// It can't be made (a render error, or the file has no gain map
+        /// after all): the loupe shows SDR for the rest of that opening
+        /// (design §5, reason 4).
+        case failed
+        /// Nothing to show, and nothing failed: the request was cancelled, a
+        /// newer stack was saved meanwhile, or the original went offline.
+        /// Whatever replaced it asks again (code review C1, C3).
+        case superseded
+    }
+
+    /// `gainMapHDRImage`, with its errors sorted into a failure of the HDR
+    /// version and a request something newer replaced.
+    public func gainMapHDROutcome(for request: PreviewRequest, displayHeadroom: Float, fullResolution: Bool = false,
+                                  priority: Priority = .visible) async -> GainMapHDROutcome {
+        do {
+            if let image = try await gainMapHDRImage(for: request, displayHeadroom: displayHeadroom,
+                                                     fullResolution: fullResolution, priority: priority) {
+                return .image(image)
+            }
+            // No original to read is an offline master, not a failure.
+            return request.sourceURL == nil ? .superseded : .failed
+        } catch {
+            return Self.supersedes(error) ? .superseded : .failed
+        }
+    }
+
+    /// Whether `error` ended an HDR request because something replaced it
+    /// rather than because the HDR version can't be made.
+    static func supersedes(_ error: any Error) -> Bool {
+        if error is CancellationError { return true }
+        switch error as? Failure {
+        case .staleEditStack?, .sourceUnavailable?: return true
+        default: return false
+        }
+    }
+
     /// The histogram of the request's photo's whole HDR version
     /// (`PreviewGenerator.gainMapHDRHistogram`), nil for a file without a gain map or offline.
     public func gainMapHDRHistogram(for request: PreviewRequest) async throws -> HDRHistogram? {

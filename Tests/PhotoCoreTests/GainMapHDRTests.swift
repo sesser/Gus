@@ -365,6 +365,32 @@ struct GainMapHDRTests {
         }
     }
 
+    @Test("Review F5: the full-resolution photo refinement (a fringe slot picked again at 100%) is HDR, as the full render")
+    func photoRefinementIsHDR() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: "refine.heic")
+            try HDRTestImages.writePatternedGainMap(to: url, width: 1200, height: 900, seed: 2835, orientation: 6)
+            let generator = PreviewGenerator()
+            let values = Adjustments(stack: Self.stack(Self.operation("exposure", ["ev": -0.5])))
+            let refiner = SharpeningMapRefiner(source: url, generator: generator, colorSpace: nil)
+            let frame = try await refiner.render(values, longEdge: nil, content: .photo, hdrHeadroom: 1.8)
+            #expect(frame.headroom == 1.8)
+            #expect(frame.fileHeadroom != nil && frame.ceiling != nil)
+            let full = try #require(try generator.gainMapHDRImage(source: url, stack: values.editStack, longEdge: nil,
+                                                                  displayHeadroom: 1.8))
+            let refined = Pixels(frame.image.cgImage)
+            let expected = Pixels(full.image)
+            #expect(refined.width == expected.width && refined.height == expected.height)
+            #expect(abs(log2(refined.mean / expected.mean)) < 0.005)
+            #expect(abs(log2(refined.maximum / expected.maximum)) < 0.01, "\(refined.maximum) against \(expected.maximum)")
+            // Without a headroom, and for a map, it stays SDR as before; the HDR one is brighter.
+            let sdr = try await refiner.render(values, longEdge: nil, content: .photo)
+            #expect(sdr.headroom == nil)
+            #expect(log2(refined.mean / Pixels(sdr.image.cgImage).mean) > 0.1)
+            #expect(try await refiner.render(values, longEdge: nil, content: .fringeMap, hdrHeadroom: 1.8).headroom == nil)
+        }
+    }
+
     // MARK: The service
 
     @Test("The service keeps one HDR version per photo, rendered again for another display headroom")
@@ -393,6 +419,48 @@ struct GainMapHDRTests {
                                                         editStackHash: EditStack.identity.renderHash, tier: .preview))
             #expect(try await service.gainMapHDRImage(for: PreviewRequest(versionID: 2, key: plainKey, sourceURL: plain),
                                                       displayHeadroom: 4) == nil)
+        }
+    }
+
+    @Test("Code review C1, C3: only a real error is a failure; a cancelled, outdated or offline request is not")
+    func outcomes() async throws {
+        #expect(PreviewService.supersedes(CancellationError()))
+        #expect(PreviewService.supersedes(PreviewService.Failure.staleEditStack))
+        #expect(PreviewService.supersedes(PreviewService.Failure.sourceUnavailable))
+        #expect(!PreviewService.supersedes(PreviewService.Failure.decodeFailed))
+        #expect(!PreviewService.supersedes(PreviewGenerator.Failure.renderFailed))
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: "outcome.heic")
+            try HDRTestImages.writePatternedGainMap(to: url, width: 400, height: 300, seed: 2833)
+            let plain = root.appending(path: "plain.jpg")
+            try SyntheticImages.writeJPEG(to: plain, width: 400, height: 300, seed: 2834)
+            // The service saves a different stack than the request names: a newer save.
+            var values = Adjustments()
+            values.exposure.ev = 1
+            let edited = values.editStack
+            let service = PreviewService(cache: PreviewDiskCache(root: root.appending(path: "cache")),
+                                         editStack: { versionID in versionID == 4 ? edited : .identity })
+            func request(_ id: Int64, _ hash: Character, _ source: URL?) throws -> PreviewRequest {
+                let key = try #require(PreviewCacheKey(contentHash: String(repeating: hash, count: 64),
+                                                       editStackHash: EditStack.identity.renderHash, tier: .preview))
+                return PreviewRequest(versionID: id, key: key, sourceURL: source)
+            }
+            guard case .image = await service.gainMapHDROutcome(for: try request(1, "a", url), displayHeadroom: 2) else {
+                Issue.record("A gain-map photo gives its HDR version")
+                return
+            }
+            guard case .superseded = await service.gainMapHDROutcome(for: try request(2, "b", nil), displayHeadroom: 2) else {
+                Issue.record("An offline original is not a failure")
+                return
+            }
+            guard case .failed = await service.gainMapHDROutcome(for: try request(3, "c", plain), displayHeadroom: 2) else {
+                Issue.record("A file without a gain map is a failure")
+                return
+            }
+            guard case .superseded = await service.gainMapHDROutcome(for: try request(4, "d", url), displayHeadroom: 2) else {
+                Issue.record("A request for a stack saved over since is not a failure")
+                return
+            }
         }
     }
 

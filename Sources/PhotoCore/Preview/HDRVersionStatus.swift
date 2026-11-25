@@ -10,8 +10,10 @@ public enum HDRVersionBadge: Equatable, Sendable {
     /// The HDR version is on screen. `fileHeadroom`: how far the file goes;
     /// `allowedNow`: what the display allows now, when known (design §18.2).
     case hdr(fileHeadroom: Float?, allowedNow: Float?)
-    /// The choice is off: the SDR version, a normal state.
-    case sdr
+    /// The choice is off: the SDR version, a normal state. `offline`: the
+    /// original is offline, so the cached SDR preview is shown and the
+    /// choice can't be turned on (design §19.1).
+    case sdr(offline: Bool)
     /// The choice is on and the HDR version is not on screen yet.
     case loading
     /// The choice is on and HDR can't be shown, for the first reason that applies (design §5).
@@ -30,7 +32,7 @@ public enum HDRVersionBadge: Equatable, Sendable {
             return
         }
         guard choice else {
-            self = .sdr
+            self = .sdr(offline: offline)
             return
         }
         if let reason = HDRBlockReason(offline: offline, viewSetting: viewSetting, extendedRange: extendedRange,
@@ -58,7 +60,7 @@ public enum HDRVersionBadge: Equatable, Sendable {
         switch self {
         case .none: "none"
         case .hdr: isFitted ? "hdr fitted" : "hdr"
-        case .sdr: "sdr"
+        case .sdr(let offline): offline ? "sdr cached" : "sdr"
         case .loading: "loading"
         case .blocked(let reason): "sdr \(reason.rawValue)"
         }
