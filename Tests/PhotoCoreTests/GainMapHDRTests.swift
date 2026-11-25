@@ -29,7 +29,10 @@ struct GainMapHDRTests {
             height = Int(bounds.height)
             var pixels = [Float](repeating: 0, count: width * height * 4)
             let space = CGColorSpace(name: CGColorSpace.extendedLinearDisplayP3)!
-            CIContext(options: [.workingFormat: CIFormat.RGBAf, .cacheIntermediates: false])
+            // The app's working space: a recipe built for it (Black & White's matrix, saturation)
+            // renders otherwise in a default context's linear sRGB.
+            CIContext(options: [.workingFormat: CIFormat.RGBAf, .workingColorSpace: RenderEngine.workingColorSpace,
+                                .cacheIntermediates: false])
                 .render(input, toBitmap: &pixels, rowBytes: width * 16, bounds: bounds, format: .RGBAf, colorSpace: space)
             var luminance = [Float](repeating: 0, count: width * height)
             var maximum: Float = 0

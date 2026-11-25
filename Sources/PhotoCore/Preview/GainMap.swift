@@ -96,19 +96,28 @@ public struct GainMap: @unchecked Sendable {
     }
 
     /// The gain map stretched over `extent` (a decode of the photo, of any
-    /// size: the gain map is usually half the photo's size), then turned,
-    /// straightened and cropped by `crop` as the decode is.
-    ///
-    /// First stage of #282: the Lens heading's Distortion and spots, which
-    /// also move picture content, are not followed yet (R19).
-    public func placed(over extent: CGRect, crop: Crop) -> CIImage {
+    /// size: the gain map is usually half the photo's size), then taken
+    /// through everything in `values` that moves picture content as the
+    /// decode is: Distortion, spots, turns, straightening and crop (R19,
+    /// `AdjustmentRenderer.gainMapGeometry`).
+    public func placed(over extent: CGRect, values: Adjustments, context: RenderContext) -> CIImage {
+        guard let stretched = stretched(over: extent) else { return image }
+        return AdjustmentRenderer.gainMapGeometry(values, stretched, context: context).settingProperties(image.properties)
+    }
+
+    /// The gain map stretched over `extent`, then through `crop` only (tests).
+    func placed(over extent: CGRect, crop: Crop) -> CIImage {
+        guard let stretched = stretched(over: extent) else { return image }
+        return crop.apply(to: stretched).settingProperties(image.properties)
+    }
+
+    private func stretched(over extent: CGRect) -> CIImage? {
         let size = image.extent.size
-        guard size.width > 0, size.height > 0, !extent.isEmpty, !extent.isInfinite else { return image }
+        guard size.width > 0, size.height > 0, !extent.isEmpty, !extent.isInfinite else { return nil }
         let fit = CGAffineTransform(translationX: extent.minX, y: extent.minY)
             .scaledBy(x: extent.width / size.width, y: extent.height / size.height)
         // Clamped first, so the stretch's edge pixels don't blend with transparency.
-        let stretched = image.clampedToExtent().transformed(by: fit).cropped(to: extent)
-        return crop.apply(to: stretched).settingProperties(image.properties)
+        return image.clampedToExtent().transformed(by: fit).cropped(to: extent)
     }
 
     /// The HDR version of `rendered`, the photo's edited SDR version in the

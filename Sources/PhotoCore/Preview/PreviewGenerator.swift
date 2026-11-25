@@ -142,7 +142,7 @@ public struct PreviewGenerator: Sendable {
         let decoded = try Self.decode(source, longEdge: decodeLongEdge(source, stack: stack, longEdge: longEdge),
                                       draft: false, settings: renderer.decodeSettings(for: stack))
         let rendered = try renderer.apply(stack, to: decoded.image, context: decoded.context)
-        let placed = map.placed(over: decoded.image.extent, crop: renderer.geometry(for: stack))
+        let placed = map.placed(over: decoded.image.extent, values: Adjustments(stack: stack), context: decoded.context)
         var (image, headroom) = map.hdr(rendered, placed: placed, displayHeadroom: displayHeadroom)
         if let longEdge {
             image = image.scaledToFit(longEdge: longEdge)

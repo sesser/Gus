@@ -40,16 +40,19 @@ public enum HDRTestImages {
 
     /// An SDR image with a gain map that brightens one part of the picture
     /// more than the rest (issue #282): its HDR picture is the SDR one's
-    /// light times `bright` in the left half of the stored image's top third
-    /// and times `dim` elsewhere. Written with EXIF `orientation` (1 to 8), so
-    /// a gain map applied without turning it as the photo is turned lands on
-    /// the wrong picture content.
+    /// light times `bright` in `brightRegion` (unit coordinates of the stored
+    /// image, origin at the top left; by default the left half of its top
+    /// third) and times `dim` elsewhere. Written with EXIF `orientation` (1 to
+    /// 8), so a gain map applied without turning it as the photo is turned
+    /// lands on the wrong picture content.
     public static func writePatternedGainMap(to url: URL, width: Int, height: Int, seed: UInt64,
                                              orientation: Int32 = 1, bright: Double = 4, dim: Double = 1.5,
+                                             brightRegion: CGRect = CGRect(x: 0, y: 0, width: 0.5, height: 1.0 / 3),
                                              container: Container = .heic) throws {
         let (sdr, _) = try pictures(width: width, height: height, seed: seed, gain: 1)
-        // Core Image's y axis points up: the stored image's top third is at the top of the extent.
-        let region = CGRect(x: 0, y: Double(height) * 2 / 3, width: Double(width) / 2, height: Double(height) / 3)
+        // Core Image's y axis points up: the stored image's top is at the top of the extent.
+        let region = CGRect(x: brightRegion.minX * Double(width), y: (1 - brightRegion.maxY) * Double(height),
+                            width: brightRegion.width * Double(width), height: brightRegion.height * Double(height))
         let lifted = scaled(sdr, by: bright).cropped(to: region).composited(over: scaled(sdr, by: dim))
             .cropped(to: sdr.extent)
         let tagged = sdr.settingProperties([kCGImagePropertyOrientation as String: orientation])

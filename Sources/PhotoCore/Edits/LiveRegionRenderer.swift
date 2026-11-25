@@ -252,7 +252,7 @@ public actor LiveRegionRenderer {
         let rendered: CGImage
         var headroom: Float?
         if let hdrHeadroom, let map = loadedGainMap() {
-            let placed = map.placed(over: source.extent, crop: generator.renderer.geometry(for: values.editStack))
+            let placed = map.placed(over: source.extent, values: values, context: base.context)
             let made = map.hdr(image, placed: placed, displayHeadroom: hdrHeadroom)
             guard let output = generator.engine.withContext({
                 $0.createCGImage(made.image, from: rect, format: .RGBAh, colorSpace: RenderEngine.hdrColorSpace, deferred: false)

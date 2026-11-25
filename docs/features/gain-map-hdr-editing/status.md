@@ -91,6 +91,22 @@ Built (commit "The stored HDR choice replaces the temporary switch"):
   brightening, computed with each HDR live frame; `HDRHistogramView`; the
   Tone Curve keeps the SDR histogram (§7.3).
 
+Built (commit "The gain map follows Distortion and spots; every adjustment tested in HDR"):
+- R19: the gain map goes through Distortion's warp, then the spots (heal and
+  clone, the spot's own mode), then turns, straightening and crop
+  (`AdjustmentRenderer.gainMapGeometry`, used by `GainMap.placed(over:values:context:)`
+  in the settled render, live frames and region frames). Lens Vignetting,
+  Color Alignment and Color Fringes move nothing a one-channel gain map holds.
+- AC6 and AC17 tests (`GainMapAdjustmentTests`), below under Tests.
+- A test-harness fix: `GainMapHDRTests.Pixels` rendered CIImages in a default
+  context (linear sRGB working space), so a recipe built for the app's
+  working space (Black & White's matrix, Saturation, Vibrance) was measured
+  differently on its SDR side than the engine rendered the HDR side. Black &
+  White read as 0.40 stops RMS of drift; with the app's working space it reads
+  as the others. Found by probing: Core Image's `applyingGainMap` scales each
+  pixel by one factor (flat colors, ISO maps: exact; IMG_0561's map: within
+  3%), so a gray picture stays gray in HDR.
+
 ## Stage 1: what it is for
 
 Only what E1 to E4 need: one gain-map file shown and edited in HDR in the

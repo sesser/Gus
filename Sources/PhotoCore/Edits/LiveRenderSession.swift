@@ -336,7 +336,7 @@ public actor LiveRenderSession {
         var hdrHistogram: HDRHistogram?
         var hdr: (headroom: Float, file: Float, ceiling: Float)?
         if let hdrHeadroom, content == .photo, let map = loadedGainMap() {
-            let placed = map.placed(over: source.extent, crop: renderer.geometry(for: stack))
+            let placed = map.placed(over: source.extent, values: adjustments, context: context)
             let made = map.hdr(image, placed: placed, displayHeadroom: hdrHeadroom)
             guard let output = generator.engine.makeHDRCGImage(made.image.scaledToFit(longEdge: size),
                                                                 contentHeadroom: made.headroom) else {
