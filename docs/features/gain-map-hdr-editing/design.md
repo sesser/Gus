@@ -137,7 +137,7 @@ shows only **Offline** (RI-3).
   (`exclamationmark.triangle`) marks "you asked for HDR and are not seeing it".
   State is carried by words and a symbol, never by color alone (HIG, Color).
 - Changing the badge never resizes the photo. It never moves the culling marks
-  either, except in a caption too narrow to keep them centered (§19.6).
+  either, except in a caption too narrow to keep them centered (§19.6, §20.1).
 - HLG, PQ and DNG photos keep today's **HDR** badge and tooltip, and get no
   **SDR** badge.
 - The grid and film strip show nothing (non-goal).
@@ -159,7 +159,8 @@ First match wins, so one reason is shown.
   triangle and **SDR**; the help tag and VoiceOver label keep the reason. In the
   single loupe the row picks the form that fits (`ViewThatFits`), so the badges
   never run into the culling marks. Where the short form doesn't fit beside
-  centered marks either, the marks give way (§19.6).
+  centered marks either, the marks give way (§19.6), and then the caption sheds
+  items in a fixed order (§20.1).
 - The choice, the check box and the menu item are unaffected by reasons 2 to 4
   and can still be changed. Under reason 1 the check box and menu item can't
   change it, though Reset All from the grid still turns it off (RI-2).
@@ -333,7 +334,8 @@ layer.
 - Pane captions, short of room, drop the position, then middle-truncate the
   name, as today, then switch a §5 badge to its short form. A gain-map photo's
   version badge never drops. HLG, PQ and DNG photos' **HDR** badge may still
-  drop last, as today.
+  drop, as today. One further step comes after these: the compact rating
+  (§20.2).
 - While comparing, the choice can't be changed (no editing while comparing).
 - Review mode is the loupe: same badges, headroom and reasons.
 
@@ -685,12 +687,8 @@ judgment. The single loupe takes the first of these that fits whole:
   solve one 28 pt row.
 - The position is dropped last because the film strip, when shown, marks the
   photo's place, and comparison captions already drop it first (§9).
-- Not covered: several badges with a flag and a color label can be wider than
-  step 4 (`review.md`, F12). The order for that, for the follow-up: drop the film
-  strip toggle (**View ▸ Show / Hide Film Strip** reaches it), then **Copy** (the
-  window title names the copy), then **Filtered**; truncate the color label's
-  name to one line, never wrap it. The version badge, **Offline**, the stars, the
-  flag and the color dot stay, and the row is never wider than the caption.
+- Beyond step 4: §20.1, which continues this list and is to be built on this
+  branch (it replaces the order first noted here for a follow-up).
 
 ### 19.7 The choice when an open photo's original goes offline (fourth review pass)
 
@@ -702,3 +700,150 @@ doesn't shift, and the checked state still says what was chosen, while the
 version badge and **Offline** say why SDR is shown. What Undo, Redo, a History
 revert and **Reset All Adjustments** do then is a requirements question (RI-8 in
 `status.md`) and is not decided here.
+
+## 20. Rulings after QA's second pass (2026-11-25)
+
+Design judgment, not Apple policy, apart from the HIG lines quoted. Findings are
+Q6 and Q7 in `qa.md` (F12 and F13 in `review.md`). Nothing was built or seen;
+every width here is derived by arithmetic from QA's measured loupe widths and is
+good to several points at best.
+
+### 20.1 The single loupe's caption never grows (QA Q6)
+
+Two rules, both required. The first keeps the window whole whatever the caption
+holds. The second makes sure that what is left in a narrow caption is the right
+thing.
+
+#### The guarantee
+
+The caption takes exactly the width it is offered, down to zero, and never
+reports its content's width as a minimum. This holds for every combination of
+badges, marks and strings, ones added later included. Content that still doesn't
+fit is clipped inside the caption, at its **leading** edge.
+
+```swift
+.padding(.horizontal, 12)
+.frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
+.frame(height: Self.height)
+.clipped()
+```
+
+With both a minimum and a maximum given, a flexible frame "unconditionally adopts
+the size proposed for it, clamped to the constraints" (SwiftUI documentation,
+`frame(minWidth:idealWidth:maxWidth:…)`). The frame must be outside the padding.
+The mechanism is the engineer's; the behavior is not, and it was not built here.
+`ViewThatFits` alone can't give it, since it uses its last arrangement whether or
+not that fits.
+
+#### The order
+
+The caption takes the first level that fits whole. Each level keeps the changes
+of the levels above it. Levels 1 to 4 are §19.6's.
+
+| Level | Change | Where it is still stated |
+| --- | --- | --- |
+| 1 | Marks centered, badges in full | |
+| 2 | Version badge in its short form | Help tag, VoiceOver |
+| 3 | Marks after the position, badges trailing, at least 8 pt between them | |
+| 4 | Position dropped | Film strip |
+| 5 | Film strip button dropped | **View ▸ Show / Hide Film Strip**, ⌥⌘B |
+| 6 | Spinner dropped; marks compact (below) | The badge or control that waits |
+| 7 | **Copy** dropped | Window title |
+| 8 | **Filtered** dropped | Window subtitle, filter toolbar item |
+| 9 | **Machine Learning Not Applied** dropped | Noise Reduction group |
+| 10 | **Spot Limit** dropped | Spots heading |
+| 11 | Color label name truncates at the tail (at least 24 pt); a map badge truncates in the middle (at least 80 pt). Each takes the room left, up to its full width | Help tag |
+| 12 | **Original** dropped | **View** menu, `\` |
+| 13 | Last: the color label name may shrink to nothing, leaving the dot | Help tag, VoiceOver |
+
+- At levels 3 and up the gap between marks and badges is 8 pt in all. As built it
+  is at least 16 (the row's spacing on both sides of an empty spacer).
+- **Never dropped, at any level:** the version badge, whole, with its warning
+  mark where it has one; the **HDR** badge of an HLG, PQ or DNG photo, whole;
+  **Offline**, whole; a map's badge (it may only truncate, from level 11); the
+  flag; the rating, in one form or the other; the color dot. This meets R4 and
+  AC4: version, warning mark and **SDR**, and **Offline** are always readable,
+  and the reason stays in the help tag and VoiceOver label.
+- A badge added to this caption later needs its own row in the table.
+- Dropping an item takes it off screen only. Nothing about the photo, the filter
+  or the strip changes.
+
+**Compact marks.** The five star slots become one `star.fill` in the rating color
+followed by the digit (2 pt apart, the digit in the caption's secondary style).
+An unrated photo shows no star and reserves no room. Spacing between marks is 6 pt
+instead of 10. The VoiceOver label is the one the five stars have, and the help
+tag has the same words. Nothing is lost, which is why this comes before any badge
+that carries information. It replaces §19.6's earlier "the stars stay".
+
+**The color label name** is one line at every level and never wraps. The label
+(dot and name) gets a help tag with the existing "%@ label" words. At level 13 a
+sighted person has only the color, against the HIG ("Avoid relying solely on color
+to differentiate between objects, indicate interactivity, or communicate essential
+information", Color). It is accepted only there: by the estimates it needs a
+caption narrower than the loupe is with the side panes at their default widths,
+and the help tag and VoiceOver still name the color. No new strings are needed.
+
+#### What this should give
+
+At 240 pt (760 pt window, panes at 220 and 300), by estimate:
+
+- Every photo state without a map goes no further than level 12, with the color
+  name whole. Offline, **SDR** warning, **Original**, 5 stars, flag and the
+  longest name is the tightest: **Original** goes, and the rest fits with about 10
+  points to spare.
+- A map badge with "Not Applied" may truncate (level 11).
+- Level 13 is not reached.
+
+If a non-map state cuts the color name at 240 pt, or any state reaches level 13
+there, report it as a design question instead of changing the order. Below 240 pt
+(side panes dragged wider; whether the split view allows it was not checked) the
+guarantee holds. The marks begin to be clipped below a caption of about 185 pt,
+and the version badge beside **Offline** stays whole down to about 125 pt.
+
+#### Checks
+
+- Keep the level table as plain data in PhotoCore (which items show at each
+  level) with a unit test: the never-dropped items are present at every level,
+  and each level removes or shrinks only what the table says.
+- Debug script, at 760 × 560 with both panes: in every state of `qa.md` T10 and
+  T11, and with a filter, a copy, Original, 5 stars, a flag, the longest label
+  name and the volume ejected all at once, `print loupe` reports 240 pt, the
+  inspector and sidebar buttons are where they are with an unmarked photo, and a
+  snapshot shows the version badge and **Offline** whole. Repeat the width check
+  with a "Not Applied" map. Printing the level reached helps.
+
+**User guide**, in place of the sentence that begins "In the narrowest windows":
+
+> In the narrowest windows the stars, flag and label move toward the left so that
+> no badge covers them. If that isn't enough, the caption leaves things out,
+> starting with the position and the **Film Strip** button, and shows the rating
+> as one star and a number. **Copy** and **Filtered** can go too (the window's
+> title and subtitle still say both). The badge that says which version is on
+> screen and the **Offline** badge always stay.
+
+### 20.2 Comparison at narrow widths (QA Q7)
+
+**Split.** The part this branch added is fixed here; the older fault is a
+follow-up (text in `review.md`).
+
+- Why not leave it all: the version badges widen each gain-map pane by about
+  35 pt (QA, T12), so there are window widths, roughly 1,000 to 1,075 pt for an
+  unrated pair, where a gain-map comparison fitted before and no longer does
+  (arithmetic from QA's measurements, not measured). That is a regression, with
+  HDR off too, since **SDR** always shows.
+- Why not fix it all: two panes in 240 pt leave under 100 pt for each caption,
+  less than a name, marks and a version badge need on one line. That wants a new
+  comparison caption layout, which is older work (#63) and its own design.
+
+**The fix here:** one more arrangement at the end of each pane caption's list,
+the same as today's last one but with §20.1's compact marks. Everything else is
+unchanged: the name, the version badge, **Copy**, **Offline** and the label name
+never drop. Do **not** put §20.1's clamp on the comparison caption: without a drop
+order of its own it would cut version badges, which are whole today.
+
+**Check:** `qa.md` T12 at 760 pt. For the gain-map pair, SDR and HDR, each pane is
+no wider than on `develop` (235.75 pt); by estimate it becomes much narrower for
+unrated photos. Repeat with both photos rated 5 with a flag and a label, against
+`develop`. If the pane width doesn't fall, the captions are not what sets it:
+leave comparison unchanged and report that, and the whole of Q7 goes to the
+follow-up without holding Q6.
