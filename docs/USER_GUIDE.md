@@ -545,7 +545,10 @@ a spinner, before the HDR version takes its place once.
 When HDR is on but can't be shown, a warning sign and **SDR** say so, followed
 by the reason. Where the caption line is too narrow for the reason, only the
 warning sign and **SDR** remain, and the help tag and VoiceOver give the
-reason. The reasons are:
+reason. In the narrowest windows, where even that doesn't fit beside the
+centered stars, the stars, flag and label move toward the left (after the
+photo's position, or in its place) so that no badge covers them. The reasons
+are:
 
 - **SDR: HDR Hidden**: HDR is hidden; choose **View ▸ Show HDR** to see it.
 - **SDR: No HDR Display**: the display has no extended range, or HDR is turned
