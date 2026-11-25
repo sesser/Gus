@@ -139,6 +139,16 @@ struct AdjustHeader: View {
                          isEnabled: editor.cropSession == nil) {
                 editor.toggleOriginal()
             }
+            // The photo's HDR choice (issue #282, design §2.1): only for a gain-map photo, 12 pt after Original.
+            if editor.hasGainMap {
+                AppKitCheckbox(state: editor.adjustments.hdr.isOn ? .on : .off, label: HDRText.checkboxTitle,
+                               help: HDRText.checkboxHelp, title: HDRText.checkboxTitle,
+                               isEnabled: editor.cropSession == nil) {
+                    editor.setHDR(!editor.adjustments.hdr.isOn)
+                }
+                .fixedSize()
+                .padding(.leading, 4)
+            }
             Spacer()
             AppKitMenuButton(title: "", symbol: "ellipsis.circle", entries: [
                 .item(CopyAdjustmentsText.menuItem, isEnabled: model.focusedItem != nil && model.canCopyAdjustments) {

@@ -185,6 +185,17 @@ enum LibraryCommands {
            Adjustments(stack: after).asksForMachineLearning, !Adjustments(stack: before).asksForMachineLearning {
             throw CommandError(.invalidEdit, "noiseReduction.machineLearning applies to RAW files only")
         }
+        // The HDR choice exists only for a gain-map photo (issue #282, AC15). Turning it on reads the
+        // original's header: one that can't be read is refused, never assumed to have a gain map.
+        if after.hdrChoice, !before.hdrChoice {
+            let source = details.volume.url(forRelativePath: details.image.relativePath)
+            guard FileManager.default.isReadableFile(atPath: source.path) else {
+                throw CommandError(.fileNotFound, "hdr.on reads the original to find its gain map; no readable file at \(source.path)")
+            }
+            guard GainMap.exists(source) else {
+                throw CommandError(.invalidEdit, "hdr.on applies only to a photo with a gain map (a HEIC or JPEG, not HLG or PQ)")
+            }
+        }
         let dryRun = arguments.flag("dryRun")
         let changed = after != before
         if changed, !dryRun {

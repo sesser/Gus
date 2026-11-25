@@ -202,7 +202,7 @@ extension LibraryModel {
     /// Shows saved stacks in the grid, the loupe and the Adjust tab.
     private func showEditStacks(_ stacks: [Int64: EditStack]) {
         for (id, stack) in stacks {
-            setEditStackHash(stack.renderHash, forVersion: id)
+            showSavedEditStack(stack, forVersion: id)
             editor.catalogChanged(stack, forVersion: id)
         }
     }

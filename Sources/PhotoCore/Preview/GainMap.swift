@@ -135,6 +135,13 @@ public struct GainMap: @unchecked Sendable {
         return (Self.clamped(brightened, maximum: limit).cropped(to: rendered.extent), limit)
     }
 
+    /// The HDR version of `rendered` at the file's full brightening, for no
+    /// display: what the HDR histogram counts (design §7, R10). Limited only
+    /// by the photo's ceiling.
+    public func fullHDR(_ rendered: CIImage, placed: CIImage) -> CIImage {
+        hdr(rendered, placed: placed, displayHeadroom: max(headroom, ceiling)).image
+    }
+
     /// Each color component of `image` (in the working space) between 0
     /// and `maximum` in extended linear Display P3, the space HDR pictures
     /// are shown in; alpha unchanged.
@@ -251,21 +258,6 @@ public struct GainMapVisit: Sendable, Equatable {
     }
 }
 
-/// The temporary switch of #282's first stage: every gain-map photo is
-/// shown and edited in HDR, for the owner's early check by eye (design
-/// §13), before the per-photo choice exists. Only a test launch can turn it
-/// on (`LibraryLaunchGuard`'s definition: a bundle identifier other than the
-/// release one, or a scripted launch). To be removed when the stored choice
-/// replaces it (status.md).
-public enum TemporaryGainMapHDR {
-    public static func isOn(bundleIdentifier: String?, releaseIdentifier: String = AppBranding.bundleIdentifier,
-                            options: LaunchOptions) -> Bool {
-        guard options.gainMapHDR == "on" else { return false }
-        let scripted = options.debugScript != nil || options.benchmarkScroll
-        return bundleIdentifier != releaseIdentifier || scripted
-    }
-}
-
 /// What the loupe has learned of a display's headroom now (issue #282, R6),
 /// from the screen's current-headroom readings while its layer asks for
 /// extended range.
@@ -311,8 +303,20 @@ public struct DisplayHeadroomReading: Sendable, Equatable {
         last = nil
     }
 
-    /// Takes the screen's current reading at `time`; true when the estimate changed.
-    public mutating func read(_ current: Float, at time: Double) -> Bool {
+    /// Takes the screen's current reading at `time`; true when the headroom
+    /// to fit to (`headroom(potential:)`) may have changed.
+    ///
+    /// `remembers`: the app is active, so a settled reading is remembered
+    /// for the screen (design §18.1, 4). A reading taken while it is not is
+    /// followed (R6) but not remembered, and is forgotten by `becameActive`.
+    ///
+    /// What a settled reading teaches (design §18.1, 3): one below the
+    /// request is the screen's limit now and replaces what was remembered;
+    /// one at the request says only that the screen allows at least that, so
+    /// it erases a remembered limit only when that limit is lower (the screen
+    /// now allows more), never one at or above the request.
+    @discardableResult
+    public mutating func read(_ current: Float, at time: Double, remembers: Bool = true) -> Bool {
         guard let request else { return false }
         guard let last, !GainMapHeadroom.differs(last, current) else {
             self.last = current
@@ -320,20 +324,70 @@ public struct DisplayHeadroomReading: Sendable, Equatable {
             return false
         }
         guard time - requestedSince >= Self.grace, time - lastSince >= Self.settle else { return false }
-        // At the request: the display can show at least that much, and no more is known.
-        let learned: Float? = current < request && GainMapHeadroom.differs(current, request) ? current : nil
-        switch (estimate, learned) {
-        case (nil, nil): return false
-        case let (old?, new?) where !GainMapHeadroom.differs(old, new): return false
-        default:
-            estimate = learned
-            return true
+        let before = effective
+        // Below the request: the display's limit now. At it: at least the request.
+        let limit: Float? = current < request && GainMapHeadroom.differs(current, request) ? current : nil
+        if remembers {
+            inactive = nil
+            if let limit {
+                if estimate.map({ GainMapHeadroom.differs($0, limit) }) ?? true { estimate = limit }
+            } else if let known = estimate, known < request, GainMapHeadroom.differs(known, request) {
+                estimate = nil
+            }
+        } else {
+            inactive = Inactive(limit: limit ?? estimate.flatMap { $0 < request ? nil : $0 })
         }
+        return before != effective
+    }
+
+    /// The app became active: readings taken while it was not are forgotten,
+    /// and the remembered value applies again (design §18.1, 4).
+    public mutating func becameActive() {
+        inactive = nil
+    }
+
+    /// A settled reading taken while the app was not active.
+    private struct Inactive: Sendable, Equatable {
+        var limit: Float?
+    }
+    private var inactive: Inactive?
+
+    /// The limit to fit to, if one is known.
+    private var effective: Float? {
+        if let inactive { return inactive.limit }
+        return estimate
     }
 
     /// The headroom to fit to: what the display is known to give, at most
     /// `potential`; the potential while nothing less is known.
     public func headroom(potential: Float) -> Float {
-        min(potential, estimate ?? potential)
+        min(potential, effective ?? potential)
+    }
+
+    /// What the screen allows now, if known (design §18.2): the settled
+    /// limit, or nil while it is only known to allow at least what was asked.
+    public var allowedNow: Float? { effective }
+}
+
+/// What each screen allows, remembered for as long as the app runs (issue
+/// #282, R6, design §18.1, 2): owned outside the loupe, so it survives the
+/// grid, a video, comparison, review and moving the window away and back,
+/// and the single loupe and the comparison panes share it. Keyed by the
+/// screen's display number.
+public struct DisplayHeadroomMemory: Sendable {
+    private var screens: [UInt32: DisplayHeadroomReading] = [:]
+
+    public init() {}
+
+    /// The screen's reading (a fresh one for a screen not seen yet).
+    public subscript(screen: UInt32) -> DisplayHeadroomReading {
+        get { screens[screen] ?? DisplayHeadroomReading() }
+        set { screens[screen] = newValue }
+    }
+
+    /// The app became active: readings taken while it was not are dropped
+    /// on every screen (design §18.1, 4).
+    public mutating func becameActive() {
+        for screen in screens.keys { screens[screen]?.becameActive() }
     }
 }

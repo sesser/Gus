@@ -72,6 +72,10 @@ struct LibraryMenuState: Equatable {
     var blackAndWhiteApplies: Bool
     var blackAndWhiteQuickSet: BlackAndWhite.Filter?
     var blackAndWhiteHasNoFilter: Bool
+    /// Adjust ▸ Turn On / Off HDR (issue #282, design §2.2): the loupe photo
+    /// has an HDR choice and can change it; whether the choice is on.
+    var canSetHDR: Bool
+    var hdrIsOn: Bool
     /// Reset All Adjustments has something to reset. In the loupe: the photo's
     /// adjustments are not at their defaults. In the grid the items can't
     /// tell (their hash leaves out turned-off groups), so it is true.
@@ -235,6 +239,8 @@ struct LibraryMenuState: Equatable {
         blackAndWhiteApplies = canEditLoupePhoto && model.editor.adjustments.blackAndWhiteApplies
         blackAndWhiteQuickSet = canEditLoupePhoto ? model.editor.blackAndWhiteQuickSet : nil
         blackAndWhiteHasNoFilter = canEditLoupePhoto && model.editor.blackAndWhiteHasNoFilter
+        canSetHDR = canEditLoupePhoto && !isCropping && !model.isComparing && model.editor.hasGainMap
+        hdrIsOn = canSetHDR && model.editor.adjustments.hdr.isOn
         canResetAll = model.mode == .grid ? targetsIncludePhoto
             : canEditLoupePhoto && !isCropping && !model.editor.adjustments.isDefault
         showsMaskOverlay = model.editor.showsMaskOverlay

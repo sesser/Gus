@@ -240,6 +240,7 @@ extension Catalog {
                 _ = try VersionRecord.filter(key: id).updateAll(db, [
                     VersionRecord.Columns.editStack.set(to: json),
                     VersionRecord.Columns.editStackHash.set(to: hash),
+                    VersionRecord.Columns.hdr.set(to: stack.hdrChoice),
                     VersionRecord.Columns.modifiedAt.set(to: date),
                 ])
                 // A change that leaves the stack as it was has nothing to record (R10).

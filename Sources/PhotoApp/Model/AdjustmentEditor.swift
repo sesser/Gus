@@ -77,8 +77,12 @@ final class AdjustmentEditor {
             }
         }
     }
-    /// Histogram of the latest frame.
+    /// Histogram of the latest frame: the SDR version's (the Tone Curve's backdrop, issue #282 design §7.3).
     private(set) var histogram: Histogram?
+    /// The whole HDR version's histogram, from the latest HDR frame of a
+    /// gain-map photo (issue #282, R10); kept until the next one, so it never
+    /// falls back to SDR counts while HDR is on screen (design §7.2).
+    private(set) var hdrHistogram: HDRHistogram?
     /// Auto exposure or white balance is measuring.
     private(set) var isMeasuring = false
     /// The loupe should show `frame` rather than its cached renditions.
@@ -156,15 +160,26 @@ final class AdjustmentEditor {
     /// Interactive frames may be reduced drafts (`LiveRenderSession`); off
     /// while the loupe is zoomed in.
     @ObservationIgnored var allowsDrafts = true
-    /// Set by the loupe while it shows a gain-map photo in HDR (issue #282):
-    /// the display's headroom now, which live frames of a gain-map photo are
-    /// fitted to (`LiveRenderSession.render`). Nil renders SDR frames. A
-    /// change while a frame is up renders it again for the new headroom.
+    /// Set by the loupe (issue #282): the headroom the display allows now,
+    /// which live frames of a gain-map photo with the HDR choice on are
+    /// fitted to (`LiveRenderSession.render`); nil while the loupe can't
+    /// show HDR (the View setting, a display without extended range, a
+    /// failed HDR version). A change while a frame is up renders it again
+    /// for the new headroom.
     @ObservationIgnored var hdrDisplayHeadroom: Float? {
         didSet {
             guard hdrDisplayHeadroom != oldValue, state == .ready, showsLive else { return }
             requestRender(interactive: false)
         }
+    }
+    /// The photo's file has a gain map macOS reads (`GainMap.exists`), so it
+    /// has an HDR choice (issue #282, R1): known before the editor is ready.
+    private(set) var hasGainMap = false
+
+    /// The headroom a frame of `values` is rendered for: HDR only for values
+    /// whose HDR choice is on (`LiveRenderSession` gives other files SDR).
+    private func hdrHeadroom(for values: Adjustments) -> Float? {
+        values.hdr.isOn ? hdrDisplayHeadroom : nil
     }
     /// Drags on the photo paint into the selected mask's brush.
     var isBrushing = false {
@@ -539,6 +554,9 @@ final class AdjustmentEditor {
             // The file's header only; never true for a raw.
             let monochrome = fileIsRaw ? false
                 : await Task.detached(priority: .userInitiated) { SourceColorModel.isMonochrome(url) }.value
+            // Whether it has an HDR choice (issue #282), from the file's header.
+            let gainMap = fileIsRaw ? false
+                : await Task.detached(priority: .userInitiated) { GainMap.exists(url) }.value
             guard !Task.isCancelled, item?.versionID == versionID else { return }
             // Through the write chain: a save of this photo can still be
             // queued (it was left and opened again before the save landed).
@@ -564,6 +582,14 @@ final class AdjustmentEditor {
                     cameraRect = camera
                     lensState = lens
                     sourceIsMonochrome = monochrome
+                    hasGainMap = gainMap
+                    library.noteGainMap(gainMap, for: newItem)
+                    if newItem.hdr != stack.hdrChoice {
+                        // The catalog's copy of the choice disagrees with the stack (a write by an older
+                        // build): the stack wins.
+                        library.showSavedEditStack(stack, forVersion: versionID)
+                        item?.hdr = stack.hdrChoice
+                    }
                     session = LiveRenderSession(source: url, generator: generator, colorSpace: colorSpace,
                                                 systemDecodesRaw: systemDecodes)
                     regionRenderer = LiveRegionRenderer(source: url, generator: generator, colorSpace: colorSpace,
@@ -637,6 +663,7 @@ final class AdjustmentEditor {
         cropImageTask?.cancel()
         cropImageTask = nil
         histogram = nil
+        hdrHistogram = nil
         showsLive = false
         showsOriginal = false
         isChanging = false
@@ -645,6 +672,7 @@ final class AdjustmentEditor {
         usesFallbackDecoder = false
         whiteBalanceControls = .relative
         sourceIsMonochrome = false
+        hasGainMap = false
         sourceURL = nil
         selectedMaskID = nil
         cameraRect = nil
@@ -783,6 +811,15 @@ final class AdjustmentEditor {
         change(String(localized: "Reset Adjustments", comment: "Undo action name"), phase: .committed) {
             $0 = $0.resettingAll()
         }
+    }
+
+    /// Turns the photo's HDR choice on or off, one undo step and one History
+    /// entry (issue #282, design §2.3). Only for a gain-map photo.
+    func setHDR(_ isOn: Bool) {
+        guard hasGainMap, cropSession == nil, adjustments.hdr.isOn != isOn else { return }
+        change(isOn ? HDRText.turnOn
+                    : HDRText.turnOff,
+               phase: .committed) { $0.hdr.isOn = isOn }
     }
 
     func toggleOriginal() {
@@ -995,7 +1032,7 @@ final class AdjustmentEditor {
                                       redoing: library.undoManager.isRedoing)
         library.persist { [weak self] in
             try await catalog.setEditStack(stack, forVersion: versionID, historyLabel: label)
-            self?.showSaved(hash, forVersion: versionID)
+            self?.showSaved(stack, forVersion: versionID)
             self?.library?.historyChanged()
         }
         if versionID == item?.versionID {
@@ -1061,10 +1098,12 @@ final class AdjustmentEditor {
     /// the catalog still has the previous stack (stale-preview-after-save);
     /// the live frame stays on screen until then. Runs on the write chain,
     /// so hashes are shown in the order their writes land.
-    private func showSaved(_ hash: String, forVersion versionID: Int64) {
-        library?.setEditStackHash(hash, forVersion: versionID)
+    private func showSaved(_ stack: EditStack, forVersion versionID: Int64) {
+        let hash = stack.renderHash
+        library?.showSavedEditStack(stack, forVersion: versionID)
         if versionID == item?.versionID {
             item?.editStackHash = hash
+            item?.hdr = stack.hdrChoice
             seedPreviewIfRendered()
         }
     }
@@ -1077,6 +1116,7 @@ final class AdjustmentEditor {
         committed = values
         adjustments = values
         item?.editStackHash = stack.renderHash
+        item?.hdr = stack.hdrChoice
         noteInput()
         showsOriginal = false
         sharpeningMap.valuesChanged()
@@ -1182,7 +1222,7 @@ final class AdjustmentEditor {
     private func refreshMachineLearning() {
         let edited: MachineLearningNoiseReduction.Status? = state == .ready ? status(for: adjustments) : nil
         if machineLearning != edited { machineLearning = edited }
-        let onScreen = previewValues ?? (showsOriginal ? .none : adjustments)
+        let onScreen = previewValues ?? (showsOriginal ? originalValues : adjustments)
         let reason = state == .ready ? status(for: onScreen).notAppliedReason : nil
         if machineLearningNotApplied != reason { machineLearningNotApplied = reason }
     }
@@ -1540,7 +1580,7 @@ final class AdjustmentEditor {
                                                             wanted: next.values, overlay: overlay)
                             if !current {
                                 let rendered = try await regions.render(next.values, unit: viewport, overlayMask: overlay,
-                                                                        hdrHeadroom: hdrDisplayHeadroom,
+                                                                        hdrHeadroom: hdrHeadroom(for: next.values),
                                                                         cancellation: next.cancellation)
                                 guard !Task.isCancelled, session === self.session else { break }
                                 showRegionFrame(rendered)
@@ -1579,7 +1619,7 @@ final class AdjustmentEditor {
                     }
                     let rendered = try await session.render(next.values, interactive: next.interactive,
                                                             allowsDrafts: allowsDrafts, overlayMask: overlay,
-                                                            content: content, hdrHeadroom: hdrDisplayHeadroom,
+                                                            content: content, hdrHeadroom: hdrHeadroom(for: next.values),
                                                             cancellation: next.cancellation)
                     guard !Task.isCancelled, session === self.session else { break }
                     // A frame rendered before the map was hidden or switched: the right one follows.
@@ -1591,8 +1631,9 @@ final class AdjustmentEditor {
                     // on its way) is the newest picture: the tile must not cover it.
                     if !regionShown { regionFrame = nil }
                     // Only frames showing the photo give the histogram (R7).
-                    if (!showsOriginal || next.values == .none), rendered.showsPhoto, let histogram = rendered.histogram {
+                    if (!showsOriginal || next.values == originalValues), rendered.showsPhoto, let histogram = rendered.histogram {
                         self.histogram = histogram
+                        if let hdrHistogram = rendered.hdrHistogram { self.hdrHistogram = hdrHistogram }
                     }
                     show(rendered)
                     if rendered.content == .photo {
@@ -1841,11 +1882,20 @@ final class AdjustmentEditor {
 
     // MARK: Color fringes (chromatic-aberration design §3–§6)
 
+    /// Show Original's values: none of the edits, with the photo's HDR
+    /// choice, so a photo in HDR shows its unedited HDR version (issue #282,
+    /// R8).
+    var originalValues: Adjustments {
+        var values = Adjustments.none
+        values.hdr = adjustments.hdr
+        return values
+    }
+
     /// Values a frame should show: a hover preview's, the original, or the
     /// edited values; while a filled slot is picked again, without that
     /// slot's graying (design §4), as a preview never saved.
     var valuesOnScreen: Adjustments {
-        var values = previewValues ?? (showsOriginal ? .none : adjustments)
+        var values = previewValues ?? (showsOriginal ? originalValues : adjustments)
         if let slot = pickingFringeSlot, values.colorFringes[slot: slot] != nil {
             values.colorFringes[slot: slot] = nil
         }

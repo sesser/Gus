@@ -12,9 +12,6 @@ import Foundation
 ///                                      own demosaic instead of ours (for comparing;
 ///                                      `RAW_DEMOSAIC=libraw` in the environment does
 ///                                      the same for every tool)
-///     --gain-map-hdr on                temporary (#282, first stage): show and edit every
-///                                      gain-map photo in HDR; honored only by a test
-///                                      launch (`TemporaryGainMapHDR`)
 ///
 /// The library app refuses to start without `--library-root` when it is a
 /// test launch: a bundle identifier other than the release one, or
@@ -29,8 +26,6 @@ public struct LaunchOptions: Sendable {
     public var debugScript: String?
     /// `LibRawDecoder.DemosaicChoice`'s raw value.
     public var demosaic: String?
-    /// Temporary, #282's first stage (`TemporaryGainMapHDR`): remove with it.
-    public var gainMapHDR: String?
 
     public var benchmarkScroll: Bool { benchmarkReport != nil }
 
@@ -48,8 +43,6 @@ public struct LaunchOptions: Sendable {
                 debugScript = iterator.next()
             case "--demosaic":
                 demosaic = iterator.next()
-            case "--gain-map-hdr":
-                gainMapHDR = iterator.next()
             default:
                 break
             }

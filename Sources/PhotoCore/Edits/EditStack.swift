@@ -46,9 +46,10 @@ public struct EditStack: Codable, Hashable, Sendable {
     /// The empty stack every new version starts with.
     public static let identity = EditStack()
 
-    /// True when rendering this stack cannot change the image.
+    /// True when rendering this stack cannot change the image. The HDR
+    /// choice (`HDRChoice`) changes no SDR pixel.
     public var isIdentity: Bool {
-        !operations.contains { $0.isEnabled }
+        !operations.contains(where: Self.rendersSDR)
     }
 
     // MARK: Persistence
@@ -136,11 +137,13 @@ public struct EditStack: Codable, Hashable, Sendable {
 
     /// Hash of everything that affects the rendered pixels, used in preview cache
     /// keys. Operation ids and disabled operations are excluded, so two stacks that
-    /// render the same share previews.
+    /// render the same share previews. So is the HDR choice (`HDRChoice`,
+    /// issue #282): previews, exports and `photocli render` are SDR, and the
+    /// same with the choice on or off (R12).
     public var renderHash: String {
         let payload = RenderPayload(
             schemaVersion: schemaVersion,
-            operations: operations.filter(\.isEnabled).map {
+            operations: operations.filter(Self.rendersSDR).map {
                 .init(kind: $0.kind, kindVersion: $0.kindVersion, parameters: $0.parameters)
             }
         )

@@ -435,19 +435,62 @@ struct GainMapHDRTests {
         #expect(reading.headroom(potential: 4) == 4)
     }
 
-    @Test("The temporary switch works only for a test launch")
-    func temporarySwitch() {
-        let on = LaunchOptions(arguments: ["app", "--library-root", "/tmp/x", "--gain-map-hdr", "on"])
-        #expect(on.gainMapHDR == "on")
-        let release = AppBranding.bundleIdentifier
-        #expect(TemporaryGainMapHDR.isOn(bundleIdentifier: release + ".debugtest", options: on))
-        #expect(TemporaryGainMapHDR.isOn(bundleIdentifier: nil, options: on))
-        #expect(!TemporaryGainMapHDR.isOn(bundleIdentifier: release, options: on))
-        let scripted = LaunchOptions(arguments: ["app", "--gain-map-hdr", "on", "--debug-script", "quit"])
-        #expect(TemporaryGainMapHDR.isOn(bundleIdentifier: release, options: scripted))
-        let off = LaunchOptions(arguments: ["app", "--gain-map-hdr", "off"])
-        #expect(!TemporaryGainMapHDR.isOn(bundleIdentifier: nil, options: off))
-        #expect(!TemporaryGainMapHDR.isOn(bundleIdentifier: nil, options: LaunchOptions(arguments: ["app"])))
+    @Test("Design §18.1: a reading at a lower request keeps the remembered limit; inactive readings are followed, not kept")
+    func rememberedReading() {
+        var reading = DisplayHeadroomReading()
+        // Learned: the screen allows 3.2 (a photo with ceiling 4.5).
+        reading.setRequest(4.5, at: 0)
+        reading.read(3.2, at: 0.1)
+        let learned = reading.read(3.2, at: 1.2)
+        #expect(learned)
+        #expect(reading.estimate == 3.2)
+        // A photo with a lower ceiling (2.0): the reading settles at its request. That says nothing
+        // of the limit, which stays for the next brighter photo (rule 3).
+        reading.setRequest(2.0, at: 5)
+        reading.read(2.0, at: 5.1)
+        let confirmsLower = reading.read(2.0, at: 6.2)
+        #expect(!confirmsLower)
+        #expect(reading.estimate == 3.2 && reading.headroom(potential: 16) == 3.2)
+        // A brighter photo again: it opens at the remembered limit.
+        reading.setRequest(4.5, at: 10)
+        #expect(reading.headroom(potential: 16) == 3.2)
+        // Not active (rule 4): the picture follows the reading, nothing is remembered.
+        reading.read(1.3, at: 10.1, remembers: false)
+        let followed = reading.read(1.3, at: 11.2, remembers: false)
+        #expect(followed)
+        #expect(reading.headroom(potential: 16) == 1.3 && reading.estimate == 3.2)
+        reading.becameActive()
+        #expect(reading.headroom(potential: 16) == 3.2)
+        // The screen now allows more than remembered: replaced.
+        reading.read(4.5, at: 20)
+        let replaced = reading.read(4.5, at: 21.2)
+        #expect(replaced)
+        #expect(reading.estimate == nil && reading.allowedNow == nil)
+    }
+
+    @Test("AC18: each screen's allowance is kept apart and survives the loupe stopping and starting its requests")
+    func memoryPerScreen() {
+        var memory = DisplayHeadroomMemory()
+        // Learned on screen 1 with the app in front.
+        memory[1].setRequest(4.5, at: 0)
+        memory[1].read(1.29, at: 0.1)
+        memory[1].read(1.29, at: 1.2)
+        // The loupe goes away (the grid, a video, comparison) and the window moves to screen 2.
+        memory[1].setRequest(nil, at: 2)
+        #expect(memory[2].headroom(potential: 16) == 16)
+        memory[2].setRequest(4.5, at: 3)
+        memory[2].read(4.5, at: 3.1)
+        memory[2].read(4.5, at: 4.2)
+        // Back on screen 1: the next photo opens fitted to what was learned there.
+        #expect(memory[1].headroom(potential: 4.18) == 1.29)
+        #expect(memory[2].headroom(potential: 16) == 16)
+        // Inactive readings are dropped everywhere on activation.
+        memory[1].setRequest(4.5, at: 10)
+        memory[1].read(1.0, at: 10.1, remembers: false)
+        memory[1].read(1.0, at: 11.2, remembers: false)
+        #expect(memory[1].headroom(potential: 4.18) == 1.0)
+        memory.becameActive()
+        #expect(memory[1].headroom(potential: 4.18) == 1.29)
     }
 
     // MARK: The owner's file

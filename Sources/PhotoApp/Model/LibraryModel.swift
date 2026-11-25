@@ -573,16 +573,41 @@ final class LibraryModel {
     /// Headroom of the HDR image the loupe is showing (brightest value relative to
     /// SDR white), or nil while it shows an SDR image.
     var loupeHDRHeadroom: Float?
-    /// TEMPORARY, issue #282's first stage: every gain-map photo is shown and
-    /// edited in HDR, for the owner's early check by eye, until the per-photo
-    /// choice exists. Only a test launch turns it on (`--gain-map-hdr on`,
-    /// `TemporaryGainMapHDR`); remove it with that launch option when the
-    /// stored choice replaces it (docs/features/gain-map-hdr-editing/status.md).
-    var showsGainMapsInHDR = TemporaryGainMapHDR.isOn(bundleIdentifier: Bundle.main.bundleIdentifier,
-                                                      options: .current)
+    /// Files known to have a gain map or not (issue #282), by content hash,
+    /// learned when the editor reads a file's header: an offline photo with
+    /// the HDR choice off shows the SDR badge only when its file is known to
+    /// have one (RI-3).
+    @ObservationIgnored private var gainMapFiles: [String: Bool] = [:]
+
+    func noteGainMap(_ hasGainMap: Bool, for item: CatalogItem) {
+        if gainMapFiles.count > 50_000 { gainMapFiles.removeAll(keepingCapacity: true) }
+        gainMapFiles[item.contentHash] = hasGainMap
+    }
+
+    /// Whether `item`'s file is known to have a gain map: its HDR choice is
+    /// on (only such a file can have it), or its header was read.
+    func knowsGainMap(_ item: CatalogItem) -> Bool {
+        item.hdr || gainMapFiles[item.contentHash] == true
+    }
+
+    /// The version badge of the photo in the single loupe and review (issue
+    /// #282, design §4): which version of a gain-map photo is on screen, and why.
+    var loupeHDRStatus = HDRVersionBadge.none
+    /// The HDR version has been loading for more than 0.5 s: the caption's spinner (design §4).
+    var loupeHDRSpinner = false
+    /// The HDR histogram of the active comparison pane's photo while it shows
+    /// its HDR version (issue #282, design §7.2); nil otherwise.
+    var comparisonHDRHistogram: HDRHistogram?
+    /// What each screen allows (issue #282, design §18.1): kept here, outside
+    /// the loupe, for as long as the app runs.
+    @ObservationIgnored var displayHeadrooms = DisplayHeadroomMemory()
     /// The debug script's `hdr display`: the display headroom the loupe
     /// takes in place of the screen's reading, nil for the screen's.
     var debugDisplayHeadroom: Float?
+    /// The debug script's `hdr display sdr`: the display reports no extended range.
+    var debugNoExtendedRange = false
+    /// The debug script's `hdr fail on`: the next HDR versions of gain-map photos fail.
+    @ObservationIgnored var debugFailsGainMapHDR = false
     /// What the loupe shows of a gain-map photo in HDR, for the debug
     /// script's `print hdr` (issue #282).
     @ObservationIgnored var loupeGainMapReport = LoupeGainMapReport()
@@ -1509,11 +1534,16 @@ final class LibraryModel {
 
     // MARK: Edits
 
-    /// Shows a version's new edit hash: the grid and loupe load renditions for it.
-    /// Edits are per file; unlike culling they do not reach a pair's partner.
-    func setEditStackHash(_ hash: String, forVersion versionID: Int64) {
-        guard let index = indexByVersionID[versionID], items[index].editStackHash != hash else { return }
+    /// Shows a version's newly saved stack: its render hash (the grid and
+    /// loupe load renditions for it) and its HDR choice (issue #282), which
+    /// the hash leaves out. Edits are per file; unlike culling they do not
+    /// reach a pair's partner.
+    func showSavedEditStack(_ stack: EditStack, forVersion versionID: Int64) {
+        let hash = stack.renderHash
+        guard let index = indexByVersionID[versionID],
+              items[index].editStackHash != hash || items[index].hdr != stack.hdrChoice else { return }
         items[index].editStackHash = hash
+        items[index].hdr = stack.hdrChoice
         itemsRevision += 1
         notifyObservers { $0.libraryItemsChanged(at: IndexSet(integer: index)) }
     }

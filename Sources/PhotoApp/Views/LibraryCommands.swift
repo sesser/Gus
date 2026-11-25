@@ -289,8 +289,9 @@ struct LibraryCommands: Commands {
                 set: { model?.groupPairs = $0 }
             ))
             .disabled(!can())
-            Button(menu?.state.showsHDR == false ? String(localized: "Show HDR Highlights")
-                                                 : String(localized: "Hide HDR Highlights")) {
+            // "Highlights" is gone: a gain map brightens mid-tones too (issue #282, design §3).
+            Button(menu?.state.showsHDR == false ? String(localized: "Show HDR", comment: "View menu: the loupe may show HDR")
+                                                 : String(localized: "Hide HDR", comment: "View menu: the loupe shows SDR only")) {
                 model?.showsHDR.toggle()
             }
             .disabled(!can())
@@ -619,6 +620,11 @@ struct LibraryCommands: Commands {
             // No editing while comparing: the other adjust items are off with the editor.
             .disabled(!can { !$0.presetCollections.isEmpty && $0.targetsIncludePhoto && !$0.isComparing })
             Divider()
+            // The photo's HDR choice (issue #282, design §2.2): dimmed, as Turn On HDR, where it can't change.
+            Button(menu?.state.hdrIsOn == true ? HDRText.turnOff : HDRText.turnOn) {
+                if let editor = model?.editor { editor.setHDR(!editor.adjustments.hdr.isOn) }
+            }
+            .disabled(!can { $0.canSetHDR })
             Button("Auto Exposure") { model?.autoExposure() }
                 .disabled(!can(adjustsTargets))
             blackAndWhiteMenu

@@ -3,15 +3,93 @@ Issue: #282 · Complexity: Hard
 # Edit and show gain-map photos in HDR: implementation status
 
 Owner: swift-macos-engineer. Branch `feature/gain-map-hdr-editing`, from
-`7bf972d` (develop merged in). Spec: the PRD (issue #282's body) and
-`design.md`; evidence from spike #285 (`docs/features/gain-map-hdr/spike.md`).
+`7bf972d` (develop merged in). Spec: the PRD (issue #282's body, revised
+2026-11-25 for RI-6 and RI-7; read from the scratch copy the main session
+gave, GitHub was refusing the body update) and `design.md`; evidence from
+spike #285 (`docs/features/gain-map-hdr/spike.md`).
 
-**State: In progress.** Stage 1 (the early check, design §13) is built and
-waiting on the owner's check by eye, E1 to E4 (below). Nothing past it is
-built. If E1 or E2 fails, Q2 goes back to the owner before more is built
-(PRD, Dependencies).
+**State: In progress.** Stage 1 passed the owner's early check. Stage 2 (the
+rest of the PRD) is being built; see "Stage 2" for what is done and left.
 
 States: Not started · In progress · Done · Blocked · Deferred.
+
+## Early check (design §13): passed
+
+The owner ran E1 to E4 on 2026-11-25 and reported, in full: "All four pass.
+The built-in display showed 2.6x I think. It looks good and works as it
+should". Q2 stands. The "2.6x" is from memory and not a measurement (design
+§13.1).
+
+DQ-1 (the second, smaller change on arrival on a screen that allows less
+than the photo needs): the designer ruled option (a) (design §18.1) and the
+owner accepted it on 2026-11-25: "Yes, Accept it. I did notice it in fact.
+It's fine". Recorded in the PRD as RI-6 (R6, R8, AC7, AC18). Built as §18.1
+says; the rule is `DisplayHeadroomReading.read` and `DisplayHeadroomMemory`
+(PhotoCore), so changing it touches one type and its tests.
+
+## Stage 2: where the choice is stored, and why
+
+**Decision: an edit-stack operation, with a copy in the catalog.** The choice
+is one operation in the version's edit stack (kind `hdr`, parameter `on`,
+schema 1, left out when off: `Edits/HDRChoice.swift`), and migration v17 adds
+`version.hdr`, a copy of it written with the stack.
+
+- In the stack because R2 and the owner's Q3 ruling make it an edit like any
+  other: one undo step, one History entry, a History revert restores the
+  entry's value (entries older than the feature have no operation, so off),
+  Reset All Adjustments removes it (`resettingAll`), a virtual copy starts
+  with it, and each file of a pair has its own. All of that comes from the
+  stack's existing paths with no new code. A `version` column alone would
+  need its own undo step and would not be in History snapshots.
+- Left out of `EditStack.renderHash` (and `isIdentity`) because it changes no
+  SDR pixel (R12): toggling keeps every cached preview, and previews, exports
+  and `photocli render` are byte for byte the same either way. No existing
+  stack holds it, so no existing hash moved; no pipeline bump.
+- Not a `Group`: presets, Copy Adjustments and paste never carry or change it
+  (R3; `replacing` and `CopiedAdjustments.pasted` copy groups only).
+- The `version.hdr` column exists because the loupe must know the choice
+  before it reads the stack: to show an HDR rendition already in memory on
+  arrival (design §6.1), to preload neighbors with the choice on, for the
+  comparison panes and the export notice. It is written in the one place
+  every stack write goes through (`Catalog.setEditStacks`), copied with a
+  virtual copy and set again when Undo of Duplicate's removal puts a copy
+  back (`storeHDRChoice`). `CatalogItem.hdr` carries it. It is deliberately
+  not a property of `VersionRecord`: migration v2 reads and writes version
+  records before v17 exists (the full suite caught this). An older build
+  writing a stack does not update the column; the editor reconciles it from
+  the stack whenever it opens the photo.
+
+## Stage 2: progress
+
+Built (commit "The stored HDR choice replaces the temporary switch"):
+- The choice in the stack and catalog (above); `photocli develop --set
+  hdr.on=true|false` and `--reset hdr` (R17, AC15): turning it on reads the
+  original's header and refuses a file without a gain map (`invalidEdit`) or
+  an original it can't read (`fileNotFound`); `photocli adjustments` lists
+  the `hdr` module (no group); `query images` shows it in the stack.
+- Editor: `hasGainMap` (header read with the other per-file facts, before the
+  tab lays out), `setHDR` (**Turn On HDR** / **Turn Off HDR**, one undo step
+  and History entry), live frames HDR exactly when the values rendered have
+  the choice on, Show Original keeps the choice (unedited HDR, R8).
+- Adjust tab header: the **HDR** check box after Original (design §2.1);
+  Adjust ▸ Turn On / Off HDR above Auto Exposure (§2.2); View ▸ Show / Hide
+  HDR (§3).
+- Loupe: the visit follows the shown photo's choice (the editor's values once
+  ready, else `CatalogItem.hdr`); changing it starts a new visit with the old
+  picture kept until the new one; neighbors with the choice on are preloaded
+  in HDR; a failed HDR version keeps the visit SDR (design §5, reason 4).
+- Version badge and reasons (§4, §5, §12): `HDRVersionBadge` (PhotoCore, the
+  rule) and `HDRText` (words); the caption shows one badge, a warning triangle
+  for a reason, a short form when the row is too narrow (`ViewThatFits`
+  bounded by the centered culling marks), the spinner after 0.5 s.
+- What a screen allows (§18.1, §18.2): `DisplayHeadroomMemory` per screen in
+  `LibraryModel`, outliving the loupe; a reading at a lower request keeps the
+  remembered value; one showing more replaces it; readings while the app is
+  not active are followed, not kept, and dropped on activation.
+- HDR histogram (§7): `HDRHistogram` (153 SDR + 102 HDR bins, fixed +3 stop
+  axis, share above white) from the whole HDR version at the file's full
+  brightening, computed with each HDR live frame; `HDRHistogramView`; the
+  Tone Curve keeps the SDR histogram (§7.3).
 
 ## Stage 1: what it is for
 
@@ -25,22 +103,12 @@ UI, version badges and reasons, the HDR histogram, overlays and maps in HDR,
 the crop session in HDR, comparison panes, the export notice, `photocli`, the
 user guide.
 
-## TEMPORARY switch: must be removed
+## The temporary switch: removed
 
-Until the stored choice exists, every gain-map photo is shown and edited in
-HDR when the app is launched with `--gain-map-hdr on`, and only by a test
-launch (`LibraryLaunchGuard`'s definition: a bundle identifier other than the
-release one, or a scripted launch). A release build launched normally ignores
-it. Remove all of these when the stored choice replaces it:
-
-- `LaunchOptions.gainMapHDR` and its `--gain-map-hdr` case and doc line
-  (`Sources/PhotoCore/Launch/LaunchOptions.swift`);
-- `TemporaryGainMapHDR` (`Sources/PhotoCore/Preview/GainMap.swift`) and its
-  test "The temporary switch works only for a test launch";
-- `LibraryModel.showsGainMapsInHDR`;
-- `LoupeController.gainMapSetting` (and the line setting it in
-  `LoupeCanvas.updateNSView`), whose place the stored choice takes;
-- the debug script's `gainmaphdr on|off`.
+Stage 1's `--gain-map-hdr on` is gone: `LaunchOptions.gainMapHDR`,
+`TemporaryGainMapHDR` and its test, `LibraryModel.showsGainMapsInHDR`,
+`LoupeController.gainMapSetting` and the debug script's `gainmaphdr`. The
+stored choice replaces it. `LaunchOptions.swift` is back to `develop`'s text.
 
 ## What was built
 

@@ -80,9 +80,10 @@ import PhotoUI
 ///     print sharpenmap      (asked for, on screen with its badge and legend, refining, can show, the
 ///                           overlay and Show Original, the inspector, the scroll position of the Adjust tab)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
-///     hdr display <h>|system (#282: the display headroom the loupe fits gain-map photos to; `system`
-///                           takes the screen's potential headroom again)
-///     gainmaphdr on|off     (TEMPORARY, #282 first stage: every gain-map photo in HDR, as `--gain-map-hdr on`)
+///     hdr display <h>|sdr|system (#282: what the loupe takes the screen to allow now, as a settled
+///                           reading; `sdr` a screen without extended range; `system` the screen's own)
+///     hdr fail on|off       (#282: the next gain-map HDR versions fail, as if the render had)
+///     adjust hdr on|off     (#282: the open photo's HDR choice, as the Adjust tab's HDR check box)
 ///     filmstrip on|off|toggle   (the loupe's film strip, as its toggle: slides)
 ///     filmstripsize <points>    (stores the nearest step, as a release does)
 ///     windowsize <width> <height>   (the library window's content size, e.g. a short window for the strip's cap)
@@ -542,16 +543,23 @@ enum DebugScript {
             try? await Task.sleep(for: .milliseconds(1500))
         case "hdr":
             if rest.first == "display" {
-                // Issue #282: the display headroom the loupe fits gain-map photos to (`system`: the screen's).
-                model.debugDisplayHeadroom = rest.dropFirst().first.flatMap(Float.init)
+                // Issue #282: what the loupe takes the screen to allow now (a settled reading), `sdr`:
+                // a screen without extended range, `system`: the screen's own.
+                let value = rest.dropFirst().first
+                model.debugNoExtendedRange = value == "sdr"
+                model.debugDisplayHeadroom = value.flatMap(Float.init)
+            } else if rest.first == "fail" {
+                // Issue #282: gain-map photos' HDR versions fail from the next opening (design §5, reason 4).
+                model.debugFailsGainMapHDR = rest.dropFirst().first != "off"
             } else {
                 model.showsHDR = rest.first != "off"
             }
-        case "gainmaphdr":
-            // TEMPORARY (#282 first stage): the switch `--gain-map-hdr on` sets; remove with it.
-            model.showsGainMapsInHDR = rest.first != "off"
         case "metadata", "sidecars":
             await DebugMetadataCommands.run(verb, rest, model: model)
+        case "adjust" where rest.first == "hdr":
+            // Issue #282: the photo's HDR choice, as its check box (the View setting is `hdr on|off`).
+            model.editor.setHDR(rest.dropFirst().first != "off")
+            try? await Task.sleep(for: .milliseconds(300))
         case "adjust":
             await DebugAdjustCommands.run(rest, editor: model.editor)
         case "lens":
@@ -1496,13 +1504,19 @@ enum DebugScript {
             let report = model.loupeGainMapReport
             func value(_ number: Float?) -> String { number.map { String(format: "%.2f", $0) } ?? "none" }
             let frame = model.editor.frame.map { $0.headroom.map { String(format: "hdr %.2f", $0) } ?? "sdr" } ?? "none"
-            print("debug-script: gainmap switch \(model.showsGainMapsInHDR) wants \(report.wantsHDR)"
+            let item = model.focusedItem
+            print("debug-script: gainmap has choice \(model.editor.hasGainMap) choice \(model.editor.adjustments.hdr.isOn)"
+                  + " item \(item?.hdr ?? false) wants \(report.wantsHDR)"
                   + " gain-map \(report.isGainMap) shown \(report.visit.shown?.rawValue ?? "none")"
                   + " changes \(report.visit.changes) versions \(report.shownVersions.map(\.rawValue).joined(separator: ","))"
+                  + " badge '\(report.badge)' spinner \(model.loupeHDRSpinner) failed \(report.failed)"
                   + " rendered \(value(report.visit.renderedHeadroom)) display \(value(report.displayHeadroom))"
+                  + " allowed \(value(report.allowedHeadroom)) allowed now \(value(report.allowedNow))"
                   + " known limit \(value(report.settledReading)) request \(value(report.requestedHeadroom))"
-                  + " file \(value(report.fileHeadroom)) refits \(report.refits) live frame \(frame)"
-                  + " showsLive \(model.editor.showsLive)")
+                  + " file \(value(report.fileHeadroom)) ceiling \(value(report.ceiling)) refits \(report.refits)"
+                  + " live frame \(frame) showsLive \(model.editor.showsLive)")
+            print("debug-script: hdr badge text '\(HDRText.badge(model.loupeHDRStatus) ?? "")'"
+                  + " help '\(HDRText.help(model.loupeHDRStatus) ?? "")'")
         case "messages":
             // Every Activity row, oldest first, and whether an alert or sheet is up.
             for message in model.activity.messages {

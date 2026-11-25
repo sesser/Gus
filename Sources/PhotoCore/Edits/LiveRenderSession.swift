@@ -55,6 +55,10 @@ public actor LiveRenderSession {
         /// For an HDR frame, the file's own HDR headroom and ceiling (`GainMap`).
         public var fileHeadroom: Float? = nil
         public var ceiling: Float? = nil
+        /// For an HDR frame showing the photo, the histogram of its whole HDR
+        /// version at the file's full brightening (`HDRHistogram`, design §7);
+        /// `histogram` stays the SDR version's (the Tone Curve's backdrop, §7.3).
+        public var hdrHistogram: HDRHistogram? = nil
 
         /// The frame shows the photo as it is (no overlay, not the map): only
         /// such a frame may give the histogram or become a cached preview.
@@ -329,6 +333,7 @@ public actor LiveRenderSession {
         let size = Int((Double(longEdge) * factor).rounded())
         let rendered: CGImage
         var histogram: Histogram?
+        var hdrHistogram: HDRHistogram?
         var hdr: (headroom: Float, file: Float, ceiling: Float)?
         if let hdrHeadroom, content == .photo, let map = loadedGainMap() {
             let placed = map.placed(over: source.extent, crop: renderer.geometry(for: stack))
@@ -343,6 +348,8 @@ public actor LiveRenderSession {
                 // The SDR frame's counts, from a reduction of it (`Histogram` samples 256 pixels).
                 histogram = generator.engine.makeCGImage(image.scaledToFit(longEdge: 256), colorSpace: colorSpace)
                     .flatMap { Histogram(image: $0) }
+                // The whole HDR version's, the same on every display (R10).
+                hdrHistogram = HDRHistogram(image: map.fullHDR(image, placed: placed), engine: generator.engine)
             }
         } else {
             guard let output = generator.engine.makeCGImage(image.scaledToFit(longEdge: size), colorSpace: colorSpace) else {
@@ -359,7 +366,7 @@ public actor LiveRenderSession {
                      hasOverlay: overlaid, overlayMask: overlaid ? overlayMask : nil, adjustments: adjustments,
                      maskFrameSize: CGSize(width: base.image.width, height: base.image.height),
                      scale: factor, seconds: seconds, filledCache: filledCache, machineLearning: base.machineLearning,
-                     headroom: hdr?.headroom, fileHeadroom: hdr?.file, ceiling: hdr?.ceiling)
+                     headroom: hdr?.headroom, fileHeadroom: hdr?.file, ceiling: hdr?.ceiling, hdrHistogram: hdrHistogram)
     }
 
     /// The master's gain map, loaded once (`GainMap.load`).
