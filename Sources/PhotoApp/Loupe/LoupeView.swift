@@ -1965,35 +1965,52 @@ final class CenteringClipView: NSClipView {
 /// Info tab.
 struct LoupeCaption: View {
     let model: LibraryModel
-    @State private var width: CGFloat = 0
-    @State private var marksWidth: CGFloat = 0
 
     static let height: CGFloat = 28
 
     var body: some View {
         ZStack {
             if let item = model.focusedItem, let index = model.focusIndex {
-                HStack {
-                    Text(PhotoAccessibility.position(index, of: model.items.count))
-                        .monospacedDigit()
-                    Spacer()
-                    // The badges keep to the side of the centered marks: a version badge
-                    // that doesn't fit there takes its short form (issue #282, design §5).
-                    ViewThatFits(in: .horizontal) {
+                // The first arrangement that fits (issue #282, design §5, QA Q3): the marks centered
+                // with the badges beside them, in full, then with the version badge's short form; where
+                // even that can't keep clear of the centered marks (the narrowest windows), the marks
+                // give way, after the position, then without it. The badges never run into the marks.
+                ViewThatFits(in: .horizontal) {
+                    CenteredCaptionRow {
+                        position(index)
+                        CullingMarks(item: item)
                         badges(item, compact: false)
+                    }
+                    CenteredCaptionRow {
+                        position(index)
+                        CullingMarks(item: item)
                         badges(item, compact: true)
                     }
-                    .frame(maxWidth: width > 0 ? max(0, (width - marksWidth) / 2 - 18) : nil, alignment: .trailing)
+                    HStack(spacing: LoupeCaptionMetrics.packedSpacing) {
+                        position(index)
+                        CullingMarks(item: item)
+                        Spacer(minLength: 0)
+                        badges(item, compact: true)
+                    }
+                    HStack(spacing: LoupeCaptionMetrics.packedSpacing) {
+                        CullingMarks(item: item)
+                        Spacer(minLength: 0)
+                        badges(item, compact: true)
+                    }
                 }
-                CullingMarks(item: item)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { marksWidth = $0 }
             }
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .font(.subheadline)
         .foregroundStyle(.secondary)
         .padding(.horizontal, 12)
         .frame(height: Self.height)
+    }
+
+    private func position(_ index: Int) -> some View {
+        Text(PhotoAccessibility.position(index, of: model.items.count))
+            .monospacedDigit()
+            .lineLimit(1)
+            .fixedSize()
     }
 
     @ViewBuilder
@@ -2050,6 +2067,40 @@ struct LoupeCaption: View {
                     .padding(.leading, 2)
             }
         }
+        // Whole, or not chosen (`ViewThatFits` above): never squeezed into a badge too narrow to read.
+        .fixedSize()
+    }
+}
+
+/// The loupe caption's spacing (issue #282, QA Q3): the badges and the
+/// position keep at least this far from the culling marks, centered or not
+/// (a row's default spacing).
+enum LoupeCaptionMetrics {
+    static let centeredGap: CGFloat = 8
+    static let positionGap: CGFloat = 8
+    static let packedSpacing: CGFloat = 8
+}
+
+/// The loupe caption with its culling marks centered: the position at the
+/// leading edge, the marks in the middle of the row, the badges at the
+/// trailing edge. Its ideal width is the narrowest row that keeps both
+/// sides clear of the centered marks, so `ViewThatFits` takes it only when
+/// the badges fit beside them. Subviews: position, marks, badges.
+struct CenteredCaptionRow: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard subviews.count == 3 else { return .zero }
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        let side = max(sizes[0].width + LoupeCaptionMetrics.positionGap, sizes[2].width + LoupeCaptionMetrics.centeredGap)
+        let ideal = sizes[1].width + 2 * side
+        let height = sizes.map(\.height).max() ?? 0
+        return CGSize(width: proposal.width ?? ideal, height: proposal.height ?? height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count == 3 else { return }
+        subviews[0].place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading, proposal: .unspecified)
+        subviews[1].place(at: CGPoint(x: bounds.midX, y: bounds.midY), anchor: .center, proposal: .unspecified)
+        subviews[2].place(at: CGPoint(x: bounds.maxX, y: bounds.midY), anchor: .trailing, proposal: .unspecified)
     }
 }
 
