@@ -8,16 +8,17 @@ Owner: swift-macos-engineer. Branch `feature/gain-map-hdr-editing`, from
 gave, GitHub was refusing the body update) and `design.md`; evidence from
 spike #285 (`docs/features/gain-map-hdr/spike.md`).
 
-**State: Done** (2026-11-25, after QA's first pass). Stage 1 passed
+**State: Done** (2026-11-25, after QA's second pass). Stage 1 passed
 the owner's early check; stage 2 built the rest of the PRD and design; the
 first-pass findings of `code-review.md` and `review.md` are fixed or answered
 below ("Review round 1"), and the second pass's open ones (F1's rest, F11, C8,
 C9) under "Review round 2". QA's findings Q1 to Q5 (`qa.md`, first pass) are
-fixed under "QA round 1"; Q3's layout waits on the designer's confirmation
-(DQ-2, below). Every acceptance criterion is built and mapped to a test or a
+fixed under "QA round 1"; DQ-2 was ruled (design §19.6). QA's second pass
+found Q6 and Q7 (review F12, F13); they are fixed as design §20 rules under
+"QA round 2". Every acceptance criterion is built and mapped to a test or a
 check below; nothing is blocked. What only a person can check is listed under
-"For a person". Next: code review (a risk area: rendering of HDR pictures) and
-the designer (Q3 changes the loupe caption), then QA again.
+"For a person". Next: code review and the designer (the loupe and comparison
+captions changed), then QA again.
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -289,6 +290,104 @@ SDR output: nothing that renders SDR changed. `GainMap.receiving` is used only
 inside `hdr` and the ceiling; AC11's byte-equality test passes for both kinds,
 and every golden passes.
 
+## QA round 2 (2026-11-25)
+
+Fixes for `qa.md`'s second pass (`e4c14b2`): Q6 (review F12, M18) and the part
+of Q7 this branch added (review F13, M20), as design §20.1 and §20.2 rule.
+Commits `4b7ad86` (Q6), `39c5057` (Q7), `66a935f` (user guide). Debug-script
+runs: copies of the bundle with identifiers `me.sesser.gus.debugtest.q6fix282`
+(after `4b7ad86`), `.q7fix282` (after `39c5057`) and `.q7dev282` (`develop` at
+`4561cb3`, from `git archive`, built outside the checkout), scratch
+libraries from `photobench import` in the session scratchpad: `libA` (the
+dusty-sky JPEG from `photobench scenes`, named `PLAIN.jpg`), `libB` (a copy of
+the owner's IMG_0561 and `PLAIN.jpg`, unrated), `libD` (the same two on a FAT32
+disk image, both set by `photocli` to 5 stars, picked, orange; purple and
+yellow in two more runs). Offline: the image detached and attached again while
+the app ran. Shell-started, `hdr display 16`. Snapshots were looked at only for
+which badges and marks are whole; no visual result is claimed.
+
+| Finding | Outcome | Test or check |
+| --- | --- | --- |
+| Q6 (a crowded narrow caption widens the loupe column and pushes the side panes off the window; the label name wraps) | Reproduced on `b391a9c` (QA's T11 on `libA`: 240, then 261 and 318 pt; **More adjustment commands** at x 733 unmarked, 772 with Filtered, Copy and Original). Fixed per §20.1. The guarantee: `LoupeCaption` ends in `.padding(.horizontal, 12).frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing).frame(height:).clipped()`, so it takes exactly the width offered and clips at its leading edge. The order: `ViewThatFits` over the thirteen levels of `LoupeCaptionLevel.all` (PhotoCore, `Browser/LoupeCaptionLevels.swift`: the table as data, each level the changes of the one above). From level 3 the row is position, 8 pt, marks, a spacer of at least 8 pt, badges (8 pt in all, not 16). Compact marks from level 6 (one `star.fill` in the rating color, 2 pt, the digit; nothing when unrated; 6 pt between marks; the five stars' VoiceOver words, also as a help tag). The label name is one line at every level, whole until level 11, then cut at the tail down to 24 pt (0 at level 13) by `TruncatingSlot`, a layout whose ideal width is its minimum, so `ViewThatFits` tests a level at its narrowest and the laid-out name takes the room left up to its own width; the dot and name have the "%@ label" help tag. A map's badge is cut in the middle down to 80 pt from level 11. Every other badge is `fixedSize` on its own (the old `fixedSize` on the whole badge row is gone). | `LoupeCaptionLevelsTests` (6 tests): thirteen levels; level 1 all whole and centered; the never-dropped parts at every level and never cut (version badge whole or short); centered levels keep the position; each level changes exactly its row of §20.1 against the one above; the last level is the never-dropped parts and the label name. Script (`print loupe` now prints `column` (the loupe scroll view's width), `caption level` and `width`), all at 760 × 560 with both panes, or 760 × 480 (the window's minimum) where said: table below. |
+| Q6, colour name wrapping | Fixed with the above: one line, `fixedSize` until level 11. | Snapshots below: "Orange", "Purple", "Yellow" whole on one line in every non-map state. |
+| Q7, this branch's part (F13) | Fixed per §20.2: each pane caption's `ViewThatFits` gets a sixth arrangement, the fifth with compact marks (`CullingMarks(compact:spacing:)`, the same view the loupe uses). No clamp on the comparison caption. The width falls, so the fix stays (no fallback). | Script T12 (QA's, plus `adjust hdr on` and **Hide HDR**) on `develop`, before and after: table below. |
+
+### Q6: the loupe caption at 760 pt (after `4b7ad86`)
+
+Gain-map photo IMG_0561 (`libD`, 5 stars, picked, orange), one run, in order;
+column and caption width 240.00 pt in every row; **More adjustment commands**
+at x 733 and the point (100, 300) on a sidebar row, unmarked and in the
+most crowded state alike:
+
+| State | Level | What the snapshot shows (caption only) |
+| --- | --- | --- |
+| HDR choice off, unfiltered (`SDR`) | 5 | (not snapshotted) |
+| HDR on (**HDR**) | 5 | five stars, flag, Orange, **HDR** |
+| + Filtered (`flag picked`) | 6 | ★ 5, flag, Orange, **Filtered**, **HDR** |
+| + **View ▸ Hide HDR** | 6 | … **Filtered**, ⚠ **SDR** |
+| + Original | 8 | … **Original**, ⚠ **SDR** |
+| Original off, a copy | 7 | … **Filtered**, ⚠ **SDR** |
+| copy + Original | 8 | … **Original**, ⚠ **SDR** |
+| copy + Original + Offline (filter, 5 stars, flag, label: all at once) | 12 | ★ 5, flag, Orange, ⚠ **SDR**, **Offline** (Original left out) |
+| copy, Offline | 8 | ★ 5, flag, Orange, ⚠ **SDR**, **Offline** |
+| copy, Offline, **Show HDR** | 8 | the same (`sdr offline`) |
+| the same at 900 × 600 | 6 | (column 380) |
+| the same at 1300 × 760 | 1 | (column 780) |
+| back at 760 | 8 | |
+| reattached, Sharpening Map (Amount 0: **Sharpening Map · Not Applied**) | 11 | ★ 5, flag, Orange, **Sharpen…Applied** |
+
+The level-12 state with Purple and with Yellow: level 12, the name whole. Plain
+JPEG (`PLAIN.jpg` in `libD`, 760 × 480, the window's minimum): 5 stars, flag,
+Orange: level 4 (position left out, film strip button kept); Filtered: 6;
+Filtered and Original: 6; a copy: 6; copy and Original: 7; copy, Original and
+Offline: 8 (**Original**, **Offline** whole); copy and Offline: 7; reattached,
+Not Applied sharpening map: 11 (name whole, map badge cut in the middle). QA's
+T11 on `libA` (an unrated plain JPEG, then 5 stars and a pick, a filter, a
+copy, Original): 240.00 throughout, levels 1, 1, 5, 6; the inspector button
+stays at x 733 (was 772).
+
+Below 240 pt: the new debug command `panes 0 0 320; panes 1 0 300` (the sidebar
+divider to 320, the inspector's to its 420 maximum) leaves a 20 pt loupe column
+in a 760 pt window. With the level-12 state: `column 20.00 caption level 13
+width 20.00`, the inspector button still at x 733, the window 760; the
+snapshot shows the trailing end of **Offline**, clipped at the caption's
+leading edge. So the split view does allow side panes dragged wider (to 320 and
+420), and the guarantee holds there.
+
+Level 13 was not reached at 240 pt, and no non-map state cut the label name
+there, so no design question (§20.1's condition).
+
+### Q7: comparison pane widths at 760 × 560 (each pane, pt)
+
+A photo beside its copy, sidebar and inspector shown (`print compare`'s pane
+frames). `libB` unrated; `libD` both 5 stars, picked, orange. "Before" is
+`4b7ad86` (the comparison caption as at `e4c14b2`).
+
+| Pair | `develop` | Before | After |
+| --- | --- | --- | --- |
+| Plain JPEG, unrated | 213.25 | 213.25 | 136.75 |
+| Gain-map, unrated, HDR on (**HDR**) | 213.25 | 250.25 | 173.75 |
+| Gain-map, unrated, **Hide HDR** (⚠ **SDR**) | 213.25 | 262.75 | 186.25 |
+| Plain JPEG, rated, flag, label | 297.75 | 297.75 | 236.75 |
+| Gain-map, rated, flag, label, **HDR** | 297.75 | 334.75 | 273.75 |
+| Gain-map, rated, flag, label, ⚠ **SDR** | 297.75 | 347.25 | 286.25 |
+
+(`develop` has no choice, so its gain-map pair shows no version badge.) QA
+measured 235.75 on `develop` with its own libraries; these runs use the same
+libraries on all three builds. At 1050 × 640, unrated, HDR on: 257 pt a pane,
+the loupe column's 530 exactly, the sidebar split at 220 and 1050 (the side
+panes whole), as on `develop`; before the fix the split read 320 and 1136.5.
+Rated with flag and label at 1050: 273.75 (develop 297.75), still wider than
+the column: the older fault, the follow-up below. Snapshots of the ⚠ **SDR**
+pairs after the fix: name cut in the middle, ★ 5, flag, Orange, ⚠ **SDR**, and
+**Copy** on the copy's side, whole.
+
+SDR output: nothing that renders changed (caption views and the debug script
+only). Every golden and AC11's byte-equality test pass in the full run below.
+
+Determinism of the new tests: structural. `LoupeCaptionLevelsTests` reads a
+constant table; no rendering, timing, shared state or pool order.
+
 ## Stage 1 (history): what it was for
 
 Only what E1 to E4 need: one gain-map file shown and edited in HDR in the
@@ -455,7 +554,7 @@ shell-started unless said).
 | AC1 (R1) | `GainMapHDRTests` "A gain-map HEIC or JPEG has a gain map…" (HEIC, JPEG: yes; plain JPEG, PQ with and without a gain map: no) and "AC1: only a HEIC or JPEG, by name and content…" (a gain map under a TIFF or PNG name, or in an AVIF, gives no choice); `GainMap.exists` takes HEIC and JPEG names and content types only; `HDRChoiceTests` "Off is the default…"; script: a newly imported HEIC shows **SDR**, choice off, check box shown (`has choice true`) | Pass |
 | AC2 (R2) | `HDRChoiceTests`: stack round trip, catalog column and History snapshot revert, virtual copy independence and Undo of Duplicate's removal, Reset All; script: on, relaunch still on, undo off, redo on, History lists **Turn On HDR**, revert to an entry with it off shows SDR, Reset All (menu, activated run) off, its undo on | Pass |
 | AC3 (R3) | `HDRChoiceTests` "presets and Paste Adjustments neither carry nor change the choice" (both directions, all items and one group) | Pass |
-| AC4 (R4, R5) | `HDRChoiceTests` badge reasons and order, offline with choice off (RI-3), fitted at 1.29 and 1.0 is **HDR** (RI-7); script: **SDR: HDR Hidden**, **SDR: No HDR Display** (`hdr display sdr`), **SDR: HDR Failed** (`hdr fail on`), allowance 1.29 and 1.0 read **HDR** with the fitted help tag; comparison panes each state their version; the stored choice unchanged under every reason; QA round 1: a photo whose original goes offline while open can't have its choice changed (Q2), and at 760 pt the caption keeps ⚠ **SDR** clear of the marks (Q3, snapshots) | Pass (offline by script: disk image detached and attached; the menu item by reading; Q3's layout waits on DQ-2) |
+| AC4 (R4, R5) | `HDRChoiceTests` badge reasons and order, offline with choice off (RI-3), fitted at 1.29 and 1.0 is **HDR** (RI-7); script: **SDR: HDR Hidden**, **SDR: No HDR Display** (`hdr display sdr`), **SDR: HDR Failed** (`hdr fail on`), allowance 1.29 and 1.0 read **HDR** with the fitted help tag; comparison panes each state their version; the stored choice unchanged under every reason; QA round 1: a photo whose original goes offline while open can't have its choice changed (Q2), and at 760 pt the caption keeps ⚠ **SDR** clear of the marks (Q3, snapshots); QA round 2: at 760 pt the caption never widens the loupe column, and the version badge, warning mark and **Offline** stay whole in every state tried (Q6, `LoupeCaptionLevelsTests`, script) | Pass (offline by script: disk image detached and attached; the menu item by reading) |
 | AC5 (R6) | `GainMapHDRTests` system decode in every orientation and both containers, smaller headroom by the gain map's rule (against Core Image's own rule for the file too), each for ISO and Apple-only gain maps (QA Q1, Q4); opt-in sample test on Apple-only copies within 0.006 stops; script: `hdr display 2`, `1.5`, `system` refit without reopening, version unchanged; at 100% with live frames up the tile follows too (review round 2, F11) | Pass |
 | AC6 (R7) | `GainMapAdjustmentTests` "every adjustment…" (25 cases × ISO and Apple-only gain maps: every group and control, Color Fringes, an identity look-up table as the smallest, masks; Black & White as a switch; the unedited version checked against the system's decode); opt-in `GAINMAP_SAMPLES` on the owner's three files (both kinds of gain map) and on Apple-only copies of them, below and under "QA round 1" | Pass |
 | AC7 (R8) | `GainMapHDRTests` "Once HDR is on screen…" (the visit rule); script: arrival `versions sdr,hdr changes 1`, then an Exposure change, Exposure −3 (nothing above white), crop begin and done, sharpening map on and off (no badge, HDR back), comparison and back, grid and back: still HDR, no further change; Undo of Turn On HDR, Reset All and a revert to an entry with it off show SDR | Pass (drags, zoom and hover by stage 1's scripted runs and the code path) |
@@ -562,6 +661,16 @@ The timing test asserts nothing about time.
   byte-equality test passes. CI toolchain:
   `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3`:
   **Build complete** (18.6 s, incremental), no errors, no warnings.
+- After QA round 2 (2026-11-25, `66a935f`): `swift build` clean, no warnings;
+  full `swift test`: **1581 tests in 222 suites passed**, 99.5 s (the 6 new
+  caption-level tests included). Goldens unchanged; no
+  `PreviewCacheKey.currentPipelineVersion` bump; AC11's byte-equality test
+  passes. CI toolchain:
+  `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3`:
+  **Build complete** (35.0 s), no errors; two warnings, both in test files this
+  branch doesn't touch and from `develop`: `VirtualCopiesTests.swift:170`
+  (redundant `#require`, as before) and `SmartAlbumTests.swift:165` (unused
+  result of `insertMasters`, last changed in `b736aea`).
 - `Scripts/build-app.sh`: bundle built and signed.
 
 Debug-script results (2026-11-25) are in the AC table. Screens seen: the
@@ -625,6 +734,16 @@ Adjust tab's **HDR** check box.
     HDR on for it: it should brighten as the owner's three files do, not stay
     at its SDR look. A copy of one of the three with each `tmap` code renamed
     stands in (QA's method in `qa.md`, Q1).
+14. QA round 2 (the review's M18 and M20): at 760 pt with both side panes, a
+    gain-map photo with 5 stars, a pick, the longest color label, a filter,
+    **Hide HDR**, Original, a copy and its volume ejected: the loupe and side
+    panes don't move; the version badge and **Offline** whole; the rating as a
+    star and a number when crowded; hovering the label names it; how the
+    caption looks as items leave it. Then drag both side panes to their
+    widest: the panes stay in the window, the caption clips at its left.
+    Comparison of a gain-map photo and its copy at 760 and about 1,050 pt,
+    unrated and rated: version badges and **Copy** whole; at 760 the
+    comparison still overflows (the follow-up).
 
 Covered by CI only, per the owner's standing ruling: VoiceOver, macOS 15 and
 macOS 26.
@@ -633,7 +752,9 @@ macOS 26.
 
 ### Design questions (for apple-ui-designer)
 
-DQ-1 is ruled (design §18.1) and accepted by the owner.
+DQ-1 is ruled (design §18.1) and accepted by the owner. DQ-2 is ruled: option
+(a) (design §19.6), continued by §20.1 after QA's second pass (built, "QA round
+2"). No design question is open. The question as asked, for the record:
 
 **DQ-2 (QA Q3): what gives way in the loupe caption when the version badge's
 short form can't fit beside the centered marks.** At the minimum window (760
@@ -699,6 +820,29 @@ follow-up bug.
   an empty HDR histogram (the frame with no curve) after the volume returns,
   because its counts come from the Adjust tab's editor; the fix should check
   that the HDR histogram fills once the tab leaves its offline state.
+- Bug (design §20.2, `review.md` "Follow-up proposed: the older part of Q7";
+  `bug`, proposed Complexity Routine, slug `comparison-narrow-window-overflow`):
+  "Comparison captions are wider than a narrow window allows and push the side
+  panes off the window". In the library window with the sidebar and inspector
+  at their default widths, compare two photos (**S**). Expected: both panes
+  and their captions stay within the loupe's column and the side panes don't
+  move. Actual (`develop` `4561cb3`, measured in #282's QA round 2 above): at
+  760 pt each pane is 213.25 pt wide for an unrated pair and 297.75 for a pair
+  rated 5 with a flag and a color label, where the whole comparison has 240,
+  so the comparison is wider than its column and the side panes are pushed
+  partly off the window; the rated pair still overflows at 1050 pt. #282
+  lowers the width needed (one more arrangement with compact marks: 136.75
+  and 236.75 at 760) without removing the fault. Likely cause: the two
+  captions' minimum widths set the comparison's minimum (`ViewThatFits` takes
+  its last arrangement whether or not it fits). Wants a design first: each
+  caption must never ask for more than its half, and at under 100 pt a side
+  the name, marks and version badge don't fit on one line, so clamping alone
+  would cut badges (#282 R4 keeps the version badge visible). Check first
+  whether the film strip or the pane views also set a minimum.
+
+(The fourth review pass's proposal "Narrowest loupe caption: many badges make
+the row wider than the loupe" was never listed here; it is replaced by the Q6
+fix above and is not to be filed, as `review.md` says.)
 
 ## README
 
@@ -716,11 +860,16 @@ follow-up bug.
 - Debug script (CLAUDE.md lists none of these one by one): `hdr display flat`
   (review round 1) beside `hdr display <h>|sdr|system`, `hdr fail on|off`,
   `adjust hdr on|off`; `print hdr` also prints the 100% tile's version
-  (`tile hdr <h>|sdr|none`, review round 2).
+  (`tile hdr <h>|sdr|none`, review round 2); `print loupe` also prints the
+  loupe column's width and the caption's level and width (QA round 2), and
+  `panes [<split> <divider> <x>]` lists the window's split views' pane widths
+  and moves a divider.
 
 ## User guide
 
 Updated in its own commit: the HDR passage (gain-map photos, the choice, the
 badges and reasons, fitting, the first photo's second adjustment, what stays
 SDR, the HLG/PQ/DNG limit naming the adjustments), the histogram passage, the
-Export passage, the Adjust tab header, and `photocli develop`.
+Export passage, the Adjust tab header, and `photocli develop`. QA round 2
+(`66a935f`): design §20.1's passage on what the caption leaves out in the
+narrowest windows replaces the sentence that began "In the narrowest windows".
