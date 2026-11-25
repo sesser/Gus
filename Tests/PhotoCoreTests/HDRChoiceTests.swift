@@ -297,11 +297,12 @@ struct HDRChoiceOutputTests {
         return values
     }
 
-    @Test("AC11: previews and photocli render are the same bytes with the choice on and off")
-    func sdrOutputUnchanged() async throws {
+    @Test("AC11: previews and photocli render are the same bytes with the choice on and off",
+          arguments: HDRTestImages.GainMapKind.allCases)
+    func sdrOutputUnchanged(kind: HDRTestImages.GainMapKind) async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let url = root.appending(path: "same.heic")
-            try HDRTestImages.writePatternedGainMap(to: url, width: 640, height: 480, seed: 2850)
+            try HDRTestImages.writePatternedGainMap(to: url, width: 640, height: 480, seed: 2850, kind: kind)
             let generator = PreviewGenerator()
             let off = try generator.jpegData(source: url, stack: Self.values(hdr: false).editStack,
                                              tiers: Set(PreviewTier.allCases))
@@ -323,11 +324,12 @@ struct HDRChoiceOutputTests {
         }
     }
 
-    @Test("AC13: Auto Exposure, Auto White Balance and Color Alignment measure the same with the choice on and off")
-    func measurementsUnchanged() async throws {
+    @Test("AC13: Auto Exposure, Auto White Balance and Color Alignment measure the same with the choice on and off",
+          arguments: HDRTestImages.GainMapKind.allCases)
+    func measurementsUnchanged(kind: HDRTestImages.GainMapKind) async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let url = root.appending(path: "measure.heic")
-            try HDRTestImages.writePatternedGainMap(to: url, width: 640, height: 480, seed: 2851)
+            try HDRTestImages.writePatternedGainMap(to: url, width: 640, height: 480, seed: 2851, kind: kind)
             let generator = PreviewGenerator()
             let adjuster = AutoAdjuster(generator: generator)
             let off = Self.values(hdr: false), on = Self.values(hdr: true)
@@ -339,11 +341,13 @@ struct HDRChoiceOutputTests {
         }
     }
 
-    @Test("AC9: the HDR histogram counts values above white, differs from the SDR one, and is the same at any display")
-    func histogram() async throws {
+    @Test("AC9: the HDR histogram counts values above white, differs from the SDR one, and is the same at any display",
+          arguments: HDRTestImages.GainMapKind.allCases)
+    func histogram(kind: HDRTestImages.GainMapKind) async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let url = root.appending(path: "histogram.heic")
-            try HDRTestImages.writePatternedGainMap(to: url, width: 800, height: 600, seed: 2852, bright: 4, dim: 1.5)
+            try HDRTestImages.writePatternedGainMap(to: url, width: 800, height: 600, seed: 2852, bright: 4, dim: 1.5,
+                                                    kind: kind)
             let session = LiveRenderSession(source: url, generator: PreviewGenerator(), longEdge: 600, colorSpace: nil)
             var values = Adjustments()
             values.hdr.isOn = true
@@ -366,6 +370,10 @@ struct HDRChoiceOutputTests {
             values.exposure.ev = -3
             let dark = try #require(try await session.render(values, hdrHeadroom: 4).hdrHistogram)
             #expect(dark.shareAboveWhite == 0 && dark.luminance.count == HDRHistogram.binCount)
+            // The comparison panes' counts (`PreviewGenerator.gainMapHDRHistogram`) see the same light above white.
+            values.exposure.ev = 0
+            let pane = try #require(try PreviewGenerator().gainMapHDRHistogram(source: url, stack: values.editStack))
+            #expect(abs(pane.shareAboveWhite - hdr.shareAboveWhite) < 0.05)
         }
     }
 

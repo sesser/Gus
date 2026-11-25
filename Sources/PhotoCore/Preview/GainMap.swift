@@ -32,6 +32,14 @@ public struct GainMap: @unchecked Sendable {
     /// the photo goes above it. For an iPhone photo it is the file's
     /// headroom; a gain map can also hold larger gains for darker parts.
     public let ceiling: Float
+    /// What Core Image reads from the image a gain map is applied to, not
+    /// from the map: the file's Apple maker dictionary, from which it takes
+    /// an Apple gain map's headroom (maker tags 33 and 48). Without it an
+    /// Apple gain map brightens nothing (QA Q1, measured on macOS 27.2: the
+    /// SDR picture comes back unchanged). Empty when the file has none; an
+    /// ISO 21496-1 gain map carries its own metadata on the map. Immutable
+    /// property-list values, safe to share like `image`.
+    let receiverProperties: [String: Any]
 
     /// Whether `url` is a gain-map photo, from its header: a HEIC or JPEG
     /// with a gain map (ISO 21496-1 or Apple's) and no HLG or PQ encoding.
@@ -76,13 +84,32 @@ public struct GainMap: @unchecked Sendable {
         let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
         let orientation = (properties?[kCGImagePropertyOrientation] as? NSNumber)?.int32Value ?? 1
         let image = oriented(map, exifOrientation: orientation)
-        return GainMap(image: image, headroom: headroom, ceiling: max(headroom, ceiling(of: image, headroom: headroom)))
+        let receiver = receiverProperties(of: properties)
+        return GainMap(image: image, headroom: headroom,
+                       ceiling: max(headroom, ceiling(of: image, headroom: headroom, receiver: receiver)),
+                       receiverProperties: receiver)
+    }
+
+    /// The part of the file's properties `applyingGainMap` needs on the
+    /// receiving image (`receiverProperties`).
+    static func receiverProperties(of properties: [CFString: Any]?) -> [String: Any] {
+        guard let maker = properties?[kCGImagePropertyMakerAppleDictionary] else { return [:] }
+        return [kCGImagePropertyMakerAppleDictionary as String: maker]
+    }
+
+    /// `image` ready to take this photo's gain map: carrying the file's
+    /// properties Core Image reads from the receiving image (`receiverProperties`).
+    /// Unchanged when there are none, so an ISO gain map renders as before.
+    func receiving(_ image: CIImage) -> CIImage {
+        receiverProperties.isEmpty ? image : image.settingProperties(receiverProperties)
     }
 
     /// SDR white through the whole gain map at its full weight, the largest
     /// value found (one small GPU render of the gain map's size), at least 1.
-    static func ceiling(of map: CIImage, headroom: Float) -> Float {
-        let white = CIImage(color: CIColor(red: 1, green: 1, blue: 1)).cropped(to: map.extent)
+    /// `receiver`: the properties the white image needs (`receiverProperties`).
+    static func ceiling(of map: CIImage, headroom: Float, receiver: [String: Any]) -> Float {
+        var white = CIImage(color: CIColor(red: 1, green: 1, blue: 1)).cropped(to: map.extent)
+        if !receiver.isEmpty { white = white.settingProperties(receiver) }
         let brightened = white.applyingGainMap(map, headroom: headroom)
         guard let maximum = CIFilter(name: "CIAreaMaximum", parameters: [
             kCIInputImageKey: brightened, kCIInputExtentKey: CIVector(cgRect: map.extent),
@@ -157,7 +184,7 @@ public struct GainMap: @unchecked Sendable {
     /// display (design §6.3).
     public func hdr(_ rendered: CIImage, placed: CIImage, displayHeadroom: Float) -> (image: CIImage, headroom: Float) {
         let limit = GainMapHeadroom.tag(display: displayHeadroom, ceiling: ceiling)
-        let sdr = Self.clamped(rendered, maximum: 1)
+        let sdr = receiving(Self.clamped(rendered, maximum: 1))
         let brightened = sdr.applyingGainMap(placed, headroom: GainMapHeadroom.weighting(file: headroom,
                                                                                          display: displayHeadroom))
         return (Self.clamped(brightened, maximum: limit).cropped(to: rendered.extent), limit)

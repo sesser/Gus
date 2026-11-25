@@ -1,5 +1,6 @@
 import CoreGraphics
 import CoreImage
+import CoreVideo
 import Foundation
 import ImageIO
 
@@ -45,10 +46,18 @@ public enum HDRTestImages {
     /// third) and times `dim` elsewhere. Written with EXIF `orientation` (1 to
     /// 8), so a gain map applied without turning it as the photo is turned
     /// lands on the wrong picture content.
+    ///
+    /// `kind` chooses which gain map the file carries: an ISO 21496-1 one
+    /// (written by Core Image) or only Apple's (`writeAppleGainMap`).
     public static func writePatternedGainMap(to url: URL, width: Int, height: Int, seed: UInt64,
                                              orientation: Int32 = 1, bright: Double = 4, dim: Double = 1.5,
                                              brightRegion: CGRect = CGRect(x: 0, y: 0, width: 0.5, height: 1.0 / 3),
-                                             container: Container = .heic) throws {
+                                             container: Container = .heic, kind: GainMapKind = .iso) throws {
+        if kind == .apple {
+            try writeAppleGainMap(to: url, width: width, height: height, seed: seed, orientation: orientation,
+                                  bright: bright, dim: dim, brightRegion: brightRegion, container: container)
+            return
+        }
         let (sdr, _) = try pictures(width: width, height: height, seed: seed, gain: 1)
         // Core Image's y axis points up: the stored image's top is at the top of the extent.
         let region = CGRect(x: brightRegion.minX * Double(width), y: (1 - brightRegion.maxY) * Double(height),
@@ -64,6 +73,82 @@ public enum HDRTestImages {
         }
         guard let data else { throw CocoaError(.fileWriteUnknown) }
         try data.write(to: url)
+    }
+
+    /// Which gain map a synthetic file carries.
+    public enum GainMapKind: String, Sendable, CaseIterable, CustomStringConvertible {
+        /// ISO 21496-1, whose metadata is on the gain map (Core Image writes it).
+        case iso
+        /// Only Apple's, as iPhone photos taken before ISO gain maps carry:
+        /// its headroom is in the file's Apple maker dictionary (tags 33 and
+        /// 48), not on the gain map (issue #282, QA Q1).
+        case apple
+
+        public var description: String { rawValue }
+    }
+
+    /// The headroom of `writeAppleGainMap`'s files: Apple maker tags 33 = 1
+    /// and 48 = 1 give 2² (measured on macOS 27.2: the system's HDR decode
+    /// reports a content headroom of exactly 4).
+    public static let appleHeadroom = 4.0
+
+    /// An SDR image with only Apple's kind of gain map (no ISO 21496-1
+    /// one), written by ImageIO: the picture of `writePatternedGainMap`,
+    /// brightened by about `bright` in `brightRegion` and `dim` elsewhere
+    /// (at most `appleHeadroom`). The gains are approximate: Apple's map
+    /// holds sRGB-encoded fractions of the headroom, gain ≈ 1 + (headroom − 1)
+    /// × value (measured within 3%); tests compare with the system's HDR
+    /// decode of the file, not with these numbers. The gain map is half the
+    /// picture's size, as an iPhone's, and stored unturned under EXIF
+    /// `orientation`.
+    public static func writeAppleGainMap(to url: URL, width: Int, height: Int, seed: UInt64,
+                                         orientation: Int32 = 1, bright: Double = 4, dim: Double = 1.5,
+                                         brightRegion: CGRect = CGRect(x: 0, y: 0, width: 0.5, height: 1.0 / 3),
+                                         container: Container = .heic) throws {
+        guard let picture = SyntheticImages.makeImage(width: width, height: height, seed: seed) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        let type = container == .heic ? "public.heic" : "public.jpeg"
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, type as CFString, 1, nil) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        let properties: [CFString: Any] = [
+            kCGImagePropertyOrientation: orientation,
+            kCGImagePropertyMakerAppleDictionary: ["33": 1.0, "48": 1.0],
+        ]
+        CGImageDestinationAddImage(destination, picture, properties as CFDictionary)
+
+        let mapWidth = max(1, width / 2), mapHeight = max(1, height / 2)
+        func value(gain: Double) -> UInt8 {
+            let linear = min(1, max(0, (gain - 1) / (appleHeadroom - 1)))
+            let encoded = linear <= 0.0031308 ? 12.92 * linear : 1.055 * pow(linear, 1 / 2.4) - 0.055
+            return UInt8((encoded * 255).rounded())
+        }
+        let high = value(gain: bright), low = value(gain: dim)
+        var bytes = [UInt8](repeating: low, count: mapWidth * mapHeight)
+        for row in 0..<mapHeight {
+            // Unit coordinates of the stored image, origin at the top left (row 0 is the top).
+            let y = (Double(row) + 0.5) / Double(mapHeight)
+            for column in 0..<mapWidth {
+                let x = (Double(column) + 0.5) / Double(mapWidth)
+                if brightRegion.contains(CGPoint(x: x, y: y)) { bytes[row * mapWidth + column] = high }
+            }
+        }
+        let metadata = CGImageMetadataCreateMutable()
+        CGImageMetadataRegisterNamespaceForPrefix(metadata, "http://ns.apple.com/HDRGainMap/1.0/" as CFString,
+                                                  "HDRGainMap" as CFString, nil)
+        CGImageMetadataSetValueWithPath(metadata, nil, "HDRGainMap:HDRGainMapVersion" as CFString, 65536 as CFNumber)
+        let description: [String: Any] = [
+            "Width": mapWidth, "Height": mapHeight, "BytesPerRow": mapWidth,
+            "PixelFormat": kCVPixelFormatType_OneComponent8,
+        ]
+        let info: [CFString: Any] = [
+            kCGImageAuxiliaryDataInfoData: Data(bytes),
+            kCGImageAuxiliaryDataInfoDataDescription: description,
+            kCGImageAuxiliaryDataInfoMetadata: metadata,
+        ]
+        CGImageDestinationAddAuxiliaryDataInfo(destination, kCGImageAuxiliaryDataTypeHDRGainMap, info as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { throw CocoaError(.fileWriteUnknown) }
     }
 
     /// A 10-bit HEIC whose own encoding is HDR (PQ or HLG Display P3): the

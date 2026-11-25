@@ -7,8 +7,10 @@ import Testing
 
 /// Issue #282, first stage: a gain-map photo shown and edited in HDR, with
 /// the gain map applied as the last step of the render ("gain last",
-/// docs/features/gain-map-hdr/spike.md). Synthetic files only; the owner's
-/// photos run in the opt-in test at the end.
+/// docs/features/gain-map-hdr/spike.md). Synthetic files only, with each
+/// kind of gain map (ISO 21496-1, and Apple's alone: QA Q1, Q4) on every path
+/// that makes an HDR picture; the owner's photos run in the opt-in test at
+/// the end.
 @Suite("Gain-map photos in HDR (issue #282)")
 struct GainMapHDRTests {
     /// Linear Display P3 pixels of an image, relative to SDR white.
@@ -108,16 +110,29 @@ struct GainMapHDRTests {
     // MARK: Loading
 
     @Test("A gain-map HEIC or JPEG has a gain map with its file's headroom; other files have none",
-          arguments: [HDRTestImages.Container.heic, .jpeg])
-    func loads(container: HDRTestImages.Container) async throws {
+          arguments: [HDRTestImages.Container.heic, .jpeg], HDRTestImages.GainMapKind.allCases)
+    func loads(container: HDRTestImages.Container, kind: HDRTestImages.GainMapKind) async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let url = root.appending(path: container == .heic ? "map.heic" : "map.jpg")
-            try HDRTestImages.writePatternedGainMap(to: url, width: 400, height: 300, seed: 2821, container: container)
+            try HDRTestImages.writePatternedGainMap(to: url, width: 400, height: 300, seed: 2821, container: container,
+                                                    kind: kind)
+            // The fixture carries the kind it says, and only that one.
+            let read = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+            #expect((CGImageSourceCopyAuxiliaryDataInfoAtIndex(read, 0, kCGImageAuxiliaryDataTypeISOGainMap) != nil) == (kind == .iso))
+            if kind == .apple {
+                #expect(CGImageSourceCopyAuxiliaryDataInfoAtIndex(read, 0, kCGImageAuxiliaryDataTypeHDRGainMap) != nil)
+            }
             #expect(GainMap.exists(url))
             let map = try #require(GainMap.load(url))
-            // The system's HDR decode reaches the same headroom.
-            let system = Pixels(try Self.systemHDR(url))
-            #expect(abs(log2(map.headroom / system.maximum)) < 0.05)
+            switch kind {
+            case .iso:
+                // The system's HDR decode reaches the same headroom.
+                let system = Pixels(try Self.systemHDR(url))
+                #expect(abs(log2(map.headroom / system.maximum)) < 0.05)
+            case .apple:
+                // The headroom is the maker tags' (the picture's brightest part is darker than white).
+                #expect(abs(Double(map.headroom) - HDRTestImages.appleHeadroom) < 0.01)
+            }
             #expect(map.headroom > 2)
             // SDR white through the gain map: the bright part's gain of 4 (its
             // SDR picture is darker than white, so the file's headroom is less).
@@ -184,10 +199,17 @@ struct GainMapHDRTests {
     @Test("Unedited at the file's headroom, the HDR version is the system's HDR decode, in every orientation",
           arguments: [HDRTestImages.Container.heic, .jpeg], Array(Int32(1)...8))
     func matchesSystemDecode(container: HDRTestImages.Container, orientation: Int32) async throws {
+        for kind in HDRTestImages.GainMapKind.allCases {
+            try await matchesSystemDecode(container: container, orientation: orientation, kind: kind)
+        }
+    }
+
+    func matchesSystemDecode(container: HDRTestImages.Container, orientation: Int32,
+                             kind: HDRTestImages.GainMapKind) async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let url = root.appending(path: container == .heic ? "o\(orientation).heic" : "o\(orientation).jpg")
             try HDRTestImages.writePatternedGainMap(to: url, width: 800, height: 600, seed: 2824,
-                                                    orientation: orientation, container: container)
+                                                    orientation: orientation, container: container, kind: kind)
             let made = try #require(try PreviewGenerator().gainMapHDRImage(source: url, stack: .identity, longEdge: 800,
                                                                            displayHeadroom: 100))
             let system = try Self.systemHDR(url)
@@ -197,18 +219,24 @@ struct GainMapHDRTests {
             // A gain map left unturned puts the bright part (two stops over
             // the rest) on other cells: a difference of over a stop there.
             let worst = zip(ours, theirs).map { abs(log2($0 / $1)) }.max() ?? .infinity
-            #expect(worst < 0.05, "worst cell \(worst) stops")
+            #expect(worst < 0.05, "\(kind): worst cell \(worst) stops")
             #expect(made.image.contentHeadroom == made.ceiling)
         }
     }
 
     // MARK: Fitting to the display (R6, AC5)
 
-    @Test("For a smaller headroom, the HDR version follows the gain map's rule and stays within it")
-    func fitsToDisplay() async throws {
+    @Test("For a smaller headroom, the HDR version follows the gain map's rule and stays within it",
+          arguments: HDRTestImages.GainMapKind.allCases)
+    func fitsToDisplay(kind: HDRTestImages.GainMapKind) async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let url = root.appending(path: "fit.heic")
-            try HDRTestImages.writePatternedGainMap(to: url, width: 800, height: 600, seed: 2825, bright: 4, dim: 1.5)
+            try HDRTestImages.writePatternedGainMap(to: url, width: 800, height: 600, seed: 2825, bright: 4, dim: 1.5,
+                                                    kind: kind)
+            // The gain map's own rendering for a headroom: Core Image applying it to the file's
+            // own picture, as loaded (orientation 1, so nothing to turn).
+            let file = try #require(CIImage(contentsOf: url))
+            let fileMap = try #require(CIImage(contentsOf: url, options: [.auxiliaryHDRGainMap: true]))
             let generator = PreviewGenerator()
             let full = try #require(try generator.gainMapHDRImage(source: url, stack: .identity, longEdge: 800,
                                                                   displayHeadroom: 100))
@@ -219,17 +247,26 @@ struct GainMapHDRTests {
             for display: Float in [1.5, 2, fileHeadroom * 1.5] {
                 let fitted = try #require(try generator.gainMapHDRImage(source: url, stack: .identity, longEdge: 800,
                                                                         displayHeadroom: display))
-                #expect(fitted.image.contentHeadroom == display)
+                #expect(fitted.image.contentHeadroom == GainMapHeadroom.tag(display: display, ceiling: full.ceiling))
                 let pixels = Pixels(fitted.image)
                 #expect(pixels.maximum <= display * 1.001)
                 // ISO 21496-1: the log gain is weighted by log2(display) / log2(file headroom)
                 // (base headroom 0), so each cell's brightening over SDR, in stops, is that
                 // fraction of the full version's (the system's decode).
-                let weight = min(1, log2(display) / log2(fileHeadroom))
-                for (index, cell) in pixels.cells(columns: 8, rows: 6).enumerated() where sdr[index] > 0.01 {
-                    let expected = weight * log2(system[index] / sdr[index])
-                    let got = log2(cell / sdr[index])
-                    #expect(abs(got - expected) < 0.06, "cell \(index): \(got) stops, expected \(expected)")
+                let cells = pixels.cells(columns: 8, rows: 6)
+                if kind == .iso {
+                    let weight = min(1, log2(display) / log2(fileHeadroom))
+                    for (index, cell) in cells.enumerated() where sdr[index] > 0.01 {
+                        let expected = weight * log2(system[index] / sdr[index])
+                        let got = log2(cell / sdr[index])
+                        #expect(abs(got - expected) < 0.06, "cell \(index): \(got) stops, expected \(expected)")
+                    }
+                }
+                // Either kind: what Core Image's own rule gives the file for that headroom (AC5).
+                let own = Pixels(GainMap.clamped(file.applyingGainMap(fileMap, headroom: min(display, fileHeadroom)),
+                                                 maximum: display)).cells(columns: 8, rows: 6)
+                for (index, cell) in cells.enumerated() where own[index] > 0.01 {
+                    #expect(abs(log2(cell / own[index])) < 0.05, "\(kind) at \(display), cell \(index): \(cell) against \(own[index])")
                 }
             }
         }
@@ -253,11 +290,12 @@ struct GainMapHDRTests {
 
     // MARK: Editing (R7, AC6)
 
-    @Test("An edit changes the HDR version by as many stops as the SDR one, point by point")
-    func editsKeepTheBrightening() async throws {
+    @Test("An edit changes the HDR version by as many stops as the SDR one, point by point",
+          arguments: HDRTestImages.GainMapKind.allCases)
+    func editsKeepTheBrightening(kind: HDRTestImages.GainMapKind) async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let url = root.appending(path: "edit.heic")
-            try HDRTestImages.writePatternedGainMap(to: url, width: 800, height: 600, seed: 2826)
+            try HDRTestImages.writePatternedGainMap(to: url, width: 800, height: 600, seed: 2826, kind: kind)
             let generator = PreviewGenerator()
             func pair(_ stack: EditStack) throws -> (hdr: Pixels, sdr: Pixels) {
                 let hdr = try #require(try generator.gainMapHDRImage(source: url, stack: stack, longEdge: 800,
@@ -283,11 +321,12 @@ struct GainMapHDRTests {
 
     // MARK: Live frames and the settled render (R9, AC8)
 
-    @Test("A live HDR frame and the settled HDR render of the same values agree")
-    func liveMatchesSettled() async throws {
+    @Test("A live HDR frame and the settled HDR render of the same values agree",
+          arguments: HDRTestImages.GainMapKind.allCases)
+    func liveMatchesSettled(kind: HDRTestImages.GainMapKind) async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let url = root.appending(path: "live.heic")
-            try HDRTestImages.writePatternedGainMap(to: url, width: 1200, height: 900, seed: 2827, orientation: 6)
+            try HDRTestImages.writePatternedGainMap(to: url, width: 1200, height: 900, seed: 2827, orientation: 6, kind: kind)
             let generator = PreviewGenerator()
             let session = LiveRenderSession(source: url, generator: generator, longEdge: 800, colorSpace: nil)
             let stacks: [(String, EditStack)] = [
@@ -339,11 +378,12 @@ struct GainMapHDRTests {
         }
     }
 
-    @Test("A region frame at 100% is the same HDR picture as the full-resolution render")
-    func regionMatchesFullResolution() async throws {
+    @Test("A region frame at 100% is the same HDR picture as the full-resolution render",
+          arguments: HDRTestImages.GainMapKind.allCases)
+    func regionMatchesFullResolution(kind: HDRTestImages.GainMapKind) async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let url = root.appending(path: "region.heic")
-            try HDRTestImages.writePatternedGainMap(to: url, width: 1200, height: 900, seed: 2830, orientation: 3)
+            try HDRTestImages.writePatternedGainMap(to: url, width: 1200, height: 900, seed: 2830, orientation: 3, kind: kind)
             let generator = PreviewGenerator()
             let values = Adjustments(stack: Self.stack(Self.operation("exposure", ["ev": -0.5])))
             let regions = LiveRegionRenderer(source: url, generator: generator, colorSpace: nil)
@@ -361,7 +401,11 @@ struct GainMapHDRTests {
             let tile = Pixels(frame.image.cgImage)
             let expected = Pixels(quarter)
             #expect(abs(log2(tile.mean / expected.mean)) < 0.005)
-            #expect(tile.maximum > 1.05, "the tile holds the bright part, above SDR white")
+            // It is brightened: above the SDR tile of the same part (Apple's rule weights its gain less at 1.8,
+            // so only the ISO file's bright part reaches above SDR white here).
+            let sdrTile = Pixels(try await regions.render(values, unit: unit).image.cgImage)
+            #expect(log2(tile.mean / sdrTile.mean) > 0.3, "\(kind): \(tile.mean) against SDR \(sdrTile.mean)")
+            if kind == .iso { #expect(tile.maximum > 1.05, "the tile holds the bright part, above SDR white") }
         }
     }
 
@@ -411,11 +455,12 @@ struct GainMapHDRTests {
         }
     }
 
-    @Test("Review F5: the full-resolution photo refinement (a fringe slot picked again at 100%) is HDR, as the full render")
-    func photoRefinementIsHDR() async throws {
+    @Test("Review F5: the full-resolution photo refinement (a fringe slot picked again at 100%) is HDR, as the full render",
+          arguments: HDRTestImages.GainMapKind.allCases)
+    func photoRefinementIsHDR(kind: HDRTestImages.GainMapKind) async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let url = root.appending(path: "refine.heic")
-            try HDRTestImages.writePatternedGainMap(to: url, width: 1200, height: 900, seed: 2835, orientation: 6)
+            try HDRTestImages.writePatternedGainMap(to: url, width: 1200, height: 900, seed: 2835, orientation: 6, kind: kind)
             let generator = PreviewGenerator()
             let values = Adjustments(stack: Self.stack(Self.operation("exposure", ["ev": -0.5])))
             let refiner = SharpeningMapRefiner(source: url, generator: generator, colorSpace: nil)
@@ -439,11 +484,12 @@ struct GainMapHDRTests {
 
     // MARK: The service
 
-    @Test("The service keeps one HDR version per photo, rendered again for another display headroom")
-    func serviceCachesByHeadroom() async throws {
+    @Test("The service keeps one HDR version per photo, rendered again for another display headroom",
+          arguments: HDRTestImages.GainMapKind.allCases)
+    func serviceCachesByHeadroom(kind: HDRTestImages.GainMapKind) async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let url = root.appending(path: "service.heic")
-            try HDRTestImages.writePatternedGainMap(to: url, width: 800, height: 600, seed: 2831)
+            try HDRTestImages.writePatternedGainMap(to: url, width: 800, height: 600, seed: 2831, kind: kind)
             let service = PreviewService(cache: PreviewDiskCache(root: root.appending(path: "cache")),
                                          editStack: { _ in .identity })
             let key = try #require(PreviewCacheKey(contentHash: String(repeating: "a", count: 64),
