@@ -360,9 +360,11 @@ public final class PreviewService: Sendable {
     /// A gain-map photo's HDR version at the request's tier size (full
     /// resolution with `fullResolution`), fitted to `displayHeadroom`
     /// (`PreviewGenerator.gainMapHDRImage`). Nil when the master is not a
-    /// gain-map photo, is offline, or is a video. Rendered from the master
-    /// when the one in memory was made for another display headroom; never
-    /// cached on disk.
+    /// gain-map photo, is offline, or is a video; only a master that was read
+    /// is remembered as not a gain-map photo, so one that can't be read now
+    /// (`GainMap.ReadFailure`) is asked again next time (code review C8).
+    /// Rendered from the master when the one in memory was made for another
+    /// display headroom; never cached on disk.
     public func gainMapHDRImage(for request: PreviewRequest, displayHeadroom: Float, fullResolution: Bool = false,
                                 priority: Priority = .visible) async throws -> CGImage? {
         if let image = memoryCachedGainMapHDRImage(for: request, displayHeadroom: displayHeadroom,
@@ -403,9 +405,10 @@ public final class PreviewService: Sendable {
     /// (`gainMapHDROutcome`).
     public enum GainMapHDROutcome: Sendable {
         case image(CGImage)
-        /// It can't be made (a render error, or the file has no gain map
-        /// after all): the loupe shows SDR for the rest of that opening
-        /// (design §5, reason 4).
+        /// It can't be made (a render error, the file has no gain map after
+        /// all, or it can't be read now): the loupe shows SDR for the rest of
+        /// that opening (design §5, reason 4). Only "no gain map" is
+        /// remembered; the others are tried again by the next opening.
         case failed
         /// Nothing to show, and nothing failed: the request was cancelled, a
         /// newer stack was saved meanwhile, or the original went offline.

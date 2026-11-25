@@ -41,18 +41,36 @@ public struct GainMap: @unchecked Sendable {
         return hasGainMap(source)
     }
 
-    /// The file's gain map, or nil when it is not a gain-map photo or its
-    /// gain map brightens nothing. Reads the file's header and its gain
-    /// map's description; the gain map's pixels are decoded lazily, by the
-    /// render that uses them.
+    /// The file's gain map, or nil when it is not a gain-map photo, its gain
+    /// map brightens nothing, or the file can't be read (`read` tells that
+    /// apart). Reads the file's header and its gain map's description; the
+    /// gain map's pixels are decoded lazily, by the render that uses them.
     public static func load(_ url: URL) -> GainMap? {
+        (try? read(url)) ?? nil
+    }
+
+    /// The original can't be read now (its volume went away, a share
+    /// stopped answering), so whether it has a gain map isn't known.
+    public enum ReadFailure: Error, Equatable {
+        case unreadable(URL)
+    }
+
+    /// `load`, telling a file that was read and is not a gain-map photo (nil)
+    /// from one that can't be read now (`ReadFailure.unreadable`): only the
+    /// first may be remembered as having no HDR version (code review C8).
+    public static func read(_ url: URL) throws -> GainMap? {
+        guard let kind = FileKind(pathExtension: url.pathExtension), kind == .heic || kind == .jpeg else { return nil }
         guard let source = eligibleSource(url), hasGainMap(source),
               let map = CIImage(contentsOf: url, options: [.auxiliaryHDRGainMap: true]),
               !map.extent.isEmpty, !map.extent.isInfinite,
               // The HDR decode's headroom is the file's alternate headroom (its
               // metadata only: the expanded picture is not rendered here).
               let expanded = CIImage(contentsOf: url, options: [.expandToHDR: true])
-        else { return nil }
+        else {
+            // Nothing read can say "no gain map" about a file that isn't there to read.
+            guard FileManager.default.isReadableFile(atPath: url.path) else { throw ReadFailure.unreadable(url) }
+            return nil
+        }
         let headroom = expanded.contentHeadroom
         guard headroom > 1 else { return nil }
         let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]

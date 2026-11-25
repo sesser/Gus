@@ -135,10 +135,12 @@ public struct PreviewGenerator: Sendable {
     /// (`GainMap.hdr`). A half-float image in `RenderEngine.hdrColorSpace`
     /// tagged with the headroom it was rendered for. Every stack has one:
     /// nothing in the stack turns it away. Nil when the file is not a
-    /// gain-map photo (`GainMap.load`). `gainMap` saves loading it again.
+    /// gain-map photo; throws `GainMap.ReadFailure` when it can't be read
+    /// (`GainMap.read`). `gainMap` saves loading it again.
     public func gainMapHDRImage(source: URL, stack: EditStack, longEdge: Int?, displayHeadroom: Float,
                                 gainMap: GainMap? = nil) throws -> (image: CGImage, fileHeadroom: Float, ceiling: Float)? {
-        guard let map = gainMap ?? GainMap.load(source) else { return nil }
+        // A file that can't be read now throws: it may have a gain map once it can (code review C8).
+        guard let map = try gainMap ?? GainMap.read(source) else { return nil }
         let decoded = try Self.decode(source, longEdge: decodeLongEdge(source, stack: stack, longEdge: longEdge),
                                       draft: false, settings: renderer.decodeSettings(for: stack))
         let rendered = try renderer.apply(stack, to: decoded.image, context: decoded.context)
@@ -156,7 +158,7 @@ public struct PreviewGenerator: Sendable {
     /// long; nil when the file is not a gain-map photo. For photos shown
     /// without a live editor (a comparison pane).
     public func gainMapHDRHistogram(source: URL, stack: EditStack, sampleSize: Int = 512) throws -> HDRHistogram? {
-        guard let map = GainMap.load(source) else { return nil }
+        guard let map = try GainMap.read(source) else { return nil }
         let decoded = try Self.decode(source, longEdge: sampleSize, draft: true, settings: renderer.decodeSettings(for: stack))
         let rendered = try renderer.apply(stack, to: decoded.image, context: decoded.context)
         let placed = map.placed(over: decoded.image.extent, values: Adjustments(stack: stack), context: decoded.context)

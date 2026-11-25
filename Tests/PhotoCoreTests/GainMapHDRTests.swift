@@ -510,6 +510,45 @@ struct GainMapHDRTests {
         }
     }
 
+    @Test("Code review C8: an original that can't be read fails without being remembered as a file with no gain map")
+    func unreadableOriginalIsRetried() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: "away.heic")
+            try HDRTestImages.writePatternedGainMap(to: url, width: 400, height: 300, seed: 2838)
+            let aside = root.appending(path: "aside.heic")
+            let plain = root.appending(path: "plain.jpg")
+            try SyntheticImages.writeJPEG(to: plain, width: 400, height: 300, seed: 2839)
+            let service = PreviewService(cache: PreviewDiskCache(root: root.appending(path: "cache")),
+                                         editStack: { _ in .identity })
+            func request(_ id: Int64, _ hash: Character, _ source: URL) throws -> PreviewRequest {
+                let key = try #require(PreviewCacheKey(contentHash: String(repeating: hash, count: 64),
+                                                       editStackHash: EditStack.identity.renderHash, tier: .preview))
+                return PreviewRequest(versionID: id, key: key, sourceURL: source)
+            }
+            // The volume went away (or a share stopped answering) after the request was made.
+            try FileManager.default.moveItem(at: url, to: aside)
+            #expect(throws: (any Error).self) { try GainMap.read(url) }
+            guard case .failed = await service.gainMapHDROutcome(for: try request(1, "a", url), displayHeadroom: 2) else {
+                Issue.record("An original that can't be read is a failure at that moment")
+                return
+            }
+            // It came back: the same request (same photo, same edit) asks again and gets its HDR version.
+            try FileManager.default.moveItem(at: aside, to: url)
+            guard case .image = await service.gainMapHDROutcome(for: try request(1, "a", url), displayHeadroom: 2) else {
+                Issue.record("Once readable again, the photo gives its HDR version: nothing remembered it as standard range")
+                return
+            }
+            // A file read whole that has no gain map is still remembered, and still a failure.
+            #expect(try GainMap.read(plain) == nil)
+            for _ in 0..<2 {
+                guard case .failed = await service.gainMapHDROutcome(for: try request(2, "b", plain), displayHeadroom: 2) else {
+                    Issue.record("A file without a gain map is a failure")
+                    return
+                }
+            }
+        }
+    }
+
     // MARK: The loupe's rules
 
     @Test("Once HDR is on screen in a visit, no SDR picture replaces it; maps change nothing")
