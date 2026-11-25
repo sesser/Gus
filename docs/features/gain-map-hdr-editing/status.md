@@ -8,8 +8,11 @@ Owner: swift-macos-engineer. Branch `feature/gain-map-hdr-editing`, from
 gave, GitHub was refusing the body update) and `design.md`; evidence from
 spike #285 (`docs/features/gain-map-hdr/spike.md`).
 
-**State: In progress.** Stage 1 passed the owner's early check. Stage 2 (the
-rest of the PRD) is being built; see "Stage 2" for what is done and left.
+**State: Done** (2026-11-25). Stage 1 passed the owner's early check; stage 2
+built the rest of the PRD and design. Every acceptance criterion is built and
+mapped to a test or a check below; nothing is blocked. What only a person can
+check is listed under "For a person". Next: code review and the designer's
+review, then QA.
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -140,7 +143,7 @@ Built (commit "HDR frames render the graph once; tests for SDR output, measureme
   is. Live and settled frames still agree (AC8 test unchanged and passing).
 - Tests for AC9, AC11, AC12, AC13 and the timing run (AC10), below.
 
-## Stage 1: what it is for
+## Stage 1 (history): what it was for
 
 Only what E1 to E4 need: one gain-map file shown and edited in HDR in the
 loupe, with the gain map loaded, turned by the file's orientation and applied
@@ -159,7 +162,7 @@ Stage 1's `--gain-map-hdr on` is gone: `LaunchOptions.gainMapHDR`,
 `LoupeController.gainMapSetting` and the debug script's `gainmaphdr`. The
 stored choice replaces it. `LaunchOptions.swift` is back to `develop`'s text.
 
-## What was built
+## Stage 1 (history): what was built
 
 PhotoCore:
 - `Preview/GainMap.swift`:
@@ -228,7 +231,7 @@ lines, rewritten to the same calls in the same order (`scaledToFit`, then
 `makeCGImage`, then `Histogram`). No golden moved; no
 `PreviewCacheKey.currentPipelineVersion` bump; no migration; no package.
 
-## Findings
+## Stage 1 (history): findings
 
 ### The display's headroom (design §13's note, verified)
 
@@ -293,180 +296,175 @@ The first frame of a session took 77 to 128 ms (gain map load, decode). SDR
 frame times for the same stacks were not measured in this stage (AC10 is
 later work).
 
+## Acceptance criteria
+
+PRD as revised 2026-11-25 (RI-6, RI-7, AC18). Tests are Swift Testing suites
+in `Tests/PhotoCoreTests`; "script" is a debug-script run on a copy of the
+bundle (identifier `me.sesser.gus.debugtest.hdrchoice282`, a scratch library
+of copies of the owner's three photos in the session scratchpad,
+shell-started unless said).
+
+| AC | How it is checked | Result |
+| --- | --- | --- |
+| AC1 (R1) | `GainMapHDRTests` "A gain-map HEIC or JPEG has a gain map…" (HEIC, JPEG: yes; plain JPEG, PQ with and without a gain map: no); `GainMap.exists` refuses raws and videos by extension; `HDRChoiceTests` "Off is the default…"; script: a newly imported HEIC shows **SDR**, choice off, check box shown (`has choice true`) | Pass |
+| AC2 (R2) | `HDRChoiceTests`: stack round trip, catalog column and History snapshot revert, virtual copy independence and Undo of Duplicate's removal, Reset All; script: on, relaunch still on, undo off, redo on, History lists **Turn On HDR**, revert to an entry with it off shows SDR, Reset All (menu, activated run) off, its undo on | Pass |
+| AC3 (R3) | `HDRChoiceTests` "presets and Paste Adjustments neither carry nor change the choice" (both directions, all items and one group) | Pass |
+| AC4 (R4, R5) | `HDRChoiceTests` badge reasons and order, offline with choice off (RI-3), fitted at 1.29 and 1.0 is **HDR** (RI-7); script: **SDR: HDR Hidden**, **SDR: No HDR Display** (`hdr display sdr`), **SDR: HDR Failed** (`hdr fail on`), allowance 1.29 and 1.0 read **HDR** with the fitted help tag; comparison panes each state their version; the stored choice unchanged under every reason | Pass (offline by the rule's test only; narrow-caption short form by eye) |
+| AC5 (R6) | `GainMapHDRTests` system decode in every orientation, smaller headroom by the gain map's rule; script: `hdr display 2`, `1.5`, `system` refit without reopening, version unchanged | Pass |
+| AC6 (R7) | `GainMapAdjustmentTests` "every adjustment…" (24 cases: every group and control, look-up table, masks; Black & White as a switch); opt-in `GAINMAP_SAMPLES` on the owner's three files (one with only Apple's kind of gain map), table below | Pass |
+| AC7 (R8) | `GainMapHDRTests` "Once HDR is on screen…" (the visit rule); script: arrival `versions sdr,hdr changes 1`, then an Exposure change, Exposure −3 (nothing above white), crop begin and done, sharpening map on and off (no badge, HDR back), comparison and back, grid and back: still HDR, no further change; Undo of Turn On HDR, Reset All and a revert to an entry with it off show SDR | Pass (drags, zoom and hover by stage 1's scripted runs and the code path) |
+| AC8 (R9) | `GainMapHDRTests` "A live HDR frame and the settled HDR render… agree" and "A region frame at 100%…" (within 0.005 stops), still passing after the single-render change | Pass in values; by eye with the owner |
+| AC9 (R10) | `HDRChoiceOutputTests` "the HDR histogram counts values above white…" (same at headroom 1.3 and 16, draft and settled share within 0.05, dark edit keeps the axis) and its bins test; script: histogram kind and share in `print hdr` and `print compare` | Pass |
+| AC10 (R11) | `GainMapTimingTests` (`GAINMAP_TIMING`), table below | Measured: within 1.5× |
+| AC11 (R12, R14) | `HDRChoiceOutputTests` "previews and photocli render are the same bytes with the choice on and off"; `HDRChoiceTests` render hash; every golden passes unchanged | Pass |
+| AC12 (R13) | `HDRChoiceTests` "the export notice counts…"; script: `export` prints "1 photo has HDR on. Exports are SDR." | Pass |
+| AC13 (R15) | `HDRChoiceOutputTests` Auto Exposure, Auto White Balance and Color Alignment measure the same | Pass |
+| AC14 (R16) | the existing HLG, PQ and floating-point DNG tests (`GainMapRenditionTests` for HLG and PQ, with and without a gain map; `PreviewTests` and the DNG merge suites `HDRMergerTests` and `HDRMergeJobTests`) pass unchanged; user guide states the limit | Pass |
+| AC15 (R17) | `HDRChoiceTests` "develop sets and resets the choice…" (sets, reads back through `query images`, refuses a plain JPEG with `invalidEdit` and an unreadable original with `fileNotFound`) | Pass |
+| AC16 (R18) | Every check above ran on macOS 27.2.1; nothing checks macOS 15 | n/a |
+| AC17 (R19) | `GainMapHDRTests` every orientation, crop with turn and Straighten; `GainMapAdjustmentTests` Distortion with a crop and a turn (and a check that an unwarped gain map would be caught), heal and clone over a small bright object | Pass |
+| AC18 (R6) | `GainMapHDRTests` "Design §18.1…" and "AC18: each screen's allowance…" (lower request keeps, more replaces, inactive not kept, per screen, survives requests stopping); structural: the memory lives in `LibraryModel`, outside the loupe; script: grid and comparison and back open with `refits 0` | Pass; by hand on a low-allowance screen, below |
+
+"Fails without the fix": with the spot step left out of the gain map's
+geometry (run and reverted 2026-11-25), both spot cases failed (2.0 stops at
+the spot against 0.59 at its source). The Distortion test checks within itself
+that an unwarped gain map is caught (more than 0.2 stops and four times the
+warped error).
+
+### AC6 on the owner's files (opt-in, 1024 px, stops RMS of ratio drift)
+
+`GAINMAP_SAMPLES=…IMG_0546.HEIC:…IMG_0542.HEIC:…IMG_0561.HEIC swift test --filter "GainMapAdjustmentTests/everyAdjustmentOnRealFiles"`.
+All below 0.05. Largest: IMG_0561 (only Apple's kind of gain map; Core Image
+applies it with a small dependence on the base's level, spike trap 5)
+Contrast 0.046, Tone Curve 0.040, Exposure 0.026, Clarity 0.025. IMG_0546 and
+IMG_0542 (ISO gain maps): every adjustment 0.004 or less. Every value on
+IMG_0561: white balance 0.0007, exposure 0.0258, contrast 0.0458, highlights
+−80 0.0058, highlights +80 0.0008, shadows 0.0206, whites 0.0007, blacks
+0.0218, clarity 0.0253, dehaze 0.0201, vibrance 0.0050, saturation 0.0034,
+tone curve 0.0403, color mixer 0.0049, black and white 0.0106, color grading
+0.0005, look-up table 0.0052, vignette 0.0208, grain 0.0048, sharpening 0.0000,
+noise reduction 0.0171, lens vignetting 0.0131, color alignment 0.0080, mask
+0.0083.
+
+### AC10: frame times (opt-in, medians of 15 interactive frames, M4 Pro, macOS 27.2.1)
+
+`GAINMAP_TIMING=…IMG_0546.HEIC:…IMG_0542.HEIC:…IMG_0561.HEIC swift test --filter GainMapTimingTests`.
+Stack: Exposure (moving), Contrast +20, Highlights −30, Vibrance +15, an S
+curve, Sharpening 40. Fit: 2560 px frames with both histograms; 100%: a
+2560 × 1440 region of the full-resolution decode.
+
+| File | Fit SDR | Fit HDR | Ratio | 100% SDR | 100% HDR | Ratio |
+| --- | --- | --- | --- | --- | --- | --- |
+| IMG_0546 | 22.1 ms | 24.7 ms | 1.12 | 12.6 ms | 10.9 ms | 0.87 |
+| IMG_0542 | 21.0 ms | 24.3 ms | 1.16 | 11.7 ms | 10.7 ms | 0.91 |
+| IMG_0561 | 16.6 ms | 23.8 ms | 1.44 | 18.7 ms | 18.5 ms | 0.99 |
+
+Before the single-render change, fit HDR was 2.48 to 3.17 times SDR.
+
 ## Tests
 
-`Tests/PhotoCoreTests/GainMapHDRTests.swift` (13 tests, synthetic files, always
-run, plus the opt-in sample test):
+New or changed suites: `HDRChoiceTests` (11 tests), `HDRChoiceOutputTests` (4),
+`GainMapAdjustmentTests` (24 adjustment cases, Distortion, two spot modes,
+the opt-in real-file run), `GainMapTimingTests` (opt-in), `GainMapHDRTests`
+(stage 1's, plus the §18.1 and AC18 tests; the temporary switch's test
+removed; its pixel reader now renders in the app's working space),
+`CatalogTests` (v17 listed), `CommandTests` (`adjustments` lists `hdr`).
 
-| Test | Checks | PRD |
-| --- | --- | --- |
-| A gain-map HEIC or JPEG has a gain map… | load, headroom against the system's decode, ceiling; a plain JPEG, PQ HEICs with and without a gain map: none, no HDR version | R1 (detection), R16 |
-| Unedited at the file's headroom… every orientation | HEIC and JPEG × orientations 1 to 8: 8 × 6 cell means within 0.05 stops of the system's `.expandToHDR` decode | AC5 (first half), AC17 (orientation) |
-| For a smaller headroom… | at 1.5, 2 and above the file's headroom: each cell's brightening is log2(display)/log2(file) of the full one (ISO 21496-1), within 0.06 stops; values within the tag | AC5 (second half), R6 |
-| An edit changes the HDR version by as many stops… | Exposure ±1, Contrast +50, Highlights −50: ratio drift under 0.05 stops RMS per pixel | AC6 (part: four controls) |
-| A live HDR frame and the settled HDR render… | identity, Exposure −1, Contrast +20, crop + quarter turn + 3°, at headroom 2 and 100, orientation 6: same size, same tag, means within 0.005 stops | AC8 (rendered values), R9, AC17 (crop) |
-| A map is never an HDR frame… | sharpening map SDR; a file without a gain map gives SDR frames | R8 (maps), R14 |
-| A region frame at 100%… | region tile equals the matching quarter of the full-resolution HDR render within 0.005 stops, tagged | R9 at 100% |
-| The service keeps one HDR version per photo… | memory lookup by tag, re-render for another headroom, nil for a plain JPEG | R6 |
-| Headroom rules | weighting, tag, re-render threshold | R6 |
-| Display headroom reading | ramp ignored, settle, follow both ways, keep across requests | R6 |
-| Visit holds HDR | arrival one change, SDR refused after HDR, maps, refits | R8, AC7 (rule) |
-| Temporary switch | test launches only | — |
-
-"Fails without the fix" evidence for orientation: with the gain map left
-unturned (a one-line change, run and reverted 2026-11-25), 14 of the 16
-orientation cases failed (all but orientation 1, HEIC and JPEG).
-
-Determinism: the tests compare renders of fixed synthetic files against
-tolerances of 0.005 to 0.06 stops, 10 to 100 times above the half-float
-rounding (2⁻¹¹ per step); `DisplayHeadroomReading` and `GainMapVisit` tests are
-pure value types fed fixed times. No shared state, timing or pool order enters.
+Determinism: the new tests compare renders of fixed synthetic files against
+tolerances 10 to 100 times above half-float rounding, or compare pure values
+(`HDRVersionBadge`, `DisplayHeadroomReading`, `DisplayHeadroomMemory`,
+`HDRHistogram.bin`, `ExportTargets.hdrCount`) fed fixed inputs and times.
+The byte-equality test renders the same stack twice through one generator and
+compares whole files; renders with identical graphs and inputs are identical
+here (as the existing "Rendering the same file with the same edits gives the
+same bytes" test relies on). No shared state, timing or pool order enters.
+The timing test asserts nothing about time.
 
 ## Build and test results
 
-- Baseline at `7bf972d` (2026-11-25): `swift build` clean; `swift test` 1533
-  tests in 216 suites passed, 74.7 s.
-- After stage 1 (2026-11-25): `swift build` clean, no new warnings (the two
-  test warnings printed are older: `SmartAlbumTests`, `VirtualCopiesTests`).
-  Full `swift test`: **1546 tests in 217 suites passed, 77.3 s**.
-- CI toolchain: `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer
-  swift build --build-tests --scratch-path .build-xcode26.3`: Build complete,
-  no errors, no warnings in the changed files.
+- Baseline at `2903ea7` (2026-11-25): `swift build` clean; `swift test`
+  1546 tests in 217 suites passed, 83.4 s.
+- At the end of stage 2 (2026-11-25): `swift build` clean, no warnings;
+  full `swift test`: **1568 tests in 221 suites passed**, 86 s. Goldens
+  unchanged; no `PreviewCacheKey.currentPipelineVersion` bump.
+- CI toolchain: `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3`:
+  **Build complete**, no errors, no warnings.
 - `Scripts/build-app.sh`: bundle built and signed.
 
-Debug script (bundle copy `me.sesser.gus.debugtest.gainmaphdr282`, a scratch
-library in the session scratchpad with copies of two of the photos, launched
-with `--gain-map-hdr on`; shell-started, so not frontmost):
+Debug-script results (2026-11-25) are in the AC table. Screens seen: the
+DELL U2723QE (potential 4.18; the shell-started app read 1.0 to 1.2, an
+activated one 1.29) and earlier the built-in display.
 
-- Built-in display, with two earlier builds of this branch (the screen changed
-  to the Dell before the final one ran): open from the grid → `versions
-  sdr,hdr changes 1`; the reading ramped 1.31 → 9.82 (a build tagging the
-  display's potential, 16) and 1.22 → 1.85 → 2.62 (a build tagging the ceiling,
-  2.62). Exposure scrubbed and released, Exposure −1, Contrast +20, back to 0:
-  the live frame and the settled rendition stayed HDR, `changes 1` throughout.
-  `hdr display 2`, `1.5`, `system`: the settled rendition was rendered again
-  each time (`refits 1, 2, 3`), tags 2.00, 1.50, 2.62, still `changes 1`.
-- Dell, final build: the reading settled at 1.29 (a frontmost run started with
-  `open -n`) or 1.20 (shell-started, not frontmost), and the picture was
-  rendered again for it (`refits 1`); the next photo opened directly at the
-  known limit (`refits 0`). `--gain-map-hdr off`: SDR as before
-  (`versions sdr`, no HDR frame).
+## For a person
 
-## For the owner: the early check (design §13)
-
-On the HDR display, with the app frontmost. The three photos are copies in
-`/Users/randy/gus-qa/gain-map-hdr-editing/photos`; the library is a scratch
-library made from them (`photobench import`); the app is a copy of the bundle
-with its own identifier. Quit any copy started before.
-
-Build the bundle and open it on that library:
+On an HDR display, with a copy of the bundle on a scratch library (the
+owner's three photos are copied in `/Users/randy/gus-qa/gain-map-hdr-editing/photos`
+from the early check):
 
 ```zsh
-cd /Users/randy/Projects/Gus && git switch feature/gain-map-hdr-editing && Scripts/build-app.sh && Q=/Users/randy/gus-qa/gain-map-hdr-editing && rm -rf $Q/Gus-gainmap282.app && cp -R build/Gus.app $Q/Gus-gainmap282.app && plutil -replace CFBundleIdentifier -string me.sesser.gus.debugtest.gainmap282 $Q/Gus-gainmap282.app/Contents/Info.plist && codesign --force --deep --sign - $Q/Gus-gainmap282.app && open -n $Q/Gus-gainmap282.app --args --library-root $Q/library --gain-map-hdr on
+cd /Users/randy/Projects/Gus && Scripts/build-app.sh && Q=/Users/randy/gus-qa/gain-map-hdr-editing && rm -rf $Q/Gus-gainmap282.app && cp -R build/Gus.app $Q/Gus-gainmap282.app && plutil -replace CFBundleIdentifier -string me.sesser.gus.debugtest.gainmap282 $Q/Gus-gainmap282.app/Contents/Info.plist && codesign --force --deep --sign - $Q/Gus-gainmap282.app && open -n $Q/Gus-gainmap282.app --args --library-root $Q/library
 ```
 
-Open it again later (only this way):
+The early check's `--gain-map-hdr on` is gone: turn HDR on per photo with the
+Adjust tab's **HDR** check box.
 
-```zsh
-open -n /Users/randy/gus-qa/gain-map-hdr-editing/Gus-gainmap282.app --args --library-root /Users/randy/gus-qa/gain-map-hdr-editing/library --gain-map-hdr on
-```
+1. The **HDR** check box after **Original** and **Adjust ▸ Turn On / Off HDR**:
+   look, spacing, that the box doesn't appear for a raw or a plain JPEG.
+2. Turning it on: the badge and check mark respond at once, the picture
+   changes once to HDR; turning it off returns to SDR at once.
+3. Brightness while dragging and on release, at fit and 100% (AC8 by eye),
+   including Exposure, Contrast, a curve, a mask, and Show Original.
+4. Handles (crop, mask, spot) over bright highlights stay findable; the mask
+   overlay's red reads clearly over highlights; the crop session's picture is
+   HDR and Done and Esc go straight back to HDR.
+5. Sharpening and fringe maps: no flash of SDR around them; HDR returns.
+6. The HDR histogram's look in Light and Dark appearance and with Increase
+   Contrast: the line, fill, dashed lines and the **HDR** mark; the Tone
+   Curve's backdrop staying SDR.
+7. Narrow captions: shrink the window until a reason badge
+   (**SDR: HDR Hidden**, via View ▸ Hide HDR) takes its short form, triangle
+   and **SDR**; in comparison, that the version badge never drops.
+8. On a screen that allows less than the photo needs (the Dell): the first
+   photo changes at most once more about 1.5 s after HDR appears; later
+   photos, also after the grid, a video, comparison and moving the window
+   away and back, do not (AC18 by hand). The badge's help tag names the
+   file's number and the display's.
+9. The Export sheet's notice line under the subtitle.
+10. Comparison with an HDR photo beside an SDR one: each pane's badge, the
+    histogram following the active side.
 
-The same photos as today (SDR), for comparing, after quitting the copy above:
-
-```zsh
-open -n /Users/randy/gus-qa/gain-map-hdr-editing/Gus-gainmap282.app --args --library-root /Users/randy/gus-qa/gain-map-hdr-editing/library --gain-map-hdr off
-```
-
-How to tell what is on screen: the loupe's caption shows **HDR** while the HDR
-version is shown. Its tooltip says "Highlights up to N× SDR white": N is the
-headroom the picture is shown at. The files go up to 2.6× (IMG_0546), 3.7×
-(IMG_0542) and 4.6× (IMG_0561); an N below the file's means the picture is
-fitted to the display. Grid, film strip and exports stay SDR, as designed.
-
-1. **E1. A file brighter than the display.** Without the Pixel sample:
-   - On the Dell, nothing to do: as it was set up during this session it gave
-     only about 1.3× (see Findings), so every photo is fitted. Hover **HDR** to
-     confirm N is about 1.3.
-   - On the built-in display, turn the brightness up to the top (brightness
-     keys or Control Center): that lowers what it can give. Open IMG_0561 (4.6×)
-     and hover **HDR**; if N is still 4.6, IMG_0561 fits at that brightness and
-     the built-in display can't show E1 with these files.
-   Look at the fitted picture for a while. **Pass:** it looks like an
-   acceptable HDR picture for that display (no flat, washed-out or crushed
-   look you would not accept); compare with the `--gain-map-hdr off` launch if
-   useful.
-2. **E2. Drag sliders.** In the loupe, Adjust tab, on IMG_0561 and IMG_0546, at
-   fit: drag Exposure slowly up and down and let go; drag Contrast both ways and
-   let go; drag Sharpening's Amount to its maximum and let go. Then zoom to 100%
-   (click the photo) and repeat Exposure and Sharpening. **Pass:** nothing away
-   from what the slider does changes brightness while you drag or when you let
-   go: no step on release, no pumping of the whole picture when highlights
-   brighten, no drop to the SDR look at any point. The caption keeps **HDR**.
-3. **E3. Change the screen's brightness with a photo open.** On the built-in
-   display: brightness keys, slowly, a few steps down and up, then a quick run
-   of steps. On the Dell, if macOS offers no brightness control for it, use the
-   built-in display, or move the window from one screen to the other (the
-   photo reloads on a move, which is expected). **Pass:** the picture follows
-   within about a second and settles at a level that looks right; no flash of
-   the SDR look, no jump to a wrong level that stays.
-4. **E4. Open a photo from the grid.** Go back to the grid (Esc or
-   double-click), then double-click a photo; do it for each of the three, and
-   again after moving between photos with the arrow keys. **Pass:** at most one
-   change, from the SDR look to HDR, shortly after it appears, and you find that
-   change acceptable. Note: the first photo opened on a screen that gives less
-   than the photo needs (the Dell) may change a second, smaller time about
-   1.5 s later (DQ-1); later photos should not. Say whether that second change
-   is acceptable.
-
-Things this stage does not do, so not part of the check: the HDR check box,
-menu item and badges of the design; the histogram (it shows the SDR version's
-counts); the mask overlay, sharpening and fringe maps, and the crop session
-(SDR, as today); side-by-side comparison (SDR); Distortion and spots with HDR
-(the brightening does not follow them yet).
+Covered by CI only, per the owner's standing ruling: VoiceOver, macOS 15 and
+macOS 26.
 
 ## Open questions
 
 ### Design questions (for apple-ui-designer)
 
-**DQ-1. A second change on the first photo of a screen that gives less than
-the photo needs.** What I hit: the display's headroom can only be read once the
-layer asks for extended range, and the reading takes 1 to 2 s to settle
-(Findings). Before it settles, the loupe renders for the potential headroom
-capped at the photo's ceiling; when the display gives less (the Dell, 1.29), the
-picture is rendered again about 1.5 s later. Options:
-(a) accept it: it happens once per screen per launch (the limit is kept),
-and Core Animation fits the picture in between, so the step is from the
-system's fit to ours; cost none. (b) Keep the SDR preview up until the reading
-settles on the first HDR photo of a screen: one change only, but HDR arrives
-about 1.5 s later that once; cost small (a wait on the first visit). (c) Ask
-for the ceiling with the SDR preview already in an extended layer, so the
-reading settles before the HDR render lands; cost small, but untested: whether
-an SDR image in a layer with `contentsHeadroom` set looks exactly like SDR, and
-it spends the extended-range power on every gain-map photo before HDR shows.
-Recommendation: (a) for now; decide after E4.
+None open. DQ-1 is ruled (design §18.1) and accepted by the owner.
+
+Noted, not a question: the comparison panes follow the screen's headroom with
+a 0.25 s poll like the loupe's; while comparing, the panes' layers make the
+request the screen's reading answers (the largest ceiling of the two photos).
 
 ### Requirements issues (for the product manager)
 
-None from this stage. For later, noted: design §5's reason 3 ("no HDR display",
-potential headroom 1) does not cover a display that reports a potential above 1
-and gives about 1.2 to 1.3 (the Dell here, or a background app under #287);
-such a display shows HDR fitted to almost nothing. Whether that needs its own
-reason is for after the early check.
-
-## Next stage (after the owner's E1 to E4)
-
-The rest of the PRD in the design's order, starting with the stored choice
-(replacing the temporary switch), then badges and reasons, the HDR histogram,
-overlays, maps and crop, comparison, the export notice, `photocli`, Distortion
-and spots under the gain map (R19), AC6 for every adjustment and the Apple-only
-gain map check, AC10's timings, and the user guide.
+None open. RI-6 and RI-7 are in the revised PRD.
 
 ## README
 
-Nothing for the README in this stage: no requirement, build command or layout
-changed.
+- Catalog: migration v17 adds the column `version.hdr` (the HDR choice's copy
+  of the stack's value). CLAUDE.md's Catalog rule lists tables only; the edit
+  stack rule may want "the `hdr` operation is left out of the render hash".
+- New opt-in test variables: `GAINMAP_SAMPLES=a.HEIC:b.HEIC swift test --filter "GainMapAdjustmentTests/everyAdjustmentOnRealFiles"`
+  and `GAINMAP_TIMING=a.HEIC swift test --filter GainMapTimingTests` (the
+  owner's files, never committed), for CLAUDE.md's command list.
+- The View menu item is now **Show / Hide HDR** (CLAUDE.md's Scope still says
+  "Show / Hide HDR Highlights" in the #277 entry).
+- `photocli develop --set hdr.on=true|false`.
 
 ## User guide
 
-Not updated: stage 1 changes nothing a person can reach without the
-test-launch switch.
+Updated in its own commit: the HDR passage (gain-map photos, the choice, the
+badges and reasons, fitting, the first photo's second adjustment, what stays
+SDR, the HLG/PQ/DNG limit naming the adjustments), the histogram passage, the
+Export passage, the Adjust tab header, and `photocli develop`.
