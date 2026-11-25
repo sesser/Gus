@@ -8,14 +8,16 @@ Owner: swift-macos-engineer. Branch `feature/gain-map-hdr-editing`, from
 gave, GitHub was refusing the body update) and `design.md`; evidence from
 spike #285 (`docs/features/gain-map-hdr/spike.md`).
 
-**State: Done** (2026-11-25, after the second review round). Stage 1 passed
+**State: Done** (2026-11-25, after QA's first pass). Stage 1 passed
 the owner's early check; stage 2 built the rest of the PRD and design; the
 first-pass findings of `code-review.md` and `review.md` are fixed or answered
 below ("Review round 1"), and the second pass's open ones (F1's rest, F11, C8,
-C9) under "Review round 2". Every acceptance criterion is built and mapped to a
-test or a check below; nothing is blocked. What only a person can check is
-listed under "For a person". Next: code review's and the designer's third
-pass on round 2's commits, then QA.
+C9) under "Review round 2". QA's findings Q1 to Q5 (`qa.md`, first pass) are
+fixed under "QA round 1"; Q3's layout waits on the designer's confirmation
+(DQ-2, below). Every acceptance criterion is built and mapped to a test or a
+check below; nothing is blocked. What only a person can check is listed under
+"For a person". Next: code review (a risk area: rendering of HDR pictures) and
+the designer (Q3 changes the loupe caption), then QA again.
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -229,6 +231,64 @@ SDR frame (a photo without the choice, or HDR not shown), so SDR live frames
 skip as before; previews, exports and `photocli render` are untouched (AC11's
 byte-equality test and every golden pass).
 
+## QA round 1 (2026-11-25)
+
+Fixes for `qa.md`'s first pass (`60b95bd`), commits `c3f21e7` (Q1, Q4),
+`21e4782` (Q5), `6ebce7a` (Q2), `60af4cc` and `4b1523e` (Q3). Each was
+reproduced first on code without its fix. Debug-script runs: a copy of the
+bundle with identifier `me.sesser.gus.debugtest.qafix282`, scratch libraries in
+the session scratchpad (copies of the owner's IMG_0546 and IMG_0561 and of
+Apple-only copies of them, made as QA did: every `tmap` code renamed; for
+offline, two of them on a FAT32 disk image detached and attached again while
+the app ran), shell-started, `hdr display` overriding the screen.
+
+**Correction (Q4).** Earlier versions of this file, and the spike, called
+IMG_0561 a file with only Apple's kind of gain map. It is not: all three of the
+owner's files carry both an ISO 21496-1 and an Apple gain map, and ImageIO
+reports the ISO one for each. Every figure below that says "Apple-only" is for a
+copy with the ISO map hidden. (`spike.md` is not this file's to change; its
+wording stands there.)
+
+| Finding | Outcome | Test or check |
+| --- | --- | --- |
+| Q1 (Apple-only gain map: labeled HDR, SDR brightness) | Reproduced and the cause confirmed by a probe: Core Image takes an Apple gain map's headroom from the **receiving** image's Apple maker dictionary (tags 33 and 48), not from the map. On a copy of IMG_0546 with only Apple's map: the file's own image brightened 0.2740 to 0.4947 (the system's decode), the same image with its properties emptied gave 0.2740 (none), with only the maker dictionary set 0.4947; the white image `GainMap.ceiling` used came out 1.0 against 2.52. Fixed: `GainMap` keeps the file's maker dictionary (`receiverProperties`) and sets it on the picture it brightens and on the ceiling's white image (`receiving`). Every path that makes an HDR picture or reads the ceiling goes through `GainMap.hdr`, `fullHDR` and `read` (settled renders at fit and 100%, comparison panes, crop session, live frames, region tiles, the photo refinement, both histograms, `placed` geometry with Distortion and spots), so one change covers them. An ISO map's render is unchanged (an image with no maker dictionary is passed through untouched; on files with both maps the maker dictionary changes nothing, measured equal). | Opt-in sample test (`HEIC_GAINMAP_SAMPLE`) on the Apple-only copies: +0.006, +0.001, −0.000 stops against the system's HDR decode (QA measured −0.84 to −0.94); the files with both maps unchanged (+0.006 for IMG_0546). Script: HDR on for the Apple-only copies of IMG_0546 and IMG_0561: `histogram hdr above white` 0.132 and 0.199 (QA: 0.000), rendered 2.62 and 4.67, `hdr display 2` fits to 2.00. The always-run tests below fail without the fix (10 tests, every failing case the Apple kind) and pass with it. |
+| Q4 (no Apple-only coverage; drift can't fail for an unapplied map; no Color Fringes; no identity table) | Fixed. `HDRTestImages.writeAppleGainMap` (also `writePatternedGainMap(kind: .apple)`) writes a HEIC or JPEG with only Apple's gain map through ImageIO: maker tags 33 = 1, 48 = 1 (headroom exactly 4), a half-size 8-bit map, any EXIF orientation. Every gain-map test that makes an HDR picture now runs on both kinds (`HDRTestImages.GainMapKind`): loading and ceiling, the system decode in 8 orientations × 2 containers, fitting (now also against Core Image's own rule for the file at each headroom, AC5's second clause, for both kinds), edits, live and settled, the 100% region, the photo refinement, the service, both histograms, AC6, Distortion, spots, AC11's byte equality and AC13. AC6 checks that the unedited HDR version is the system's decode (so an unapplied map fails), adds a **Color Fringes** case, and uses an **identity look-up table** (installed in the test store, applied at 100%) as the smallest look-up table; the opt-in real-file test checks the system decode, values above white, and each smallest value too. | Without the Q1 fix: 10 of 29 tests in the HDR suites fail, 0 ISO cases among them. With it: all pass (5 runs). AC6 on Apple-only maps below. |
+| Q5 (AC8 for a few stacks only) | Fixed: `GainMapAdjustmentTests` "AC8: for every adjustment…", 29 stacks (each adjustment's strong value, the identity table, crop with a turn and Straighten, Distortion, a healed spot) × both kinds: the frame a drag shows (`interactive`, drafts allowed) and the settled-size frame against the settled render at fit (headroom 2), and a 100% region tile against the same quarter of the full-resolution render (headroom 1.8), by mean and by each cell of a 6 × 4 grid. | Measured (macOS 27.2.1, M4 Pro): settled-size frame at most 0.0015 stops of mean, 0.002 in a cell; drag frame (draft decode) 0.0042 and 0.027; 100% tile 0.0015 and 0.0021. Limits: 0.005/0.02, drag frame 0.01/0.05 (AC8's "match" is 0.05 stops). Drafts reduced in scale (draft levels 1 and 2, chosen by frame time) are not forced; each case is a fresh session whose first frame is level 0. |
+| Q2 (choice changeable after the original goes offline while open) | Reproduced (box enabled, `adjust hdr off` turned it off), fixed. `AdjustmentEditor.canSetHDR` (gain-map photo, not cropping, original online) now gates the check box (dimmed), Adjust ▸ Turn On / Off HDR (`LibraryMenuContext.canSetHDR`) and `setHDR` itself, so the debug script's `adjust hdr` is refused too; it returns with the volume. `print hdr` prints `can set`. | Script (disk image detached with IMG_0561 open, HDR on): online `can set true`, box enabled; offline `can set false`, `button 'HDR' … disabled … state on`; a click on the box and `adjust hdr off` change nothing (`choice true`, no undo step); after the attach `can set true`, the box enabled, `adjust hdr off` gives **Turn Off HDR**. Menu item: by reading (two activated runs stayed `key nil`, as QA's). Not changed: Undo, Redo, a History revert and the ⋯ menu's Reset All still act on the whole stack, the choice included, while the Adjust tab stays up after the volume goes (older than this branch; RI-8 below). |
+| Q3 (stars over the version badge at the minimum width) | Reproduced (760 pt, sidebar and inspector shown: the loupe is 240 pt wide; ⚠ **SDR** under the fifth star, **Copy** an empty box). Fixed in `LoupeCaption`: the first arrangement that fits, by ideal widths (`ViewThatFits` over a `CenteredCaptionRow` layout): marks centered with the full badges; centered with the version badge's short form; marks after the position; marks without the position. The badge row is never squeezed, and badges and position keep 8 pt from the marks. Wider windows lay out as before. Waits on the designer (DQ-2): it moves the marks off center at the narrowest widths, which design §4 says a badge change never does. | Snapshots (content area, 760 pt unless said; looked at only for overlap, no visual result claimed): unrated plain JPEG: centered; 5 stars with **HDR**: marks after "4 of 4", 8 pt or more from the badge; with **View ▸ Hide HDR**: the same arrangement, ⚠ **SDR** whole; a copy, hidden or HDR: marks at the left, position dropped, ⚠ **SDR** and **Copy** whole; a copy with a pick flag: the row a few points wider than the caption, nothing overlapping. 900, 1000 and 1300 pt: marks centered as before (short form at 900 and 1000, the full reason at 1300). |
+
+### AC6 on Apple-only gain maps (after the fix)
+
+Synthetic (`GainMapAdjustmentTests` "AC6…", 600 px, Apple kind): unedited
+−0.004 stops off the system's decode (ISO kind −0.001); every smallest value
+within 0.013 stops (Black & White, a switch, follows SDR within 0.002); the
+identity table −0.002; the strong values' drift at most 0.0038 stops RMS
+(Shadows), Color Fringes 0.0001.
+
+Real files, opt-in (`GAINMAP_SAMPLES`, 1024 px), the three Apple-only copies:
+unedited −0.025, −0.032, −0.018 stops off the system's decode (the same files
+with both maps: −0.025, −0.032, −0.014; downscaling of the system's full-size
+decode, not the gain map); smallest values within 0.011 stops (identity table
+−0.0007, +0.0005, −0.0022; Color Fringes 0.0000); strong values at most
+**0.0038 stops RMS** (largest: Shadows 0.0038, Highlights 0.0029, Dehaze 0.0022;
+Color Fringes 0.0002 or 0.0003). AC6's 0.05 limit is met for Apple-only maps
+with room. The spike's "0.04 stops for a file with only Apple's" was IMG_0561's
+ISO map: with both maps, IMG_0561 still shows Contrast 0.0458 and Tone Curve
+0.0403 (its ISO map), under 0.05.
+
+Determinism of the new and widened tests: structural. Each renders fixed
+synthetic files written in its own temporary folder (Apple-only files by
+ImageIO, byte for byte the same each run) through a fresh generator, session
+or region renderer, and compares against tolerances at least twice the
+measured value (the drag-frame mean: 0.0042 against 0.01); the AC8 drag frame is
+the first of a fresh session, so its draft level is 0 and no frame time enters.
+No shared state, timing or pool order. Five consecutive runs of the HDR suites
+passed (not offered as a rate bound).
+
+SDR output: nothing that renders SDR changed. `GainMap.receiving` is used only
+inside `hdr` and the ceiling; AC11's byte-equality test passes for both kinds,
+and every golden passes.
+
 ## Stage 1 (history): what it was for
 
 Only what E1 to E4 need: one gain-map file shown and edited in HDR in the
@@ -395,11 +455,11 @@ shell-started unless said).
 | AC1 (R1) | `GainMapHDRTests` "A gain-map HEIC or JPEG has a gain map…" (HEIC, JPEG: yes; plain JPEG, PQ with and without a gain map: no) and "AC1: only a HEIC or JPEG, by name and content…" (a gain map under a TIFF or PNG name, or in an AVIF, gives no choice); `GainMap.exists` takes HEIC and JPEG names and content types only; `HDRChoiceTests` "Off is the default…"; script: a newly imported HEIC shows **SDR**, choice off, check box shown (`has choice true`) | Pass |
 | AC2 (R2) | `HDRChoiceTests`: stack round trip, catalog column and History snapshot revert, virtual copy independence and Undo of Duplicate's removal, Reset All; script: on, relaunch still on, undo off, redo on, History lists **Turn On HDR**, revert to an entry with it off shows SDR, Reset All (menu, activated run) off, its undo on | Pass |
 | AC3 (R3) | `HDRChoiceTests` "presets and Paste Adjustments neither carry nor change the choice" (both directions, all items and one group) | Pass |
-| AC4 (R4, R5) | `HDRChoiceTests` badge reasons and order, offline with choice off (RI-3), fitted at 1.29 and 1.0 is **HDR** (RI-7); script: **SDR: HDR Hidden**, **SDR: No HDR Display** (`hdr display sdr`), **SDR: HDR Failed** (`hdr fail on`), allowance 1.29 and 1.0 read **HDR** with the fitted help tag; comparison panes each state their version; the stored choice unchanged under every reason | Pass (offline also by script since review round 1: disk image detached and attached; narrow-caption short form by eye) |
-| AC5 (R6) | `GainMapHDRTests` system decode in every orientation, smaller headroom by the gain map's rule; script: `hdr display 2`, `1.5`, `system` refit without reopening, version unchanged; at 100% with live frames up the tile follows too (review round 2, F11) | Pass |
-| AC6 (R7) | `GainMapAdjustmentTests` "every adjustment…" (24 cases: every group and control, look-up table, masks; Black & White as a switch); opt-in `GAINMAP_SAMPLES` on the owner's three files (one with only Apple's kind of gain map), table below | Pass |
+| AC4 (R4, R5) | `HDRChoiceTests` badge reasons and order, offline with choice off (RI-3), fitted at 1.29 and 1.0 is **HDR** (RI-7); script: **SDR: HDR Hidden**, **SDR: No HDR Display** (`hdr display sdr`), **SDR: HDR Failed** (`hdr fail on`), allowance 1.29 and 1.0 read **HDR** with the fitted help tag; comparison panes each state their version; the stored choice unchanged under every reason; QA round 1: a photo whose original goes offline while open can't have its choice changed (Q2), and at 760 pt the caption keeps ⚠ **SDR** clear of the marks (Q3, snapshots) | Pass (offline by script: disk image detached and attached; the menu item by reading; Q3's layout waits on DQ-2) |
+| AC5 (R6) | `GainMapHDRTests` system decode in every orientation and both containers, smaller headroom by the gain map's rule (against Core Image's own rule for the file too), each for ISO and Apple-only gain maps (QA Q1, Q4); opt-in sample test on Apple-only copies within 0.006 stops; script: `hdr display 2`, `1.5`, `system` refit without reopening, version unchanged; at 100% with live frames up the tile follows too (review round 2, F11) | Pass |
+| AC6 (R7) | `GainMapAdjustmentTests` "every adjustment…" (25 cases × ISO and Apple-only gain maps: every group and control, Color Fringes, an identity look-up table as the smallest, masks; Black & White as a switch; the unedited version checked against the system's decode); opt-in `GAINMAP_SAMPLES` on the owner's three files (both kinds of gain map) and on Apple-only copies of them, below and under "QA round 1" | Pass |
 | AC7 (R8) | `GainMapHDRTests` "Once HDR is on screen…" (the visit rule); script: arrival `versions sdr,hdr changes 1`, then an Exposure change, Exposure −3 (nothing above white), crop begin and done, sharpening map on and off (no badge, HDR back), comparison and back, grid and back: still HDR, no further change; Undo of Turn On HDR, Reset All and a revert to an entry with it off show SDR | Pass (drags, zoom and hover by stage 1's scripted runs and the code path) |
-| AC8 (R9) | `GainMapHDRTests` "A live HDR frame and the settled HDR render… agree" and "A region frame at 100%…" (within 0.005 stops), still passing after the single-render change | Pass in values; by eye with the owner |
+| AC8 (R9) | `GainMapAdjustmentTests` "AC8: for every adjustment…" (29 stacks × both kinds, at fit and at 100%, QA Q5); `GainMapHDRTests` "A live HDR frame and the settled HDR render… agree" and "A region frame at 100%…" | Pass in values; by eye with the owner |
 | AC9 (R10) | `HDRChoiceOutputTests` "the HDR histogram counts values above white…" (same at headroom 1.3 and 16, draft and settled share within 0.05, dark edit keeps the axis) and its bins test; script: histogram kind and share in `print hdr` and `print compare`; at 100% after Show HDR the counts come (review round 2, F1, `GainMapHDRTests` "Review F1, F11…") | Pass |
 | AC10 (R11) | `GainMapTimingTests` (`GAINMAP_TIMING`), table below | Measured: within 1.5× |
 | AC11 (R12, R14) | `HDRChoiceOutputTests` "previews and photocli render are the same bytes with the choice on and off"; `HDRChoiceTests` render hash; every golden passes unchanged | Pass |
@@ -420,11 +480,13 @@ warped error).
 ### AC6 on the owner's files (opt-in, 1024 px, stops RMS of ratio drift)
 
 `GAINMAP_SAMPLES=…IMG_0546.HEIC:…IMG_0542.HEIC:…IMG_0561.HEIC swift test --filter "GainMapAdjustmentTests/everyAdjustmentOnRealFiles"`.
-All below 0.05. Largest: IMG_0561 (only Apple's kind of gain map; Core Image
-applies it with a small dependence on the base's level, spike trap 5)
-Contrast 0.046, Tone Curve 0.040, Exposure 0.026, Clarity 0.025. IMG_0546 and
-IMG_0542 (ISO gain maps): every adjustment 0.004 or less. Every value on
-IMG_0561: white balance 0.0007, exposure 0.0258, contrast 0.0458, highlights
+All below 0.05. All three files carry both kinds of gain map and are rendered
+with their ISO map (corrected in QA round 1; this paragraph first called
+IMG_0561 Apple-only). Largest: IMG_0561 (its ISO map, applied with a small
+dependence on the base's level) Contrast 0.046, Tone Curve 0.040, Exposure
+0.026, Clarity 0.025. IMG_0546 and IMG_0542: every adjustment 0.004 or less.
+Apple-only copies: under "QA round 1". Every value on IMG_0561 (before QA round
+1's identity table and Color Fringes cases): white balance 0.0007, exposure 0.0258, contrast 0.0458, highlights
 −80 0.0058, highlights +80 0.0008, shadows 0.0206, whites 0.0007, blacks
 0.0218, clarity 0.0253, dehaze 0.0201, vibrance 0.0050, saturation 0.0034,
 tone curve 0.0403, color mixer 0.0049, black and white 0.0106, color grading
@@ -448,6 +510,10 @@ curve, Sharpening 40. Fit: 2560 px frames with both histograms; 100%: a
 Before the single-render change, fit HDR was 2.48 to 3.17 times SDR.
 
 ## Tests
+
+QA round 1: every gain-map test that makes an HDR picture runs on an ISO and an
+Apple-only synthetic file (`HDRTestImages.GainMapKind`); AC8's every-adjustment
+test is new.
 
 New or changed suites: `HDRChoiceTests` (11 tests), `HDRChoiceOutputTests` (4),
 `GainMapAdjustmentTests` (24 adjustment cases, Distortion, two spot modes,
@@ -481,6 +547,15 @@ The timing test asserts nothing about time.
   output untouched (AC11's byte-equality test passes). CI toolchain command
   as above: **Build complete** (31.9 s), no errors; its only warnings are
   `VirtualCopiesTests.swift`'s, from `develop` (#62).
+- After QA round 1 (2026-11-25, `4b1523e`): `swift build` clean, no
+  warnings; full `swift test`: **1575 tests in 221 suites passed**, 97.6 s
+  (parametrized cases not counted separately). Goldens unchanged; no
+  `PreviewCacheKey.currentPipelineVersion` bump; AC11's byte-equality test
+  passes for both kinds of gain map. CI toolchain:
+  `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3`:
+  **Build complete** (34.0 s), no errors; its only warning is
+  `VirtualCopiesTests.swift`'s, from `develop`. `Scripts/build-app.sh`: built
+  and signed.
 - After review round 2 (2026-11-25, `033458e`): `swift build` clean, no
   warnings; full `swift test`: **1574 tests in 221 suites passed**, 81.8 s.
   Goldens unchanged; no `PreviewCacheKey.currentPipelineVersion` bump; AC11's
@@ -542,6 +617,14 @@ Adjust tab's **HDR** check box.
     follows at 100% as it does at fit (F11). At 200%, panned to a corner,
     eject and reconnect the photo's volume (or turn the display's HDR off and
     on): the zoom and the place shown stay (C9).
+13. QA round 1: at the minimum window width (760 pt, sidebar and inspector
+    shown), a gain-map photo rated 5 stars, with **View ▸ Hide HDR**, then as a
+    copy: no badge over the stars, ⚠ **SDR** and **Copy** whole, and how the
+    stars sitting off center looks (DQ-2). If you have a photo with only
+    Apple's kind of gain map (older iPhone photos may be; not verified), turn
+    HDR on for it: it should brighten as the owner's three files do, not stay
+    at its SDR look. A copy of one of the three with each `tmap` code renamed
+    stands in (QA's method in `qa.md`, Q1).
 
 Covered by CI only, per the owner's standing ruling: VoiceOver, macOS 15 and
 macOS 26.
@@ -550,7 +633,37 @@ macOS 26.
 
 ### Design questions (for apple-ui-designer)
 
-None open. DQ-1 is ruled (design §18.1) and accepted by the owner.
+DQ-1 is ruled (design §18.1) and accepted by the owner.
+
+**DQ-2 (QA Q3): what gives way in the loupe caption when the version badge's
+short form can't fit beside the centered marks.** At the minimum window (760
+pt, sidebar and inspector shown) the loupe is 240 pt wide: with five stars,
+about 52 pt is left right of the centered marks, and ⚠ **SDR** with the strip
+toggle needs about 75 pt (with **Copy**, about 120). So design §4 ("changing the
+badge never … moves the culling marks"), §5 ("the badges never run into the
+culling marks"), R4/AC4 (the mark and **SDR** stay visible) and the Copy badge
+staying (virtual-copies §6.3) can't all hold there. Options:
+- (a) *As built:* the first arrangement that fits: centered with full
+  badges, centered with the short form, marks after the position, marks
+  without the position. Cost: none further. At the narrowest widths the marks
+  sit off center, and at a width where only one form fits, a badge change
+  (Hide HDR) can move them; at 760 pt both the **HDR** and the ⚠ **SDR** photo
+  take the same arrangement, so it doesn't there. Before this branch an
+  **HDR** badge at 760 pt sat centered but 7.5 pt into the 18 pt gap; now any
+  arrangement keeps 8 pt, so that photo's marks are off center too.
+- (b) The arrangement chosen from the width and the photo's widest short badge
+  (⚠ **SDR** for any gain-map photo, plus Copy and Offline), not the current
+  badges, so no badge change moves the marks. Cost: a hidden measuring row or
+  a custom layout reading fixed widths, about a day; marks off center more
+  often (HDR photos at widths where ⚠ **SDR** wouldn't fit).
+- (c) Keep the marks centered and drop something else first: the film strip
+  toggle (also View ▸ Show Film Strip, ⌥⌘B), then Copy (the window title says
+  "copy"). Cost: small; loses a control and an identity badge at the narrowest
+  widths, and still fails with a color label.
+- (d) Raise the library window's minimum width. Cost: small; a change for
+  every view, outside this feature.
+Recommendation: (a), as built: nothing is ever covered or dropped, and the move
+happens only where centering is impossible.
 
 Noted, not a question: the comparison panes follow the screen's headroom with
 a 0.25 s poll like the loupe's; while comparing, the panes' layers make the
@@ -558,7 +671,21 @@ request the screen's reading answers (the largest ceiling of the two photos).
 
 ### Requirements issues (for the product manager)
 
-None open. RI-6 and RI-7 are in the revised PRD.
+RI-6 and RI-7 are in the revised PRD.
+
+**RI-8 (QA Q2's remainder): does AC4's "the loupe offers no way to change the
+choice" cover Undo, Redo, a History revert and Reset All while the original is
+offline?** After Q2's fix the check box, the menu item and the debug route
+refuse. But a photo opened while online keeps its Adjust tab when its volume
+goes (older than this branch, the proposed follow-up bug below), so Undo of
+**Turn On HDR**, a History revert to an entry with another setting, and the
+loupe's Reset All still change the whole stack, the choice with it. Options:
+(a) leave it to the follow-up bug, which would put the Adjust tab (and History)
+into its offline state when the volume goes; (b) refuse those for the choice
+alone now, which splits undo steps and reverts in two (costly, and Reset All
+from the grid already turns the choice off for offline photos by RI-2).
+Recommendation: (a): read AC4 as the HDR controls, and fix the rest with the
+follow-up bug.
 
 ### Follow-ups proposed (not fixed here)
 
@@ -580,7 +707,9 @@ None open. RI-6 and RI-7 are in the revised PRD.
   stack rule may want "the `hdr` operation is left out of the render hash".
 - New opt-in test variables: `GAINMAP_SAMPLES=a.HEIC:b.HEIC swift test --filter "GainMapAdjustmentTests/everyAdjustmentOnRealFiles"`
   and `GAINMAP_TIMING=a.HEIC swift test --filter GainMapTimingTests` (the
-  owner's files, never committed), for CLAUDE.md's command list.
+  owner's files, never committed), for CLAUDE.md's command list. The owner's
+  iPhone files carry both kinds of gain map; for an Apple-only run, pass copies
+  with each `tmap` code renamed (QA round 1).
 - The View menu item is now **Show / Hide HDR** (CLAUDE.md's Scope still says
   "Show / Hide HDR Highlights" in the #277 entry).
 - `photocli develop --set hdr.on=true|false`.
