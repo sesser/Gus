@@ -128,6 +128,29 @@ public struct PreviewGenerator: Sendable {
         return rendered.contentHeadroom >= RenderEngine.minimumHDRHeadroom ? rendered : nil
     }
 
+    /// A gain-map photo's HDR version (issue #282), no larger than `longEdge`
+    /// pixels (nil for full resolution), fitted to a display that can show
+    /// `displayHeadroom` now: the stack rendered over the same decode as the
+    /// SDR renditions (`rendering`), with the file's gain map applied last
+    /// (`GainMap.hdr`). A half-float image in `RenderEngine.hdrColorSpace`
+    /// tagged with the headroom it was rendered for. Every stack has one:
+    /// nothing in the stack turns it away. Nil when the file is not a
+    /// gain-map photo (`GainMap.load`). `gainMap` saves loading it again.
+    public func gainMapHDRImage(source: URL, stack: EditStack, longEdge: Int?, displayHeadroom: Float,
+                                gainMap: GainMap? = nil) throws -> (image: CGImage, fileHeadroom: Float)? {
+        guard let map = gainMap ?? GainMap.load(source) else { return nil }
+        let decoded = try Self.decode(source, longEdge: decodeLongEdge(source, stack: stack, longEdge: longEdge),
+                                      draft: false, settings: renderer.decodeSettings(for: stack))
+        let rendered = try renderer.apply(stack, to: decoded.image, context: decoded.context)
+        let placed = map.placed(over: decoded.image.extent, crop: renderer.geometry(for: stack))
+        var (image, headroom) = map.hdr(rendered, placed: placed, displayHeadroom: displayHeadroom)
+        if let longEdge {
+            image = image.scaledToFit(longEdge: longEdge)
+        }
+        guard let output = engine.makeHDRCGImage(image, contentHeadroom: headroom) else { throw Failure.renderFailed }
+        return (output, map.headroom)
+    }
+
     /// Full-resolution (or capped) rendition for 1:1 viewing, in `colorSpace`
     /// (Display P3 when nil), rendered before it returns (`makeSurfaceImage`):
     /// never by its first draw on the main thread.

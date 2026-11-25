@@ -35,6 +35,9 @@ public actor LiveRegionRenderer {
         public var hasOverlay: Bool { overlayMask != nil }
         public let seconds: Double
         public let machineLearning: MachineLearningNoiseReduction.Outcome
+        /// For a gain-map photo's HDR frame (issue #282), the headroom it was
+        /// rendered for and is tagged with; nil for an SDR frame.
+        public var headroom: Float? = nil
     }
 
     public enum Failure: Error, Equatable {
@@ -53,6 +56,9 @@ public actor LiveRegionRenderer {
     private let colorSpace: CGColorSpace?
     private var base: Base?
     private var decoder: SystemRAWDecoder.Memo
+    /// The master's gain map, loaded the first time an HDR frame is asked
+    /// for (the inner nil: the file has none).
+    private var gainMap: GainMap??
     /// A decode under way: reentrant calls join it instead of starting another.
     private var decoding: (settings: RAWDecodeSettings, task: Task<Base, Error>)?
 
@@ -219,7 +225,10 @@ public actor LiveRegionRenderer {
     /// Throws `Failure.notReady` when `prepare` has not decoded these values'
     /// RAW settings. Cancellation is checked before the render; work already
     /// on the GPU finishes.
-    public func render(_ values: Adjustments, unit: CGRect, overlayMask: UUID? = nil,
+    ///
+    /// With `hdrHeadroom`, a gain-map photo's frame is its HDR version fitted
+    /// to that headroom, as `LiveRenderSession.render`'s (issue #282).
+    public func render(_ values: Adjustments, unit: CGRect, overlayMask: UUID? = nil, hdrHeadroom: Float? = nil,
                        cancellation: RenderCancellation? = nil) throws -> Frame {
         let clock = ContinuousClock()
         let started = clock.now
@@ -240,14 +249,35 @@ public actor LiveRegionRenderer {
         let rect = CGRect(x: extent.minX + region.minX, y: extent.minY + extent.height - region.maxY,
                           width: region.width, height: region.height)
         try cancellation?.check()
-        let space = colorSpace ?? RenderEngine.outputColorSpace
-        guard let rendered = generator.engine.withContext({
-            $0.createCGImage(image, from: rect, format: .BGRA8, colorSpace: space, deferred: false)
-        }) else { throw Failure.renderFailed }
+        let rendered: CGImage
+        var headroom: Float?
+        if let hdrHeadroom, let map = loadedGainMap() {
+            let placed = map.placed(over: source.extent, crop: generator.renderer.geometry(for: values.editStack))
+            let made = map.hdr(image, placed: placed, displayHeadroom: hdrHeadroom)
+            guard let output = generator.engine.withContext({
+                $0.createCGImage(made.image, from: rect, format: .RGBAh, colorSpace: RenderEngine.hdrColorSpace, deferred: false)
+            }) else { throw Failure.renderFailed }
+            rendered = CGImageCreateCopyWithContentHeadroom(made.headroom, output) ?? output
+            headroom = made.headroom
+        } else {
+            let space = colorSpace ?? RenderEngine.outputColorSpace
+            guard let output = generator.engine.withContext({
+                $0.createCGImage(image, from: rect, format: .BGRA8, colorSpace: space, deferred: false)
+            }) else { throw Failure.renderFailed }
+            rendered = output
+        }
         let elapsed = (clock.now - started).components
         return Frame(image: DecodedImage(cgImage: rendered), adjustments: values, region: region, outputSize: extent.size,
                      overlayMask: overlaid, seconds: Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18,
-                     machineLearning: base.machineLearning)
+                     machineLearning: base.machineLearning, headroom: headroom)
+    }
+
+    /// The master's gain map, loaded once (`GainMap.load`).
+    private func loadedGainMap() -> GainMap? {
+        if let gainMap { return gainMap }
+        let loaded = GainMap.load(source)
+        gainMap = .some(loaded)
+        return loaded
     }
 
     /// `unit` in whole output pixels, inside the frame: rounded outward so

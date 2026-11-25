@@ -182,19 +182,33 @@ public final class RenderEngine: @unchecked Sendable {
     /// the headroom become the image's own; the deferred image, and its claim
     /// on the pool, go when this returns.
     public func makeHDRCGImage(_ image: CIImage) -> CGImage? {
+        guard let rendered = ownedHDRPixels(image), let headroom = Self.maximumComponent(of: rendered) else { return nil }
+        return CGImageCreateCopyWithContentHeadroom(max(headroom, 1), rendered) ?? rendered
+    }
+
+    /// As `makeHDRCGImage(_:)`, tagged with `contentHeadroom` instead of the
+    /// brightest value found: for a gain-map photo's HDR version (issue
+    /// #282), whose values the render keeps within that headroom, so every
+    /// frame of a visit carries the same tag whatever an edit does to its
+    /// brightest pixel, and no scan of the pixels is needed.
+    public func makeHDRCGImage(_ image: CIImage, contentHeadroom: Float) -> CGImage? {
+        guard let rendered = ownedHDRPixels(image) else { return nil }
+        return CGImageCreateCopyWithContentHeadroom(max(contentHeadroom, 1), rendered) ?? rendered
+    }
+
+    /// `image` rendered now to half float in `hdrColorSpace`, holding its own pixels.
+    private func ownedHDRPixels(_ image: CIImage) -> CGImage? {
         guard let deferred = withContext({
                   $0.createCGImage(image, from: image.extent.integral, format: .RGBAh, colorSpace: Self.hdrColorSpace)
               }),
               let pixels = deferred.dataProvider?.data,
-              let provider = CGDataProvider(data: pixels),
-              let rendered = CGImage(width: deferred.width, height: deferred.height,
-                                     bitsPerComponent: deferred.bitsPerComponent, bitsPerPixel: deferred.bitsPerPixel,
-                                     bytesPerRow: deferred.bytesPerRow, space: deferred.colorSpace ?? Self.hdrColorSpace,
-                                     bitmapInfo: deferred.bitmapInfo, provider: provider, decode: nil,
-                                     shouldInterpolate: deferred.shouldInterpolate, intent: deferred.renderingIntent),
-              let headroom = Self.maximumComponent(of: rendered)
+              let provider = CGDataProvider(data: pixels)
         else { return nil }
-        return CGImageCreateCopyWithContentHeadroom(max(headroom, 1), rendered) ?? rendered
+        return CGImage(width: deferred.width, height: deferred.height,
+                       bitsPerComponent: deferred.bitsPerComponent, bitsPerPixel: deferred.bitsPerPixel,
+                       bytesPerRow: deferred.bytesPerRow, space: deferred.colorSpace ?? Self.hdrColorSpace,
+                       bitmapInfo: deferred.bitmapInfo, provider: provider, decode: nil,
+                       shouldInterpolate: deferred.shouldInterpolate, intent: deferred.renderingIntent)
     }
 
     /// The largest component (alpha included, which is at most 1) of a

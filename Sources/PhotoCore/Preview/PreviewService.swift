@@ -82,6 +82,10 @@ public final class PreviewService: Sendable {
     private let generateLane: WorkLane<Bool>
     private let fullLane: WorkLane<DecodedImage>
     private let hdrLane: WorkLane<DecodedImage?>
+    /// Gain-map photos' HDR versions (issue #282), beside the HDR lane's.
+    private let gainMapLane: WorkLane<GainMapRendition?>
+    /// The HDR headroom of gain-map masters rendered here, by content hash.
+    private let gainMapHeadrooms = Mutex<[String: Float]>([:])
     /// HDR requests whose master turned out to have no HDR content.
     private let standardRange = Mutex<Set<String>>([])
     /// The full-resolution rendition's size per request (`outputSize(for:)`),
@@ -112,6 +116,7 @@ public final class PreviewService: Sendable {
                                      reserved: generateConcurrency > 1 ? 1 : 0, reservedPriority: Priority.visible.rawValue)
         self.fullLane = WorkLane(concurrency: 1)
         self.hdrLane = WorkLane(concurrency: 2)
+        self.gainMapLane = WorkLane(concurrency: 2)
     }
 
     /// Rendering scales with cores up to about eight jobs (RAW decodes measured on
@@ -328,6 +333,93 @@ public final class PreviewService: Sendable {
             memory.insert(decoded, forKey: memoryKey)
         }
         return decoded.cgImage
+    }
+
+    // MARK: Gain-map photos in HDR (issue #282)
+
+    /// The file's HDR headroom for the request's master, once a gain-map
+    /// rendition of it was made here (nil: not known yet, or no gain map):
+    /// for what the loupe reports (the debug script's `print hdr`).
+    public func gainMapHeadroom(for request: PreviewRequest) -> Float? {
+        gainMapHeadrooms.withLock { $0[request.key.contentHash] }
+    }
+
+    /// A gain-map photo's HDR version for a display that can show
+    /// `displayHeadroom` now, if one is in memory for it (rendered for the
+    /// same display headroom, `GainMapHeadroom.needsRender`).
+    public func memoryCachedGainMapHDRImage(for request: PreviewRequest, displayHeadroom: Float,
+                                            fullResolution: Bool = false) -> CGImage? {
+        let memoryKey = Self.gainMapMemoryKey(request, fullResolution: fullResolution)
+        guard let image = memory.image(forKey: memoryKey),
+              !GainMapHeadroom.needsRender(rendered: image.contentHeadroom, display: displayHeadroom)
+        else { return nil }
+        return image
+    }
+
+    /// A gain-map photo's HDR version at the request's tier size (full
+    /// resolution with `fullResolution`), fitted to `displayHeadroom`
+    /// (`PreviewGenerator.gainMapHDRImage`). Nil when the master is not a
+    /// gain-map photo, is offline, or is a video. Rendered from the master
+    /// when the one in memory was made for another display headroom; never
+    /// cached on disk.
+    public func gainMapHDRImage(for request: PreviewRequest, displayHeadroom: Float, fullResolution: Bool = false,
+                                priority: Priority = .visible) async throws -> CGImage? {
+        if let image = memoryCachedGainMapHDRImage(for: request, displayHeadroom: displayHeadroom,
+                                                   fullResolution: fullResolution) {
+            return image
+        }
+        let memoryKey = Self.gainMapMemoryKey(request, fullResolution: fullResolution)
+        if standardRange.withLock({ $0.contains(memoryKey) }) { return nil }
+        guard let source = request.sourceURL else { return nil }
+        let generator = interactiveGenerator
+        let loadStack = self.editStack
+        let versionID = request.versionID
+        let longEdge = fullResolution ? nil : request.key.tier.longEdge
+        // Keyed by the headroom too, so a request for another one does not join this render.
+        let laneKey = memoryKey + String(format: "@%.3f", displayHeadroom)
+        let made = try await gainMapLane.run(key: laneKey, priority: priority.rawValue,
+                                             taskPriority: priority.taskPriority) { () -> GainMapRendition? in
+            let stack = try await Self.stack(loadStack, versionID: versionID, for: request.key)
+            try Task.checkCancellation()
+            return try generator.gainMapHDRImage(source: source, stack: stack, longEdge: longEdge,
+                                                 displayHeadroom: displayHeadroom)
+                .map { GainMapRendition(image: DecodedImage(cgImage: $0.image), fileHeadroom: $0.fileHeadroom) }
+        }
+        guard let made else {
+            standardRange.withLock { _ = $0.insert(memoryKey) }
+            return nil
+        }
+        rememberGainMapHeadroom(made.fileHeadroom, for: request)
+        if fullResolution {
+            memory.insertFullResolution(made.image, forKey: memoryKey)
+        } else {
+            memory.insert(made.image, forKey: memoryKey)
+        }
+        return made.image.cgImage
+    }
+
+    /// Puts a gain-map photo's HDR frame rendered elsewhere (the loupe's
+    /// live edit, at the request's tier size) in memory as its HDR version
+    /// for the request, so the loupe shows it again with no render.
+    public func insertGainMapHDRIntoMemory(_ image: CGImage, fileHeadroom: Float, for request: PreviewRequest) {
+        rememberGainMapHeadroom(fileHeadroom, for: request)
+        memory.insert(DecodedImage(cgImage: image), forKey: Self.gainMapMemoryKey(request, fullResolution: false))
+    }
+
+    private func rememberGainMapHeadroom(_ headroom: Float, for request: PreviewRequest) {
+        gainMapHeadrooms.withLock { headrooms in
+            if headrooms.count >= Self.outputSizeLimit { headrooms.removeAll(keepingCapacity: true) }
+            headrooms[request.key.contentHash] = headroom
+        }
+    }
+
+    private struct GainMapRendition: Sendable {
+        var image: DecodedImage
+        var fileHeadroom: Float
+    }
+
+    private static func gainMapMemoryKey(_ request: PreviewRequest, fullResolution: Bool) -> String {
+        memoryKey(request.key, bucket: fullResolution ? 0 : request.key.tier.longEdge) + "#gainmap"
     }
 
     /// Puts an image rendered elsewhere (the loupe's live edit) in the memory
