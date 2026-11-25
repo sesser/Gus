@@ -137,7 +137,7 @@ public struct PreviewGenerator: Sendable {
     /// nothing in the stack turns it away. Nil when the file is not a
     /// gain-map photo (`GainMap.load`). `gainMap` saves loading it again.
     public func gainMapHDRImage(source: URL, stack: EditStack, longEdge: Int?, displayHeadroom: Float,
-                                gainMap: GainMap? = nil) throws -> (image: CGImage, fileHeadroom: Float)? {
+                                gainMap: GainMap? = nil) throws -> (image: CGImage, fileHeadroom: Float, ceiling: Float)? {
         guard let map = gainMap ?? GainMap.load(source) else { return nil }
         let decoded = try Self.decode(source, longEdge: decodeLongEdge(source, stack: stack, longEdge: longEdge),
                                       draft: false, settings: renderer.decodeSettings(for: stack))
@@ -148,7 +148,7 @@ public struct PreviewGenerator: Sendable {
             image = image.scaledToFit(longEdge: longEdge)
         }
         guard let output = engine.makeHDRCGImage(image, contentHeadroom: headroom) else { throw Failure.renderFailed }
-        return (output, map.headroom)
+        return (output, map.headroom, map.ceiling)
     }
 
     /// Full-resolution (or capped) rendition for 1:1 viewing, in `colorSpace`

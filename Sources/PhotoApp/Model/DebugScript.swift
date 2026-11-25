@@ -80,6 +80,9 @@ import PhotoUI
 ///     print sharpenmap      (asked for, on screen with its badge and legend, refining, can show, the
 ///                           overlay and Show Original, the inspector, the scroll position of the Adjust tab)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
+///     hdr display <h>|system (#282: the display headroom the loupe fits gain-map photos to; `system`
+///                           takes the screen's potential headroom again)
+///     gainmaphdr on|off     (TEMPORARY, #282 first stage: every gain-map photo in HDR, as `--gain-map-hdr on`)
 ///     filmstrip on|off|toggle   (the loupe's film strip, as its toggle: slides)
 ///     filmstripsize <points>    (stores the nearest step, as a release does)
 ///     windowsize <width> <height>   (the library window's content size, e.g. a short window for the strip's cap)
@@ -538,7 +541,15 @@ enum DebugScript {
             }
             try? await Task.sleep(for: .milliseconds(1500))
         case "hdr":
-            model.showsHDR = rest.first != "off"
+            if rest.first == "display" {
+                // Issue #282: the display headroom the loupe fits gain-map photos to (`system`: the screen's).
+                model.debugDisplayHeadroom = rest.dropFirst().first.flatMap(Float.init)
+            } else {
+                model.showsHDR = rest.first != "off"
+            }
+        case "gainmaphdr":
+            // TEMPORARY (#282 first stage): the switch `--gain-map-hdr on` sets; remove with it.
+            model.showsGainMapsInHDR = rest.first != "off"
         case "metadata", "sidecars":
             await DebugMetadataCommands.run(verb, rest, model: model)
         case "adjust":
@@ -1477,8 +1488,21 @@ enum DebugScript {
             editor.resetFrameTrace()
         case "hdr":
             let potential = window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1
+            let current = window?.screen?.maximumExtendedDynamicRangeColorComponentValue ?? 1
             let headroom = model.loupeHDRHeadroom.map { String(format: "%.2f", $0) } ?? "none"
-            print("debug-script: hdr setting \(model.showsHDR) screen potential \(potential) loupe headroom \(headroom)")
+            print("debug-script: hdr setting \(model.showsHDR) screen potential \(potential) current \(current)"
+                  + " loupe headroom \(headroom)")
+            // Issue #282: a gain-map photo in HDR (the temporary switch, then the visit).
+            let report = model.loupeGainMapReport
+            func value(_ number: Float?) -> String { number.map { String(format: "%.2f", $0) } ?? "none" }
+            let frame = model.editor.frame.map { $0.headroom.map { String(format: "hdr %.2f", $0) } ?? "sdr" } ?? "none"
+            print("debug-script: gainmap switch \(model.showsGainMapsInHDR) wants \(report.wantsHDR)"
+                  + " gain-map \(report.isGainMap) shown \(report.visit.shown?.rawValue ?? "none")"
+                  + " changes \(report.visit.changes) versions \(report.shownVersions.map(\.rawValue).joined(separator: ","))"
+                  + " rendered \(value(report.visit.renderedHeadroom)) display \(value(report.displayHeadroom))"
+                  + " known limit \(value(report.settledReading)) request \(value(report.requestedHeadroom))"
+                  + " file \(value(report.fileHeadroom)) refits \(report.refits) live frame \(frame)"
+                  + " showsLive \(model.editor.showsLive)")
         case "messages":
             // Every Activity row, oldest first, and whether an alert or sheet is up.
             for message in model.activity.messages {

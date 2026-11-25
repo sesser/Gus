@@ -156,6 +156,16 @@ final class AdjustmentEditor {
     /// Interactive frames may be reduced drafts (`LiveRenderSession`); off
     /// while the loupe is zoomed in.
     @ObservationIgnored var allowsDrafts = true
+    /// Set by the loupe while it shows a gain-map photo in HDR (issue #282):
+    /// the display's headroom now, which live frames of a gain-map photo are
+    /// fitted to (`LiveRenderSession.render`). Nil renders SDR frames. A
+    /// change while a frame is up renders it again for the new headroom.
+    @ObservationIgnored var hdrDisplayHeadroom: Float? {
+        didSet {
+            guard hdrDisplayHeadroom != oldValue, state == .ready, showsLive else { return }
+            requestRender(interactive: false)
+        }
+    }
     /// Drags on the photo paint into the selected mask's brush.
     var isBrushing = false {
         // Painting needs the photo on screen.
@@ -1089,7 +1099,13 @@ final class AdjustmentEditor {
               item.editStackHash == committed.editStack.renderHash,
               let request = library.previewRequest(for: item, tier: .preview)
         else { return }
-        library.previews.insertIntoMemory(frame.image.cgImage, for: request)
+        if frame.headroom != nil, let fileHeadroom = frame.fileHeadroom, let ceiling = frame.ceiling {
+            // An HDR frame (issue #282) is the new edit's HDR version, never its SDR preview.
+            library.previews.insertGainMapHDRIntoMemory(frame.image.cgImage, fileHeadroom: fileHeadroom, ceiling: ceiling,
+                                                        for: request)
+        } else {
+            library.previews.insertIntoMemory(frame.image.cgImage, for: request)
+        }
         showsLive = false
     }
 
@@ -1524,6 +1540,7 @@ final class AdjustmentEditor {
                                                             wanted: next.values, overlay: overlay)
                             if !current {
                                 let rendered = try await regions.render(next.values, unit: viewport, overlayMask: overlay,
+                                                                        hdrHeadroom: hdrDisplayHeadroom,
                                                                         cancellation: next.cancellation)
                                 guard !Task.isCancelled, session === self.session else { break }
                                 showRegionFrame(rendered)
@@ -1562,7 +1579,8 @@ final class AdjustmentEditor {
                     }
                     let rendered = try await session.render(next.values, interactive: next.interactive,
                                                             allowsDrafts: allowsDrafts, overlayMask: overlay,
-                                                            content: content, cancellation: next.cancellation)
+                                                            content: content, hdrHeadroom: hdrDisplayHeadroom,
+                                                            cancellation: next.cancellation)
                     guard !Task.isCancelled, session === self.session else { break }
                     // A frame rendered before the map was hidden or switched: the right one follows.
                     if rendered.content != currentContent { continue }

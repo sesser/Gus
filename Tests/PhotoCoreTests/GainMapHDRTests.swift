@@ -116,6 +116,9 @@ struct GainMapHDRTests {
             let system = Pixels(try Self.systemHDR(url))
             #expect(abs(log2(map.headroom / system.maximum)) < 0.05)
             #expect(map.headroom > 2)
+            // SDR white through the gain map: the bright part's gain of 4 (its
+            // SDR picture is darker than white, so the file's headroom is less).
+            #expect(abs(log2(map.ceiling / 4)) < 0.05)
 
             // A plain JPEG, and HLG and PQ files (with or without a gain map) have none (R16).
             let plain = root.appending(path: "plain.jpg")
@@ -154,7 +157,7 @@ struct GainMapHDRTests {
             // the rest) on other cells: a difference of over a stop there.
             let worst = zip(ours, theirs).map { abs(log2($0 / $1)) }.max() ?? .infinity
             #expect(worst < 0.05, "worst cell \(worst) stops")
-            #expect(made.image.contentHeadroom == 100)
+            #expect(made.image.contentHeadroom == made.ceiling)
         }
     }
 
@@ -196,12 +199,15 @@ struct GainMapHDRTests {
         #expect(GainMapHeadroom.weighting(file: 2.6, display: 16) == 2.6)
         #expect(GainMapHeadroom.weighting(file: 4.5, display: 2) == 2)
         #expect(GainMapHeadroom.weighting(file: 4.5, display: 0.8) == 1)
-        #expect(GainMapHeadroom.tag(display: 16) == 16)
-        #expect(GainMapHeadroom.tag(display: 0.9) == 1)
-        #expect(!GainMapHeadroom.needsRender(rendered: 2, display: 2.01))
-        #expect(GainMapHeadroom.needsRender(rendered: 2, display: 2.1))
-        #expect(GainMapHeadroom.needsRender(rendered: 2, display: 1.9))
-        #expect(!GainMapHeadroom.needsRender(rendered: 1, display: 0.8))
+        #expect(GainMapHeadroom.tag(display: 16, ceiling: 2.6) == 2.6)
+        #expect(GainMapHeadroom.tag(display: 2, ceiling: 2.6) == 2)
+        #expect(GainMapHeadroom.tag(display: 0.9, ceiling: 2.6) == 1)
+        #expect(!GainMapHeadroom.needsRender(rendered: 2, display: 2.01, ceiling: 4))
+        #expect(GainMapHeadroom.needsRender(rendered: 2, display: 2.1, ceiling: 4))
+        #expect(GainMapHeadroom.needsRender(rendered: 2, display: 1.9, ceiling: 4))
+        #expect(!GainMapHeadroom.needsRender(rendered: 1, display: 0.8, ceiling: 4))
+        // Above the photo's ceiling every display gets the same picture.
+        #expect(!GainMapHeadroom.needsRender(rendered: 2.6, display: 9.8, ceiling: 2.6))
     }
 
     // MARK: Editing (R7, AC6)
@@ -333,7 +339,7 @@ struct GainMapHDRTests {
             #expect(service.gainMapHeadroom(for: request) == nil)
             let first = try #require(try await service.gainMapHDRImage(for: request, displayHeadroom: 2))
             #expect(first.contentHeadroom == 2)
-            #expect(try #require(service.gainMapHeadroom(for: request)) > 2)
+            #expect(try #require(service.gainMapHeadroom(for: request)).file > 2)
             #expect(service.memoryCachedGainMapHDRImage(for: request, displayHeadroom: 2.01) === first)
             #expect(service.memoryCachedGainMapHDRImage(for: request, displayHeadroom: 2.5) == nil)
             let second = try #require(try await service.gainMapHDRImage(for: request, displayHeadroom: 2.5))
@@ -385,6 +391,50 @@ struct GainMapHDRTests {
         #expect(visit.changes == 1)
     }
 
+    @Test("The display's headroom is a current reading that has settled below the layer's request")
+    func displayReading() {
+        var reading = DisplayHeadroomReading()
+        func read(_ value: Float, at time: Double) -> Bool { reading.read(value, at: time) }
+        #expect(reading.headroom(potential: 16) == 16)
+        // Not asking: readings are not taken.
+        #expect(!read(1.2, at: 0))
+        // Asking for a photo's ceiling of 4.5 on a display that can give 3.2.
+        reading.setRequest(4.5, at: 10)
+        // The ramp (measured: about a second): nothing settles.
+        var changed = false
+        for (step, value) in [1.2, 1.3, 2.0, 2.6, 3.0, 3.2].enumerated() {
+            changed = read(Float(value), at: 10 + Double(step) * 0.25) || changed
+        }
+        #expect(!changed)
+        #expect(reading.estimate == nil)
+        // Held for half a second, past the grace: what the display gives.
+        #expect(!read(3.2, at: 11.5))
+        #expect(read(3.2, at: 11.8))
+        #expect(reading.estimate == 3.2)
+        #expect(reading.headroom(potential: 16) == 3.2)
+        #expect(!read(3.2, at: 12.1))
+        // Brightness down: the reading rises to the request; the limit is gone.
+        #expect(!read(4.5, at: 13))
+        #expect(read(4.5, at: 13.6))
+        #expect(reading.estimate == nil)
+        #expect(reading.headroom(potential: 16) == 16)
+        // Brightness up again.
+        #expect(!read(2, at: 14))
+        #expect(read(2, at: 14.6))
+        #expect(reading.headroom(potential: 16) == 2)
+        // Stopping keeps the estimate; a new request waits out the grace.
+        reading.setRequest(nil, at: 15)
+        #expect(!read(1.2, at: 15.5))
+        #expect(reading.estimate == 2)
+        reading.setRequest(2.6, at: 20)
+        #expect(!read(2.6, at: 20.1))
+        #expect(!read(2.6, at: 20.7))
+        #expect(read(2.6, at: 21.1))
+        #expect(reading.estimate == nil)
+        // Never above the potential.
+        #expect(reading.headroom(potential: 4) == 4)
+    }
+
     @Test("The temporary switch works only for a test launch")
     func temporarySwitch() {
         let on = LaunchOptions(arguments: ["app", "--library-root", "/tmp/x", "--gain-map-hdr", "on"])
@@ -417,8 +467,8 @@ struct GainMapHDRTests {
         let ours = Pixels(made.image, size: size)
         let theirs = Pixels(system, size: size)
         let stops = log2(ours.mean / theirs.mean)
-        print(String(format: "sample: file headroom %.2f, HDR mean %.3f, system HDR mean %.3f (%+.3f stops)",
-                     made.fileHeadroom, ours.mean, theirs.mean, stops))
+        print(String(format: "sample: file headroom %.2f, ceiling %.2f, HDR mean %.3f, system HDR mean %.3f (%+.3f stops)",
+                     made.fileHeadroom, made.ceiling, ours.mean, theirs.mean, stops))
         #expect(abs(stops) < 0.05)
         let fitted = try #require(try generator.gainMapHDRImage(source: url, stack: .identity, longEdge: 2560,
                                                                 displayHeadroom: 1.5))

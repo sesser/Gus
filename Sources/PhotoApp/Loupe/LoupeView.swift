@@ -85,6 +85,8 @@ struct LoupeCanvas: NSViewRepresentable {
         // auto-advance or the grid all land here.
         _ = model.itemsRevision
         context.coordinator.hdrSetting = model.showsHDR
+        context.coordinator.gainMapSetting = model.showsGainMapsInHDR
+        context.coordinator.debugHeadroom = model.debugDisplayHeadroom
         context.coordinator.show(index: model.focusIndex)
         context.coordinator.showLiveFrame(revision: model.editor.frameRevision, active: model.editor.showsLive)
         context.coordinator.showCrop(model.editor.cropSession, image: model.editor.cropImage)
@@ -172,6 +174,28 @@ final class LoupeController: NSObject {
     var hdrSetting = true {
         didSet { if hdrSetting != oldValue { shownKey = nil } }
     }
+    /// The temporary switch of #282's first stage as last applied
+    /// (`LibraryModel.showsGainMapsInHDR`); changing it reloads the photo.
+    var gainMapSetting = false {
+        didSet { if gainMapSetting != oldValue { shownKey = nil } }
+    }
+    /// The debug script's display headroom as last applied.
+    var debugHeadroom: Float? {
+        didSet { if debugHeadroom != oldValue { followHeadroom() } }
+    }
+    /// The rule of one visit to a gain-map photo in HDR (issue #282, R8):
+    /// once HDR is on screen, no SDR picture replaces it.
+    private var visit = GainMapVisit()
+    /// A gain-map HDR rendition or frame was shown in this visit: only then
+    /// does the visit hold HDR (an HLG photo's live frames stay SDR, R16).
+    private var visitIsGainMap = false
+    /// Renders the settled HDR rendition again when the display's headroom changes (R6).
+    private var refitTask: Task<Void, Never>?
+    private var headroomObserver: (any NSObjectProtocol)?
+    private var headroomTimer: Timer?
+    /// What the window's display can show now (R6); kept across photos,
+    /// forgotten on a move to another screen.
+    private var headroomReading = DisplayHeadroomReading()
     private var neighborTasks: [Task<Void, Never>] = []
     /// A refit before this time animates (`animateNextFit`).
     private var animatesFitUntil = Date.distantPast
@@ -309,12 +333,17 @@ final class LoupeController: NSObject {
         fullTask?.cancel()
         sizeTask?.cancel()
         model.loupeHDRHeadroom = nil
+        model.editor.hdrDisplayHeadroom = nil
         model.editor.follow(nil)
         if let escapeMonitor { NSEvent.removeMonitor(escapeMonitor) }
         escapeMonitor = nil
         neighborTasks.forEach { $0.cancel() }
+        refitTask?.cancel()
+        headroomTimer?.invalidate()
+        headroomTimer = nil
         if let frameObserver { NotificationCenter.default.removeObserver(frameObserver) }
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+        if let headroomObserver { NotificationCenter.default.removeObserver(headroomObserver) }
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -328,7 +357,26 @@ final class LoupeController: NSObject {
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didChangeScreenNotification, object: window, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.reload() }
+            MainActor.assumeIsolated {
+                self?.headroomReading.reset()
+                self?.reload()
+            }
+        }
+        // The display's headroom (issue #282, R6). AppKit posts this when a
+        // screen's current headroom changes (many times a second during a
+        // ramp); a poll every 0.25 s also lets a reading that has stopped
+        // changing settle (`DisplayHeadroomReading`).
+        if headroomObserver == nil {
+            headroomObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.followHeadroom() }
+            }
+        }
+        if headroomTimer == nil {
+            headroomTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.followHeadroom() }
+            }
         }
         reload()
     }
@@ -361,6 +409,11 @@ final class LoupeController: NSObject {
         hdrTask?.cancel()
         fullTask?.cancel()
         sizeTask?.cancel()
+        if !sameVersion {
+            // Another photo, or the same one after a change of a setting or screen: a new visit.
+            beginVisit(versionID: item.versionID)
+        }
+        model.editor.hdrDisplayHeadroom = gainMapHeadroom
 
         let backing = hostView.window?.backingScaleFactor ?? 2
         // The size the full rendition will have, when it is known (asked for
@@ -413,8 +466,18 @@ final class LoupeController: NSObject {
                 self.display(image, as: .preview)
             }
             if hdrAllowed {
+                let gainMapHeadroom = self.gainMapHeadroom
                 hdrTask = Task { [weak self] in
-                    guard let image = try? await previews.hdrImage(for: request, priority: .visible),
+                    // A gain-map photo's HDR version (issue #282), else an HLG, PQ or DNG photo's.
+                    if let gainMapHeadroom,
+                       let image = try? await previews.gainMapHDRImage(for: request, displayHeadroom: gainMapHeadroom,
+                                                                       priority: .visible) {
+                        guard let self, self.shownKey == key else { return }
+                        self.display(image, as: .hdrPreview, gainMap: true)
+                        return
+                    }
+                    guard !Task.isCancelled,
+                          let image = try? await previews.hdrImage(for: request, priority: .visible),
                           let self, self.shownKey == key else { return }
                     self.display(image, as: .hdrPreview)
                 }
@@ -427,6 +490,11 @@ final class LoupeController: NSObject {
     /// Whatever is already decoded: the HDR or SDR preview, or an enlarged thumbnail.
     private func immediateImage(for item: CatalogItem) -> (image: CGImage, rendition: Rendition)? {
         if let request = model.previewRequest(for: item, tier: .preview) {
+            if let headroom = gainMapHeadroom,
+               let image = model.previews.memoryCachedGainMapHDRImage(for: request, displayHeadroom: headroom) {
+                visitIsGainMap = true
+                return (image, .hdrPreview)
+            }
             if hdrAllowed, let image = model.previews.memoryCachedHDRImage(for: request) {
                 return (image, .hdrPreview)
             }
@@ -477,7 +545,9 @@ final class LoupeController: NSObject {
         // A new change: the full rendition just cancelled isn't coming.
         editor.loupeAwaitsFullRendition = false
         rendition = .live
-        if model.loupeHDRHeadroom != nil { model.loupeHDRHeadroom = nil }
+        // A gain-map photo's frames are HDR (issue #282); every other photo's are SDR.
+        let liveHeadroom = (editor.frame?.headroom ?? editor.regionFrame?.headroom).map(shownHeadroom)
+        if model.loupeHDRHeadroom != liveHeadroom { model.loupeHDRHeadroom = liveHeadroom }
         if let regionFrame = editor.regionFrame, editor.loupeViewport != nil {
             showTile(regionFrame)
         } else if imageView.hasTile {
@@ -485,8 +555,13 @@ final class LoupeController: NSObject {
         }
         if let frame = editor.frame,
            LiveFrameRules.wholeFrameGoesOnBase(wholeValues: frame.adjustments, tileValues: editor.regionFrame?.adjustments) {
-            matchFrame(to: frame.image.cgImage, exact: false)
-            imageView.setImage(frame.image.cgImage, extendedRange: false)
+            let isHDR = frame.headroom != nil
+            if isHDR { visitIsGainMap = true }
+            if accept(isHDR ? .hdr : .sdr, isMap: frame.content.isMap, headroom: frame.headroom) {
+                matchFrame(to: frame.image.cgImage, exact: false)
+                // The layer keeps its extended range under a map while the visit holds HDR (design §6.2).
+                setImage(frame.image.cgImage, extendedRange: isHDR || holdsHDR)
+            }
         }
         updateFiltering()
     }
@@ -494,10 +569,13 @@ final class LoupeController: NSObject {
     /// The sharp frame over the photo. Sized to one output pixel per view
     /// pixel at 100% (the size the full rendition gives the view).
     private func showTile(_ frame: LiveRegionRenderer.Frame) {
+        // An SDR tile never covers a gain-map photo's HDR picture (issue #282, R8).
+        if frame.headroom == nil, holdsHDR { return }
         matchFrame(toOutput: frame.outputSize)
         let size = frame.outputSize
         imageView.setTile(frame.image.cgImage, unit: CGRect(x: frame.region.minX / size.width, y: frame.region.minY / size.height,
-                                                            width: frame.region.width / size.width, height: frame.region.height / size.height))
+                                                            width: frame.region.width / size.width, height: frame.region.height / size.height),
+                          extendedRange: frame.headroom != nil)
     }
 
     /// The selected mask's handles over the photo; reading the editor here
@@ -606,13 +684,22 @@ final class LoupeController: NSObject {
         updateLoupeViewport()
     }
 
-    /// Shows `image` unless something more detailed is already showing.
-    private func display(_ image: CGImage?, as kind: Rendition) {
+    /// Shows `image` unless something more detailed is already showing, or
+    /// it is SDR and the visit holds a gain-map photo's HDR version (issue
+    /// #282, R8). `gainMap`: `image` is a gain-map photo's HDR version.
+    private func display(_ image: CGImage?, as kind: Rendition, gainMap: Bool = false) {
         guard kind >= rendition else { return }
+        if gainMap { visitIsGainMap = true }
+        if image != nil, !accept(kind.isHDR ? .hdr : .sdr, headroom: kind.isHDR ? image?.contentHeadroom : nil) {
+            // The HDR picture stays; a full rendition refused here is not coming.
+            if kind.isFullResolution { model.editor.loupeAwaitsFullRendition = false }
+            return
+        }
         rendition = kind
         matchFrame(to: image, exact: kind == .full || kind == .hdrFull)
-        imageView.setImage(image, extendedRange: kind.isHDR)
-        let headroom = kind.isHDR ? image?.contentHeadroom : nil
+        setImage(image, extendedRange: kind.isHDR)
+        let headroom: Float? = kind.isHDR
+            ? image.map { visitIsGainMap ? shownHeadroom($0.contentHeadroom) : $0.contentHeadroom } : nil
         if model.loupeHDRHeadroom != headroom { model.loupeHDRHeadroom = headroom }
         updateFiltering()
         if kind == .full || kind == .hdrFull {
@@ -638,11 +725,130 @@ final class LoupeController: NSObject {
         return screen.maximumPotentialExtendedDynamicRangeColorComponentValue > 1
     }
 
+    // MARK: Gain-map photos in HDR (issue #282, first stage)
+
+    /// The headroom a gain-map photo's HDR version is fitted to now, nil
+    /// when gain-map photos are not shown in HDR: the temporary switch off,
+    /// the View setting off, or a display without extended range.
+    ///
+    /// What the display can give now, learned from the screen's settled
+    /// current reading while the layer asks for its full extended range
+    /// (`DisplayHeadroomReading`); the potential headroom until then. The
+    /// debug script's `hdr display` overrides it.
+    private var gainMapHeadroom: Float? {
+        guard gainMapSetting, hdrAllowed, let screen = hostView.window?.screen else { return nil }
+        if let override = model.debugDisplayHeadroom { return override }
+        return headroomReading.headroom(potential: Float(screen.maximumPotentialExtendedDynamicRangeColorComponentValue))
+    }
+
+    /// The visit shows a gain-map photo's HDR version and holds it (R8).
+    private var holdsHDR: Bool {
+        gainMapHeadroom != nil && visitIsGainMap && visit.shown == .hdr
+    }
+
+    private func beginVisit(versionID: Int64) {
+        visit.begin(versionID: versionID)
+        visitIsGainMap = false
+        refitTask?.cancel()
+        refitTask = nil
+        model.loupeGainMapReport = LoupeGainMapReport()
+        report()
+    }
+
+    /// Whether a picture of `version` may go on screen in this visit; records it.
+    private func accept(_ version: ShownVersion, isMap: Bool = false, headroom: Float?) -> Bool {
+        let before = visit.shown
+        let accepted = visit.accept(version, isMap: isMap, wantsHDR: gainMapHeadroom != nil && visitIsGainMap,
+                                    headroom: headroom)
+        if accepted, !isMap, before != version { model.loupeGainMapReport.shownVersions.append(version) }
+        report()
+        return accepted
+    }
+
+    /// The shown photo's gain-map headroom and ceiling, once rendered.
+    private var shownGainMap: (file: Float, ceiling: Float)? {
+        guard let index = shownIndex, model.items.indices.contains(index),
+              let request = model.previewRequest(for: model.items[index], tier: .preview) else { return nil }
+        return model.previews.gainMapHeadroom(for: request)
+    }
+
+    private func report() {
+        var report = model.loupeGainMapReport
+        report.wantsHDR = gainMapHeadroom != nil
+        report.isGainMap = visitIsGainMap
+        report.visit = visit
+        report.displayHeadroom = gainMapHeadroom
+        report.settledReading = headroomReading.estimate
+        report.requestedHeadroom = headroomReading.request
+        report.fileHeadroom = shownGainMap?.file
+        model.loupeGainMapReport = report
+    }
+
+    /// The headroom the caption's HDR badge names for a gain-map picture
+    /// tagged `tag`: the file's, where the display can show more.
+    private func shownHeadroom(_ tag: Float) -> Float {
+        min(tag, shownGainMap?.file ?? tag)
+    }
+
+    /// While the image layer shows a gain-map photo's HDR version, it asks
+    /// the display for the photo's ceiling (`GainMap.ceiling`), whatever the
+    /// picture's tag: the screen's reading then settles at what the display
+    /// can give up to that, so the loupe can follow it both ways
+    /// (`DisplayHeadroomReading`).
+    private func setImage(_ image: CGImage?, extendedRange: Bool) {
+        let request = extendedRange && visitIsGainMap && gainMapSetting ? shownGainMap?.ceiling : nil
+        imageView.setImage(image, extendedRange: extendedRange, contentsHeadroom: request)
+        headroomReading.setRequest(request, at: ProcessInfo.processInfo.systemUptime)
+    }
+
+    /// Follows the display's headroom (R6): reads the screen; live frames
+    /// take a new value at once, and a settled HDR rendition on screen is
+    /// rendered again for it, one render at a time, the latest value
+    /// winning. Not a change of version. When the display or setting stops
+    /// allowing HDR, the photo is loaded again (SDR).
+    private func followHeadroom() {
+        if let screen = hostView.window?.screen {
+            _ = headroomReading.read(Float(screen.maximumExtendedDynamicRangeColorComponentValue),
+                                     at: ProcessInfo.processInfo.systemUptime)
+        }
+        let wanted = gainMapHeadroom
+        let editor = model.editor
+        if let current = editor.hdrDisplayHeadroom, let wanted {
+            if GainMapHeadroom.differs(current, wanted) { editor.hdrDisplayHeadroom = wanted }
+        } else if editor.hdrDisplayHeadroom != wanted {
+            editor.hdrDisplayHeadroom = wanted
+        }
+        report()
+        guard let wanted else {
+            if visitIsGainMap, visit.shown == .hdr { reload() }
+            return
+        }
+        guard visitIsGainMap, rendition.isHDR, refitTask == nil, let rendered = visit.renderedHeadroom,
+              let ceiling = shownGainMap?.ceiling,
+              GainMapHeadroom.needsRender(rendered: rendered, display: wanted, ceiling: ceiling),
+              let index = shownIndex, model.items.indices.contains(index),
+              let request = model.previewRequest(for: model.items[index], tier: .preview) else { return }
+        let previews = model.previews
+        let full = rendition == .hdrFull
+        let key = shownKey
+        refitTask = Task { [weak self] in
+            let image = try? await previews.gainMapHDRImage(for: request, displayHeadroom: wanted, fullResolution: full)
+            guard !Task.isCancelled, let self else { return }
+            self.refitTask = nil
+            guard let image, self.shownKey == key, self.rendition == (full ? .hdrFull : .hdrPreview) else { return }
+            self.model.loupeGainMapReport.refits += 1
+            self.display(image, as: full ? .hdrFull : .hdrPreview, gainMap: true)
+            // The reading may have moved on while this rendered.
+            self.followHeadroom()
+        }
+    }
+
     private func preloadNeighbors(of index: Int) {
         neighborTasks.forEach { $0.cancel() }
         neighborTasks = []
         let previews = model.previews
         let hdr = hdrAllowed
+        let gainMapHeadroom = self.gainMapHeadroom
         for neighbor in [index + 1, index - 1, index + 2] where model.items.indices.contains(neighbor) {
             guard let request = model.previewRequest(for: model.items[neighbor], tier: .preview) else { continue }
             let rendersHDR = hdr && neighbor != index + 2
@@ -653,6 +859,13 @@ final class LoupeController: NSObject {
                 guard !Task.isCancelled else { return }
                 // Its size too, so arriving there sizes the photo right away.
                 _ = await previews.outputSize(for: request)
+                guard !Task.isCancelled else { return }
+                // A gain-map photo's HDR version (issue #282), else an HLG, PQ or DNG photo's.
+                if rendersHDR, let gainMapHeadroom,
+                   (try? await previews.gainMapHDRImage(for: request, displayHeadroom: gainMapHeadroom,
+                                                        priority: .prefetch)) != nil {
+                    return
+                }
                 guard !Task.isCancelled else { return }
                 if rendersHDR { _ = try? await previews.hdrImage(for: request, priority: .prefetch) }
             })
@@ -671,6 +884,7 @@ final class LoupeController: NSObject {
         }
         let previews = model.previews
         let hdr = hdrAllowed
+        let gainMapHeadroom = self.gainMapHeadroom
         let key = shownKey
         fullTask?.cancel()
         fullLoadGeneration += 1
@@ -679,7 +893,14 @@ final class LoupeController: NSObject {
         fullTask = Task { [weak self] in
             // The last load to finish, however it ended, lets the texture's decode start.
             defer { if let self, self.fullLoadGeneration == generation { self.model.editor.loupeLoadsFullRendition = false } }
-            if hdr, let image = try? await previews.hdrImage(for: request, fullResolution: true) {
+            if let gainMapHeadroom,
+               let image = try? await previews.gainMapHDRImage(for: request, displayHeadroom: gainMapHeadroom,
+                                                               fullResolution: true) {
+                guard let self, self.shownKey == key else { return }
+                self.display(image, as: .hdrFull, gainMap: true)
+                return
+            }
+            if hdr, !Task.isCancelled, let image = try? await previews.hdrImage(for: request, fullResolution: true) {
                 guard let self, self.shownKey == key else { return }
                 self.display(image, as: .hdrFull)
                 return
@@ -1341,7 +1562,7 @@ final class LoupeImageView: NSView {
     /// Shows `image` over the part of the photo at `unit` (unit coordinates,
     /// origin at the top left); nil hides it. Below every other subview, so
     /// the mask handles stay on top.
-    func setTile(_ image: CGImage?, unit: CGRect) {
+    func setTile(_ image: CGImage?, unit: CGRect, extendedRange: Bool = false) {
         guard let image else {
             tileLayer.contents = nil
             tileLayer.isHidden = true
@@ -1349,6 +1570,10 @@ final class LoupeImageView: NSView {
         }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        // A gain-map photo's HDR tile (issue #282); macOS 26 and later only (R18).
+        if #available(macOS 26.0, *) {
+            tileLayer.preferredDynamicRange = extendedRange ? .high : .standard
+        }
         let size = bounds.size
         // A view's layer has its origin at the bottom left unless the view is flipped.
         let y = (layer?.isGeometryFlipped ?? false) ? unit.minY * size.height : (1 - unit.maxY) * size.height
@@ -1373,13 +1598,20 @@ final class LoupeImageView: NSView {
 
     /// `extendedRange` lets the layer show values above SDR white; it costs power,
     /// so it is only on while an HDR image is shown.
-    func setImage(_ image: CGImage?, extendedRange: Bool = false) {
+    ///
+    /// `contentsHeadroom` (a gain-map photo's HDR version, issue #282) is
+    /// the headroom the layer asks the display for, above its image's tag:
+    /// with the tag alone the screen grants only what the tag asks for, and
+    /// its readings then say nothing of what more it could show (status.md).
+    /// Nil asks for the image's tag, as before. macOS 26 and later (R18).
+    func setImage(_ image: CGImage?, extendedRange: Bool = false, contentsHeadroom: Float? = nil) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         layer?.contents = image
         if let layer {
             if #available(macOS 26.0, *) {
                 layer.preferredDynamicRange = extendedRange ? .high : .standard
+                layer.contentsHeadroom = CGFloat(contentsHeadroom ?? 0)
             } else {
                 layer.wantsExtendedDynamicRangeContent = extendedRange
             }

@@ -85,7 +85,7 @@ public final class PreviewService: Sendable {
     /// Gain-map photos' HDR versions (issue #282), beside the HDR lane's.
     private let gainMapLane: WorkLane<GainMapRendition?>
     /// The HDR headroom of gain-map masters rendered here, by content hash.
-    private let gainMapHeadrooms = Mutex<[String: Float]>([:])
+    private let gainMapHeadrooms = Mutex<[String: (file: Float, ceiling: Float)]>([:])
     /// HDR requests whose master turned out to have no HDR content.
     private let standardRange = Mutex<Set<String>>([])
     /// The full-resolution rendition's size per request (`outputSize(for:)`),
@@ -337,10 +337,10 @@ public final class PreviewService: Sendable {
 
     // MARK: Gain-map photos in HDR (issue #282)
 
-    /// The file's HDR headroom for the request's master, once a gain-map
-    /// rendition of it was made here (nil: not known yet, or no gain map):
-    /// for what the loupe reports (the debug script's `print hdr`).
-    public func gainMapHeadroom(for request: PreviewRequest) -> Float? {
+    /// The file's HDR headroom and ceiling (`GainMap`) for the request's
+    /// master, once a gain-map rendition of it was made here (nil: not known
+    /// yet, or no gain map).
+    public func gainMapHeadroom(for request: PreviewRequest) -> (file: Float, ceiling: Float)? {
         gainMapHeadrooms.withLock { $0[request.key.contentHash] }
     }
 
@@ -350,8 +350,9 @@ public final class PreviewService: Sendable {
     public func memoryCachedGainMapHDRImage(for request: PreviewRequest, displayHeadroom: Float,
                                             fullResolution: Bool = false) -> CGImage? {
         let memoryKey = Self.gainMapMemoryKey(request, fullResolution: fullResolution)
-        guard let image = memory.image(forKey: memoryKey),
-              !GainMapHeadroom.needsRender(rendered: image.contentHeadroom, display: displayHeadroom)
+        guard let known = gainMapHeadroom(for: request), let image = memory.image(forKey: memoryKey),
+              !GainMapHeadroom.needsRender(rendered: image.contentHeadroom, display: displayHeadroom,
+                                           ceiling: known.ceiling)
         else { return nil }
         return image
     }
@@ -383,13 +384,13 @@ public final class PreviewService: Sendable {
             try Task.checkCancellation()
             return try generator.gainMapHDRImage(source: source, stack: stack, longEdge: longEdge,
                                                  displayHeadroom: displayHeadroom)
-                .map { GainMapRendition(image: DecodedImage(cgImage: $0.image), fileHeadroom: $0.fileHeadroom) }
+                .map { GainMapRendition(image: DecodedImage(cgImage: $0.image), file: $0.fileHeadroom, ceiling: $0.ceiling) }
         }
         guard let made else {
             standardRange.withLock { _ = $0.insert(memoryKey) }
             return nil
         }
-        rememberGainMapHeadroom(made.fileHeadroom, for: request)
+        rememberGainMapHeadroom((made.file, made.ceiling), for: request)
         if fullResolution {
             memory.insertFullResolution(made.image, forKey: memoryKey)
         } else {
@@ -401,12 +402,13 @@ public final class PreviewService: Sendable {
     /// Puts a gain-map photo's HDR frame rendered elsewhere (the loupe's
     /// live edit, at the request's tier size) in memory as its HDR version
     /// for the request, so the loupe shows it again with no render.
-    public func insertGainMapHDRIntoMemory(_ image: CGImage, fileHeadroom: Float, for request: PreviewRequest) {
-        rememberGainMapHeadroom(fileHeadroom, for: request)
+    public func insertGainMapHDRIntoMemory(_ image: CGImage, fileHeadroom: Float, ceiling: Float,
+                                           for request: PreviewRequest) {
+        rememberGainMapHeadroom((fileHeadroom, ceiling), for: request)
         memory.insert(DecodedImage(cgImage: image), forKey: Self.gainMapMemoryKey(request, fullResolution: false))
     }
 
-    private func rememberGainMapHeadroom(_ headroom: Float, for request: PreviewRequest) {
+    private func rememberGainMapHeadroom(_ headroom: (file: Float, ceiling: Float), for request: PreviewRequest) {
         gainMapHeadrooms.withLock { headrooms in
             if headrooms.count >= Self.outputSizeLimit { headrooms.removeAll(keepingCapacity: true) }
             headrooms[request.key.contentHash] = headroom
@@ -415,7 +417,8 @@ public final class PreviewService: Sendable {
 
     private struct GainMapRendition: Sendable {
         var image: DecodedImage
-        var fileHeadroom: Float
+        var file: Float
+        var ceiling: Float
     }
 
     private static func gainMapMemoryKey(_ request: PreviewRequest, fullResolution: Bool) -> String {

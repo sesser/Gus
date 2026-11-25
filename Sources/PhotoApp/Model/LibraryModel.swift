@@ -573,6 +573,19 @@ final class LibraryModel {
     /// Headroom of the HDR image the loupe is showing (brightest value relative to
     /// SDR white), or nil while it shows an SDR image.
     var loupeHDRHeadroom: Float?
+    /// TEMPORARY, issue #282's first stage: every gain-map photo is shown and
+    /// edited in HDR, for the owner's early check by eye, until the per-photo
+    /// choice exists. Only a test launch turns it on (`--gain-map-hdr on`,
+    /// `TemporaryGainMapHDR`); remove it with that launch option when the
+    /// stored choice replaces it (docs/features/gain-map-hdr-editing/status.md).
+    var showsGainMapsInHDR = TemporaryGainMapHDR.isOn(bundleIdentifier: Bundle.main.bundleIdentifier,
+                                                      options: .current)
+    /// The debug script's `hdr display`: the display headroom the loupe
+    /// takes in place of the screen's reading, nil for the screen's.
+    var debugDisplayHeadroom: Float?
+    /// What the loupe shows of a gain-map photo in HDR, for the debug
+    /// script's `print hdr` (issue #282).
+    @ObservationIgnored var loupeGainMapReport = LoupeGainMapReport()
     /// One item per RAW+JPEG pair instead of both files.
     var groupPairs: Bool {
         didSet {
