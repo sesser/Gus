@@ -239,7 +239,7 @@ struct LibraryMenuState: Equatable {
         blackAndWhiteApplies = canEditLoupePhoto && model.editor.adjustments.blackAndWhiteApplies
         blackAndWhiteQuickSet = canEditLoupePhoto ? model.editor.blackAndWhiteQuickSet : nil
         blackAndWhiteHasNoFilter = canEditLoupePhoto && model.editor.blackAndWhiteHasNoFilter
-        canSetHDR = canEditLoupePhoto && !isCropping && !model.isComparing && model.editor.hasGainMap
+        canSetHDR = canEditLoupePhoto && !isCropping && !model.isComparing && model.editor.canSetHDR
         hdrIsOn = canSetHDR && model.editor.adjustments.hdrIsOn
         canResetAll = model.mode == .grid ? targetsIncludePhoto
             : canEditLoupePhoto && !isCropping && !model.editor.adjustments.isDefault

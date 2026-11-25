@@ -823,10 +823,21 @@ final class AdjustmentEditor {
         }
     }
 
+    /// The photo's HDR choice can be changed here now (issue #282, design
+    /// §2.1, §2.2, §5 reason 1): a gain-map photo, not cropping, and its
+    /// original online. A photo whose volume goes away while it is open
+    /// keeps its Adjust tab, but not a way to change the choice (QA Q2);
+    /// it comes back with the volume.
+    var canSetHDR: Bool {
+        guard hasGainMap, cropSession == nil, let item, let library else { return false }
+        return !library.isOffline(item)
+    }
+
     /// Turns the photo's HDR choice on or off, one undo step and one History
-    /// entry (issue #282, design §2.3). Only for a gain-map photo.
+    /// entry (issue #282, design §2.3). Only for a gain-map photo whose
+    /// original is online (`canSetHDR`).
     func setHDR(_ isOn: Bool) {
-        guard hasGainMap, cropSession == nil, adjustments.hdrIsOn != isOn else { return }
+        guard canSetHDR, adjustments.hdrIsOn != isOn else { return }
         change(isOn ? HDRText.turnOn
                     : HDRText.turnOff,
                phase: .committed) { $0.hdrIsOn = isOn }

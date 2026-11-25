@@ -1511,6 +1511,7 @@ enum DebugScript {
             let tile = model.editor.regionFrame.map { $0.headroom.map { String(format: "hdr %.2f", $0) } ?? "sdr" } ?? "none"
             let item = model.focusedItem
             print("debug-script: gainmap has choice \(model.editor.hasGainMap) choice \(model.editor.adjustments.hdrIsOn)"
+                  + " can set \(model.editor.canSetHDR)"
                   + " item \(item?.hdr ?? false) wants \(report.wantsHDR)"
                   + " gain-map \(report.isGainMap) shown \(report.visit.shown?.rawValue ?? "none")"
                   + " changes \(report.visit.changes) versions \(report.shownVersions.map(\.rawValue).joined(separator: ","))"
