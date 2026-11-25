@@ -199,6 +199,84 @@ struct GainMapAdjustmentTests {
         }
     }
 
+    // MARK: AC8: live frames and the settled render, for every adjustment (QA Q5)
+
+    /// One stack the loupe can show while a change is in progress.
+    struct LiveCase: Sendable, CustomStringConvertible {
+        var name: String
+        var apply: @Sendable (inout Adjustments) -> Void
+        var description: String { name }
+    }
+
+    /// Every adjustment's strong value (`cases`), the identity table, and
+    /// the edits that move picture content: crop with a turn and Straighten,
+    /// Distortion, a healed spot.
+    static let liveCases: [LiveCase] = cases.map { LiveCase(name: $0.name, apply: $0.strong) } + [
+        LiveCase(name: "identity look-up table") { $0.lookTable.identifier = identityTable; $0.lookTable.intensity = 100 },
+        LiveCase(name: "crop, turn, straighten") {
+            $0.crop = Crop(rect: CropRect(x: 0.1, y: 0.15, width: 0.6, height: 0.5), quarterTurns: 1, angle: 3)
+        },
+        LiveCase(name: "distortion") { $0.distortion = LensDistortion(isOn: true, source: .manual, amount: 60) },
+        LiveCase(name: "spot") {
+            $0.spots.spots = [Spot(mode: .heal, center: MaskPoint(x: 0.25, y: 0.15), size: 0.06,
+                                   source: MaskPoint(x: 0.25, y: 0.75), feather: 20, opacity: 100)]
+        },
+    ]
+
+    /// Mean brightness of two pictures, and of each cell of a 6 × 4 grid, in stops.
+    static func difference(_ first: Pixels, _ second: Pixels) -> (mean: Double, worstCell: Double) {
+        let cells = zip(first.cells(columns: 6, rows: 4), second.cells(columns: 6, rows: 4))
+            .filter { $0.1 > 0.005 }
+            .map { abs(log2(Double($0.0 / $0.1))) }
+        return (abs(log2(Double(first.mean / second.mean))), cells.max() ?? 0)
+    }
+
+    @Test("AC8: for every adjustment, the live HDR frame during a change and the render after it agree, at fit and at 100%",
+          arguments: liveCases, kinds)
+    func liveMatchesSettledForEveryAdjustment(_ live: LiveCase, kind: HDRTestImages.GainMapKind) async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: "live.heic")
+            try HDRTestImages.writePatternedGainMap(to: url, width: 1200, height: 900, seed: 2843, orientation: 6, kind: kind)
+            let generator = PreviewGenerator(renderer: AdjustmentRenderer(lookTables: GoldenCase.lookTables))
+            var values = Adjustments()
+            live.apply(&values)
+
+            // At fit: the frames a drag shows (interactive, drafts allowed) and the last one after it.
+            let session = LiveRenderSession(source: url, generator: generator, longEdge: 800, colorSpace: nil)
+            let settled = try #require(try generator.gainMapHDRImage(source: url, stack: values.editStack, longEdge: 800,
+                                                                     displayHeadroom: 2))
+            let still = Pixels(settled.image)
+            // A frame during a drag may be a draft (soft, R9), so it is held to AC8's brightness match with
+            // room for softness (measured on macOS 27.2: at most 0.0042 stops of mean, 0.027 in a cell); the
+            // frame at the settled size much closer (0.0015, 0.002).
+            for (interactive, meanLimit, cellLimit) in [(true, 0.01, 0.05), (false, 0.005, 0.02)] {
+                let frame = try await session.render(values, interactive: interactive, hdrHeadroom: 2)
+                #expect(frame.headroom == settled.image.contentHeadroom, "\(live) \(kind)")
+                let shown = Pixels(frame.image.cgImage, size: CGSize(width: still.width, height: still.height))
+                let (mean, worst) = Self.difference(shown, still)
+                #expect(mean < meanLimit, "\(live) \(kind) at fit, interactive \(interactive): mean \(mean) stops")
+                #expect(worst < cellLimit, "\(live) \(kind) at fit, interactive \(interactive): worst cell \(worst) stops")
+            }
+
+            // At 100%: a region frame and the same part of the full-resolution render.
+            let regions = LiveRegionRenderer(source: url, generator: generator, colorSpace: nil)
+            try await regions.prepare(values)
+            let tile = try await regions.render(values, unit: CGRect(x: 0.5, y: 0.5, width: 0.5, height: 0.5), hdrHeadroom: 1.8)
+            #expect(tile.headroom == 1.8, "\(live) \(kind)")
+            let full = try #require(try generator.gainMapHDRImage(source: url, stack: values.editStack, longEdge: nil,
+                                                                  displayHeadroom: 1.8))
+            // The bottom-right quarter of the photo as shown (Core Image's y axis points up).
+            let whole = CIImage(cgImage: full.image)
+            let quarter = whole.cropped(to: CGRect(x: whole.extent.width / 2, y: 0,
+                                                   width: whole.extent.width / 2, height: whole.extent.height / 2))
+            let region = Pixels(tile.image.cgImage)
+            let (mean, worst) = Self.difference(region, Pixels(quarter, size: CGSize(width: region.width, height: region.height)))
+            // Measured: at most 0.0015 stops of mean, 0.0021 in a cell.
+            #expect(mean < 0.005, "\(live) \(kind) at 100%: mean \(mean) stops")
+            #expect(worst < 0.02, "\(live) \(kind) at 100%: worst cell \(worst) stops")
+        }
+    }
+
     // MARK: AC17: the brightening follows Distortion and spots
 
     /// The system's HDR decode (the gain map baked into the picture) taken
