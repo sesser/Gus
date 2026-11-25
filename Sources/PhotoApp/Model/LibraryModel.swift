@@ -530,6 +530,8 @@ final class LibraryModel {
     var comparisonHDRHeadroom: [ComparisonSide: Float] = [:]
     /// Each comparison pane's version badge for a gain-map photo (issue #282, design §9).
     var comparisonHDRStatus: [ComparisonSide: HDRVersionBadge] = [:]
+    /// Panes whose HDR version has been loading for more than 0.5 s: their caption's spinner (design §4, review F4).
+    var comparisonHDRSpinner: Set<ComparisonSide> = []
     /// The inspector's tab, remembered separately for the grid and the loupe.
     var inspectorTab: InspectorTab {
         get { mode == .loupe ? loupeInspectorTab : gridInspectorTab }
@@ -616,6 +618,11 @@ final class LibraryModel {
     var debugDisplayHeadroom: Float?
     /// The debug script's `hdr display sdr`: the display reports no extended range.
     var debugNoExtendedRange = false
+    /// The debug script's `hdr display flat`: the screen stops reporting
+    /// extended range in place, with no screen change or View setting
+    /// change to reload the loupe (review F6); read only where the screen's
+    /// potential is (`@ObservationIgnored`, as the screen's own is).
+    @ObservationIgnored var debugFlatScreen = false
     /// The debug script's `hdr fail on`: the next HDR versions of gain-map photos fail.
     @ObservationIgnored var debugFailsGainMapHDR = false
     /// What the loupe shows of a gain-map photo in HDR, for the debug
@@ -1020,6 +1027,7 @@ final class LibraryModel {
             comparison = nil
             comparisonHDRHeadroom = [:]
             comparisonHDRStatus = [:]
+            comparisonHDRSpinner = []
             return .ended(remaining: remaining)
         }
     }

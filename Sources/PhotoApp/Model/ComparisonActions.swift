@@ -61,6 +61,7 @@ extension LibraryModel {
             comparisonLeaving = nil
             comparisonHDRHeadroom = [:]
         comparisonHDRStatus = [:]
+        comparisonHDRSpinner = []
             comparison = state
             rememberComparison(state)
             selectComparison(state)
@@ -77,6 +78,7 @@ extension LibraryModel {
         comparison = nil
         comparisonHDRHeadroom = [:]
         comparisonHDRStatus = [:]
+        comparisonHDRSpinner = []
         comparisonDidEnd()
         announceLoupePhoto()
     }
@@ -90,6 +92,7 @@ extension LibraryModel {
         comparisonLeaving = nil
         comparisonHDRHeadroom = [:]
         comparisonHDRStatus = [:]
+        comparisonHDRSpinner = []
         if wasComparing { comparisonDidEnd() }
     }
 
@@ -152,6 +155,7 @@ extension LibraryModel {
         comparison = state
         comparisonHDRHeadroom[state.active] = nil
         comparisonHDRStatus[state.active] = nil
+        comparisonHDRSpinner.remove(state.active)
         rememberComparison(state)
         selectComparison(state)
         if announces {

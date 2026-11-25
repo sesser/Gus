@@ -190,6 +190,8 @@ final class LoupeController: NSObject {
     /// A gain-map HDR rendition or frame was shown in this visit: only then
     /// does the visit hold HDR (an HLG photo's live frames stay SDR, R16).
     private var visitIsGainMap = false
+    /// HDR was possible for the shown photo when the visit began (`possibleHeadroom`).
+    private var visitHDRPossible = false
     /// The HDR version couldn't be made in this visit: SDR for the rest of
     /// it, never flipping back (design §5, reason 4).
     private var visitFailed = false
@@ -436,6 +438,7 @@ final class LoupeController: NSObject {
         model.editor.follow(item)
         let key = ShownKey(versionID: item.versionID, editStackHash: item.editStackHash, hdrChoice: hdrChoice(for: item))
         guard key != shownKey || reloadsSameKey else {
+            if reloadIfHDRPossibilityChanged() { return }
             updateHDRStatus()
             return
         }
@@ -453,7 +456,7 @@ final class LoupeController: NSObject {
             // Another photo, the same one after a change of a setting or screen, or of its choice: a new visit.
             beginVisit(versionID: item.versionID)
         }
-        model.editor.hdrDisplayHeadroom = visitFailed ? nil : allowedHeadroom
+        model.editor.hdrDisplayHeadroom = editorHeadroom
 
         let backing = hostView.window?.backingScaleFactor ?? 2
         // The size the full rendition will have, when it is known (asked for
@@ -515,14 +518,15 @@ final class LoupeController: NSObject {
                     // A gain-map photo with its HDR choice on (issue #282): its HDR version or a failure,
                     // never an HLG, PQ or DNG rendition.
                     if let gainMapHeadroom {
-                        let image = failsOnPurpose ? nil
-                            : try? await previews.gainMapHDRImage(for: request, displayHeadroom: gainMapHeadroom,
-                                                                  priority: .visible)
+                        let outcome = failsOnPurpose ? .failed
+                            : await previews.gainMapHDROutcome(for: request, displayHeadroom: gainMapHeadroom,
+                                                               priority: .visible)
                         guard !Task.isCancelled, let self, self.shownKey == key else { return }
-                        if let image {
-                            self.display(image, as: .hdrPreview, gainMap: true)
-                        } else {
-                            self.failVisit()
+                        switch outcome {
+                        case .image(let image): self.display(image, as: .hdrPreview, gainMap: true)
+                        // Only a real error is a failure (code review C1, C3); what replaced the request asks again.
+                        case .failed: self.failVisit()
+                        case .superseded: break
                         }
                         return
                     }
@@ -588,6 +592,15 @@ final class LoupeController: NSObject {
             return
         }
         guard revision != shownFrameRevision else { return }
+        // A frame rendered for the other HDR choice (the last one before Turn On or Turn Off HDR, its
+        // undo or a revert, still up while the new frame renders), or an HDR frame once HDR can't be
+        // shown (View ▸ Hide HDR, then an edit), never goes on screen and doesn't stop the renditions
+        // loading for what is shown now (review F3). Its successor follows.
+        let choice = shownKey?.hdrChoice ?? false
+        let takesHDR = gainMapHeadroom != nil
+        let frameFits = editor.frame.map { $0.adjustments.hdrIsOn == choice && ($0.headroom == nil || takesHDR) } ?? false
+        let tileFits = editor.regionFrame.map { $0.adjustments.hdrIsOn == choice && ($0.headroom == nil || takesHDR) } ?? false
+        guard frameFits || tileFits else { return }
         shownFrameRevision = revision
         loadTask?.cancel()
         hdrTask?.cancel()
@@ -598,12 +611,12 @@ final class LoupeController: NSObject {
         // Live frames of other files are SDR: the HLG, PQ and DNG badge goes (R16). A gain-map
         // photo's version badge follows the frame (issue #282).
         if model.loupeHDRHeadroom != nil { model.loupeHDRHeadroom = nil }
-        if let regionFrame = editor.regionFrame, editor.loupeViewport != nil {
+        if let regionFrame = editor.regionFrame, editor.loupeViewport != nil, tileFits {
             showTile(regionFrame)
         } else if imageView.hasTile {
             imageView.setTile(nil, unit: .zero)
         }
-        if let frame = editor.frame,
+        if let frame = editor.frame, frameFits,
            LiveFrameRules.wholeFrameGoesOnBase(wholeValues: frame.adjustments, tileValues: editor.regionFrame?.adjustments) {
             let isHDR = frame.headroom != nil
             if isHDR { visitIsGainMap = true }
@@ -771,7 +784,8 @@ final class LoupeController: NSObject {
     /// HDR is shown when the setting is on and the window's display has extended
     /// dynamic range (its potential, not the headroom available right now).
     private var hdrAllowed: Bool {
-        guard model.showsHDR, !model.debugNoExtendedRange, let screen = hostView.window?.screen else { return false }
+        guard model.showsHDR, !model.debugNoExtendedRange, !model.debugFlatScreen,
+              let screen = hostView.window?.screen else { return false }
         return screen.maximumPotentialExtendedDynamicRangeColorComponentValue > 1
     }
 
@@ -799,8 +813,40 @@ final class LoupeController: NSObject {
     /// The headroom the shown gain-map photo's HDR version is fitted to,
     /// nil when it is shown SDR: its choice off, a reason of design §5.
     private var gainMapHeadroom: Float? {
-        guard shownKey?.hdrChoice == true, !visitFailed else { return nil }
+        visitFailed ? nil : possibleHeadroom
+    }
+
+    /// `gainMapHeadroom` before a failure: nil while the choice is off, the
+    /// original is offline (code review C1), or the screen or View setting
+    /// allows no HDR. A visit that began with it set, or without, ends when
+    /// that changes (`reloadIfHDRPossibilityChanged`).
+    private var possibleHeadroom: Float? {
+        guard shownKey?.hdrChoice == true, !shownIsOffline else { return nil }
         return allowedHeadroom
+    }
+
+    /// What the editor's live frames are fitted to: the allowed headroom
+    /// whatever the choice (turning it on then needs no reload), nil after a
+    /// failure or while the original is offline.
+    private var editorHeadroom: Float? {
+        visitFailed || shownIsOffline ? nil : allowedHeadroom
+    }
+
+    private var shownIsOffline: Bool {
+        guard let index = shownIndex, model.items.indices.contains(index) else { return false }
+        return model.isOffline(model.items[index])
+    }
+
+    /// Starts another visit when HDR became possible or impossible for the
+    /// shown photo without anything else asking for a reload: its original
+    /// went offline or came back (code review C1), or its screen started or
+    /// stopped reporting extended range in place (review F6). True when it
+    /// reloaded.
+    @discardableResult
+    private func reloadIfHDRPossibilityChanged() -> Bool {
+        guard shownKey != nil, hostView.window != nil, (possibleHeadroom != nil) != visitHDRPossible else { return false }
+        reload()
+        return true
     }
 
     /// The visit shows a gain-map photo's HDR version and holds it (R8).
@@ -812,6 +858,7 @@ final class LoupeController: NSObject {
         visit.begin(versionID: versionID)
         visitIsGainMap = false
         visitFailed = false
+        visitHDRPossible = possibleHeadroom != nil
         refitTask?.cancel()
         refitTask = nil
         model.loupeGainMapReport = LoupeGainMapReport()
@@ -821,13 +868,21 @@ final class LoupeController: NSObject {
 
     /// The HDR version could not be made: SDR for the rest of the visit,
     /// live frames included (design §5, reason 4). The SDR preview loading
-    /// beside it, or the one on screen, stays.
+    /// beside it, or the one on screen, stays; an HDR picture already on
+    /// screen gives way to the SDR renditions, so the badge never names a
+    /// version that isn't shown (review F7). Live frames turn SDR through the
+    /// editor.
     private func failVisit() {
         guard !visitFailed else { return }
         visitFailed = true
         model.loupeGainMapReport.failures += 1
         model.editor.hdrDisplayHeadroom = nil
         report()
+        if visit.shown == .hdr, rendition != .live, let index = shownIndex {
+            rendition = .placeholder
+            reloadsSameKey = true
+            show(index: index)
+        }
     }
 
     /// Whether a picture of `version` may go on screen in this visit; records it.
@@ -879,7 +934,7 @@ final class LoupeController: NSObject {
         let status = HDRVersionBadge(
             hasGainMap: editorHasIt || model.knowsGainMap(item), choice: shownKey?.hdrChoice ?? item.hdr,
             offline: model.isOffline(item), viewSetting: model.showsHDR,
-            extendedRange: !model.debugNoExtendedRange
+            extendedRange: !model.debugNoExtendedRange && !model.debugFlatScreen
                 && (hostView.window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1) > 1,
             failed: visitFailed, shown: visitIsGainMap ? visit.shown : (visit.shown == .sdr ? .sdr : nil),
             isMap: isMap, fileHeadroom: shownGainMap?.file,
@@ -939,7 +994,8 @@ final class LoupeController: NSObject {
                                                 at: ProcessInfo.processInfo.systemUptime,
                                                 remembers: NSApp?.isActive ?? true)
         }
-        let allowed = visitFailed ? nil : allowedHeadroom
+        if reloadIfHDRPossibilityChanged() { return }
+        let allowed = editorHeadroom
         let wanted = gainMapHeadroom
         let editor = model.editor
         if let current = editor.hdrDisplayHeadroom, let allowed {
@@ -948,11 +1004,7 @@ final class LoupeController: NSObject {
             editor.hdrDisplayHeadroom = allowed
         }
         report()
-        guard let wanted else {
-            if visitIsGainMap, visit.shown == .hdr, !visitFailed { reload() }
-            return
-        }
-        guard visitIsGainMap, rendition.isHDR, refitTask == nil, let rendered = visit.renderedHeadroom,
+        guard let wanted, visitIsGainMap, rendition.isHDR, refitTask == nil, let rendered = visit.renderedHeadroom,
               let ceiling = shownGainMap?.ceiling,
               GainMapHeadroom.needsRender(rendered: rendered, display: wanted, ceiling: ceiling),
               let index = shownIndex, model.items.indices.contains(index),
@@ -1025,15 +1077,19 @@ final class LoupeController: NSObject {
             // The last load to finish, however it ended, lets the texture's decode start.
             defer { if let self, self.fullLoadGeneration == generation { self.model.editor.loupeLoadsFullRendition = false } }
             if let gainMapHeadroom {
-                let image = try? await previews.gainMapHDRImage(for: request, displayHeadroom: gainMapHeadroom,
-                                                                fullResolution: true)
+                let outcome = await previews.gainMapHDROutcome(for: request, displayHeadroom: gainMapHeadroom,
+                                                               fullResolution: true)
                 guard !Task.isCancelled, let self, self.shownKey == key else { return }
-                if let image {
+                switch outcome {
+                case .image(let image):
                     self.display(image, as: .hdrFull, gainMap: true)
                     return
+                case .failed:
+                    // The full rendition's HDR failed: SDR for the rest of the visit (design §5).
+                    self.failVisit()
+                case .superseded:
+                    return
                 }
-                // The full rendition's HDR failed: SDR for the rest of the visit (design §5).
-                self.failVisit()
             }
             if hdr, !Task.isCancelled, let image = try? await previews.hdrImage(for: request, fullResolution: true) {
                 guard let self, self.shownKey == key else { return }

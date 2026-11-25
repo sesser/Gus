@@ -83,6 +83,8 @@ final class AdjustmentEditor {
     /// gain-map photo (issue #282, R10); kept until the next one, so it never
     /// falls back to SDR counts while HDR is on screen (design §7.2).
     private(set) var hdrHistogram: HDRHistogram?
+    /// The values `hdrHistogram` was counted for.
+    @ObservationIgnored private var hdrHistogramValues: Adjustments?
     /// Auto exposure or white balance is measuring.
     private(set) var isMeasuring = false
     /// The loupe should show `frame` rather than its cached renditions.
@@ -171,7 +173,10 @@ final class AdjustmentEditor {
             guard hdrDisplayHeadroom != oldValue, state == .ready else { return }
             // The image under the crop frame follows too (design §8).
             if cropSession != nil, adjustments.hdrIsOn { renderCropImage() }
-            guard showsLive else { return }
+            // HDR coming on screen however it got there (View ▸ Show HDR, a display that gains
+            // extended range) makes the HDR counts: a frame for the histogram (design §19.2, review F1).
+            let countsHDR = oldValue == nil && adjustments.hdrIsOn
+            guard showsLive || countsHDR else { return }
             requestRender(interactive: false)
         }
     }
@@ -667,6 +672,7 @@ final class AdjustmentEditor {
         cropImageTask = nil
         histogram = nil
         hdrHistogram = nil
+        hdrHistogramValues = nil
         showsLive = false
         showsOriginal = false
         isChanging = false
@@ -953,7 +959,10 @@ final class AdjustmentEditor {
                 }
             }
             do {
-                let refined = try await refiner.render(values, longEdge: longEdge, content: content, cancellation: token)
+                // A photo in HDR refines in HDR (review F5): the loupe never puts SDR over its HDR picture.
+                let refined = try await refiner.render(values, longEdge: longEdge, content: content,
+                                                       hdrHeadroom: refinesPhoto ? hdrHeadroom(for: values) : nil,
+                                                       cancellation: token)
                 guard !Task.isCancelled, generation == mapRefineGeneration, content == currentContent,
                       session === self.session,
                       (refinesPhoto ? valuesOnScreen : (previewValues ?? adjustments)) == values else { return }
@@ -1636,7 +1645,15 @@ final class AdjustmentEditor {
                     // Only frames showing the photo give the histogram (R7).
                     if (!showsOriginal || next.values == originalValues), rendered.showsPhoto, let histogram = rendered.histogram {
                         self.histogram = histogram
-                        if let hdrHistogram = rendered.hdrHistogram { self.hdrHistogram = hdrHistogram }
+                        if let hdrHistogram = rendered.hdrHistogram {
+                            self.hdrHistogram = hdrHistogram
+                            hdrHistogramValues = rendered.adjustments
+                        } else if rendered.adjustments != hdrHistogramValues {
+                            // An SDR frame of other values (HDR hidden, then an edit): the HDR counts are
+                            // out of date, and none is better than a wrong one (design §19.2, review F1).
+                            self.hdrHistogram = nil
+                            hdrHistogramValues = nil
+                        }
                     }
                     show(rendered)
                     if rendered.content == .photo {

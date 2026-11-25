@@ -328,6 +328,7 @@ final class ComparisonController: NSObject {
         model.displayHeadrooms[number].read(Float(screen.maximumExtendedDynamicRangeColorComponentValue),
                                             at: ProcessInfo.processInfo.systemUptime, remembers: NSApp?.isActive ?? true)
         for pane in panes {
+            if pane.reloadIfHDRPossibilityChanged() { continue }
             pane.followHeadroom()
             pane.publishHDRStatus()
         }
@@ -347,6 +348,8 @@ final class ComparisonController: NSObject {
         guard key != histogramKey else { return }
         histogramKey = key
         histogramTask?.cancel()
+        // Another photo's counts never stand in while these are made (design §19.2, review F2).
+        if model.comparisonHDRHistogram != nil { model.comparisonHDRHistogram = nil }
         let previews = model.previews
         histogramTask = Task { [weak self] in
             let histogram = try? await previews.gainMapHDRHistogram(for: request)
@@ -657,13 +660,18 @@ final class ComparisonController: NSObject {
 
     // MARK: Accessibility (design §10)
 
-    /// "Left photo, active, 3 stars, Picked, 12 of 87".
-    func accessibilityValue(of pane: ComparisonPane) -> String? {
+    /// "Left photo, active, 3 stars, Picked, Showing the HDR version, 12 of 87".
+    /// `withVersion`: with a gain-map photo's version phrase, as the single
+    /// loupe's canvas (issue #282, design §12; review F9), which never by
+    /// itself makes VoiceOver announce a change (`updateAccessibility`).
+    func accessibilityValue(of pane: ComparisonPane, withVersion: Bool = true) -> String? {
         guard let state = model.comparison ?? shown, let item = pane.item,
               let index = model.indexOfVersion(item.versionID) else { return nil }
+        let version = withVersion ? model.comparisonHDRStatus[pane.side].flatMap(HDRText.accessibilityLabel) : nil
         return AccessibilityText.list([
             ComparisonText.paneValue(pane.side, isActive: state.active == pane.side),
-            PhotoAccessibility.loupeValue(for: item, offline: model.isOffline(item), index: index, count: model.items.count),
+            PhotoAccessibility.loupeValue(for: item, offline: model.isOffline(item), notes: version.map { [$0] } ?? [],
+                                          index: index, count: model.items.count),
         ])
     }
 
@@ -698,7 +706,7 @@ final class ComparisonController: NSObject {
     /// pane's value; VoiceOver is told.
     private func updateAccessibility() {
         for pane in panes {
-            let value = accessibilityValue(of: pane)
+            let value = accessibilityValue(of: pane, withVersion: false)
             if let old = describedValues[pane.side], let value, old != value {
                 NSAccessibility.post(element: pane.view, notification: .valueChanged)
             }
@@ -769,10 +777,16 @@ final class ComparisonPane: NSObject {
     private var showsGainMapHDR = false
     /// Its HDR version failed: SDR for the rest of this showing (design §5).
     private var gainMapFailed = false
+    /// The next `show` reloads SDR after a failure and keeps it (review F7).
+    private var keepsFailure = false
+    /// HDR was possible for the shown photo when it was loaded (`possibleHeadroom`).
+    private var loadedHDRPossible = false
     /// The headroom the gain-map HDR picture on screen was rendered for.
     private(set) var gainMapTag: Float?
     private var refitTask: Task<Void, Never>?
     private var headerTask: Task<Void, Never>?
+    /// Shows the caption's spinner when the HDR version takes longer than 0.5 s (design §4, review F4).
+    private var spinnerTask: Task<Void, Never>?
     private(set) var rendition = LoupeRendition.placeholder
     private var loadTask: Task<Void, Never>?
     private var hdrTask: Task<Void, Never>?
@@ -828,6 +842,7 @@ final class ComparisonPane: NSObject {
         scrollView.cancelPendingClick()
         refitTask?.cancel()
         headerTask?.cancel()
+        spinnerTask?.cancel()
         loadTask?.cancel()
         hdrTask?.cancel()
         fullTask?.cancel()
@@ -859,6 +874,7 @@ final class ComparisonPane: NSObject {
         item = newItem
         let key = ShownKey(versionID: newItem.versionID, editStackHash: newItem.editStackHash, hdrChoice: newItem.hdr)
         guard key != shownKey else {
+            if reloadIfHDRPossibilityChanged() { return }
             publishHDRStatus()
             return
         }
@@ -866,12 +882,15 @@ final class ComparisonPane: NSObject {
         if !sameVersion || key.hdrChoice != shownKey?.hdrChoice {
             // Another photo or choice: the pane's version may change once more (issue #282).
             showsGainMapHDR = false
-            gainMapFailed = false
+            if !keepsFailure { gainMapFailed = false }
             gainMapTag = nil
             refitTask?.cancel()
             refitTask = nil
         }
+        keepsFailure = false
         shownKey = key
+        loadedHDRPossible = possibleHeadroom != nil
+        restartSpinnerWait()
         learnWhetherItHasAGainMap(newItem)
         loadTask?.cancel()
         hdrTask?.cancel()
@@ -923,11 +942,16 @@ final class ComparisonPane: NSObject {
                 hdrTask = Task { [weak self] in
                     // A gain-map photo with its HDR choice on: its HDR version or a failure (issue #282).
                     if let gainMapHeadroom {
-                        let image = failsOnPurpose ? nil
-                            : try? await previews.gainMapHDRImage(for: request, displayHeadroom: gainMapHeadroom,
-                                                                  priority: .visible)
+                        let outcome = failsOnPurpose ? .failed
+                            : await previews.gainMapHDROutcome(for: request, displayHeadroom: gainMapHeadroom,
+                                                               priority: .visible)
                         guard !Task.isCancelled, let self, self.shownKey == key else { return }
-                        if let image { self.display(image, as: .hdrPreview, gainMap: true) } else { self.failGainMap() }
+                        switch outcome {
+                        case .image(let image): self.display(image, as: .hdrPreview, gainMap: true)
+                        // Only a real error is a failure (code review C1, C3).
+                        case .failed: self.failGainMap()
+                        case .superseded: break
+                        }
                         return
                     }
                     guard let image = try? await previews.hdrImage(for: request, priority: .visible),
@@ -947,10 +971,32 @@ final class ComparisonPane: NSObject {
     /// extended range, a failure. What the screen allows, remembered per
     /// screen and shared with the single loupe (design §18.1).
     var gainMapHeadroom: Float? {
-        guard let item, item.hdr, hdrAllowed, !gainMapFailed, let screen = view.window?.screen else { return nil }
+        gainMapFailed ? nil : possibleHeadroom
+    }
+
+    /// `gainMapHeadroom` before a failure: nil while the choice is off, the
+    /// original is offline (code review C1), or the screen or View setting
+    /// allows no HDR.
+    private var possibleHeadroom: Float? {
+        guard let item, item.hdr, !model.isOffline(item), hdrAllowed, let screen = view.window?.screen else { return nil }
         if let override = model.debugDisplayHeadroom { return override }
         return model.displayHeadrooms[HDRScreens.number(screen)]
             .headroom(potential: Float(screen.maximumPotentialExtendedDynamicRangeColorComponentValue))
+    }
+
+    /// Loads the photo again when HDR became possible or impossible for it
+    /// without anything else reloading the pane: its original went offline
+    /// or came back, or its screen started or stopped reporting extended
+    /// range in place (review F6, as the single loupe). True when it reloaded.
+    @discardableResult
+    func reloadIfHDRPossibilityChanged() -> Bool {
+        guard shownKey != nil, view.window != nil, (possibleHeadroom != nil) != loadedHDRPossible else { return false }
+        if let controller {
+            controller.performWithoutFollowing { reload() }
+        } else {
+            reload()
+        }
+        return true
     }
 
     /// The ceiling of the shown gain-map photo once rendered (`GainMap.ceiling`).
@@ -959,8 +1005,21 @@ final class ComparisonPane: NSObject {
         return model.previews.gainMapHeadroom(for: request)?.ceiling
     }
 
+    /// The HDR version can't be made: SDR for the rest of this showing. An
+    /// HDR picture already on screen gives way to the SDR renditions, so the
+    /// badge never names a version that isn't shown (review F7).
     private func failGainMap() {
+        guard !gainMapFailed else { return }
         gainMapFailed = true
+        if showsGainMapHDR, let item {
+            keepsFailure = true
+            shownKey = nil
+            if let controller {
+                controller.performWithoutFollowing { show(item) }
+            } else {
+                show(item)
+            }
+        }
         publishHDRStatus()
     }
 
@@ -981,6 +1040,7 @@ final class ComparisonPane: NSObject {
     func publishHDRStatus() {
         guard let item else {
             if model.comparisonHDRStatus[side] != nil { model.comparisonHDRStatus[side] = nil }
+            if model.comparisonHDRSpinner.contains(side) { model.comparisonHDRSpinner.remove(side) }
             return
         }
         let ceiling = item.hdr ? model.previewRequest(for: item, tier: .preview)
@@ -990,11 +1050,23 @@ final class ComparisonPane: NSObject {
         let status = HDRVersionBadge(
             hasGainMap: model.knowsGainMap(item), choice: item.hdr, offline: model.isOffline(item),
             viewSetting: model.showsHDR,
-            extendedRange: !model.debugNoExtendedRange && (screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1) > 1,
+            extendedRange: !model.debugNoExtendedRange && !model.debugFlatScreen && (screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1) > 1,
             failed: gainMapFailed, shown: showsGainMapHDR ? .hdr : .sdr, isMap: false,
             fileHeadroom: ceiling?.file, allowedNow: allowed)
         if model.comparisonHDRStatus[side] != status { model.comparisonHDRStatus[side] = status }
+        if status != .loading, model.comparisonHDRSpinner.contains(side) { model.comparisonHDRSpinner.remove(side) }
         controller?.updateHistogram()
+    }
+
+    /// The spinner shows once the pane's HDR version has been loading for 0.5 s (design §4).
+    private func restartSpinnerWait() {
+        spinnerTask?.cancel()
+        if model.comparisonHDRSpinner.contains(side) { model.comparisonHDRSpinner.remove(side) }
+        spinnerTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled, let self, self.model.comparisonHDRStatus[self.side] == .loading else { return }
+            self.model.comparisonHDRSpinner.insert(self.side)
+        }
     }
 
     /// Renders the HDR version again for what the screen allows now, when
@@ -1041,7 +1113,8 @@ final class ComparisonPane: NSObject {
     /// HDR is shown when the setting is on and the window's display has
     /// extended dynamic range, as in the single loupe.
     private var hdrAllowed: Bool {
-        guard model.showsHDR, !model.debugNoExtendedRange, let screen = view.window?.screen else { return false }
+        guard model.showsHDR, !model.debugNoExtendedRange, !model.debugFlatScreen,
+              let screen = view.window?.screen else { return false }
         return screen.maximumPotentialExtendedDynamicRangeColorComponentValue > 1
     }
 
@@ -1049,7 +1122,7 @@ final class ComparisonPane: NSObject {
     /// it is SDR and the pane shows a gain-map photo's HDR version (issue
     /// #282, R8). `gainMap`: `image` is a gain-map photo's HDR version.
     private func display(_ image: CGImage?, as kind: LoupeRendition, gainMap: Bool = false) {
-        guard kind >= rendition || (gainMap && rendition.isHDR) else { return }
+        guard kind >= rendition else { return }
         if image != nil, showsGainMapHDR, !kind.isHDR, gainMapHeadroom != nil { return }
         rendition = kind
         if gainMap {
@@ -1122,14 +1195,18 @@ final class ComparisonPane: NSObject {
         let gainMapHeadroom = self.gainMapHeadroom
         fullTask = Task { [weak self] in
             if let gainMapHeadroom {
-                let image = try? await previews.gainMapHDRImage(for: request, displayHeadroom: gainMapHeadroom,
-                                                                fullResolution: true)
+                let outcome = await previews.gainMapHDROutcome(for: request, displayHeadroom: gainMapHeadroom,
+                                                               fullResolution: true)
                 guard !Task.isCancelled, let self, self.shownKey == key else { return }
-                if let image {
+                switch outcome {
+                case .image(let image):
                     self.display(image, as: .hdrFull, gainMap: true)
                     return
+                case .failed:
+                    self.failGainMap()
+                case .superseded:
+                    return
                 }
-                self.failGainMap()
             }
             if hdr, let image = try? await previews.hdrImage(for: request, fullResolution: true) {
                 guard let self, self.shownKey == key else { return }

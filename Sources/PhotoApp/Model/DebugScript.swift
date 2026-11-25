@@ -81,7 +81,8 @@ import PhotoUI
 ///                           overlay and Show Original, the inspector, the scroll position of the Adjust tab)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
 ///     hdr display <h>|sdr|system (#282: what the loupe takes the screen to allow now, as a settled
-///                           reading; `sdr` a screen without extended range; `system` the screen's own)
+///                           reading; `sdr` a screen without extended range; `flat` the screen's
+///                           potential reading 1 in place, with no reload; `system` the screen's own)
 ///     hdr fail on|off       (#282: the next gain-map HDR versions fail, as if the render had)
 ///     adjust hdr on|off     (#282: the open photo's HDR choice, as the Adjust tab's HDR check box)
 ///     filmstrip on|off|toggle   (the loupe's film strip, as its toggle: slides)
@@ -547,6 +548,8 @@ enum DebugScript {
                 // a screen without extended range, `system`: the screen's own.
                 let value = rest.dropFirst().first
                 model.debugNoExtendedRange = value == "sdr"
+                // `flat`: the screen's potential reads 1 in place (review F6); anything else ends it.
+                model.debugFlatScreen = value == "flat"
                 model.debugDisplayHeadroom = value.flatMap(Float.init)
             } else if rest.first == "fail" {
                 // Issue #282: gain-map photos' HDR versions fail from the next opening (design §5, reason 4).
@@ -1517,7 +1520,8 @@ enum DebugScript {
                   + " live frame \(frame) showsLive \(model.editor.showsLive)"
                   + " crop image \(model.editor.cropImage.map { String(format: "%.2f", $0.contentHeadroom) } ?? "none")"
                   + " histogram \(model.editor.hdrHistogram.map { String(format: "hdr above white %.3f", $0.shareAboveWhite) } ?? "none")"
-                  + " shows hdr histogram \(model.loupeHistogramIsHDR)")
+                  + " shows hdr histogram \(model.loupeHistogramIsHDR)"
+                  + " inspector histogram \(model.showsHDRHistogram ? (model.hdrHistogramCounts == nil ? "hdr empty" : "hdr") : "sdr")")
             print("debug-script: hdr badge text '\(HDRText.badge(model.loupeHDRStatus) ?? "")'"
                   + " help '\(HDRText.help(model.loupeHDRStatus) ?? "")'")
         case "messages":

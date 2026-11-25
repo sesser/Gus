@@ -109,6 +109,14 @@ private struct ComparisonPaneCaption: View {
                              help: String(localized: "A filter hides some of this source's photos"))
             }
             if let status = model.comparisonHDRStatus[side], status != .none {
+                // The HDR version loading for more than 0.5 s: the caption's spinner, as the
+                // single loupe's (issue #282, design §4; review F4). It stays with the badge.
+                if status == .loading, model.comparisonHDRSpinner.contains(side) {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .help(HDRText.loading)
+                        .accessibilityLabel(HDRText.loading)
+                }
                 // A gain-map photo's version badge never drops (issue #282, design §9).
                 HDRVersionBadgeView(status: status, compact: compactVersion)
             } else if showsHDR, let headroom = model.comparisonHDRHeadroom[side] {

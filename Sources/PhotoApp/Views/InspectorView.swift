@@ -295,9 +295,10 @@ private struct InfoHistogram: View {
 
     var body: some View {
         Group {
-            // The whole HDR version's, while the loupe shows a gain-map photo's HDR version (issue #282, §7).
-            if let hdr = hdrHistogram {
-                HDRHistogramView(histogram: hdr)
+            // The whole HDR version's, while the loupe shows a gain-map photo's HDR version (issue #282, §7);
+            // its frame with no curve while the counts are made, never SDR counts (§19.2).
+            if model.showsHDRHistogram {
+                HDRHistogramView(histogram: model.hdrHistogramCounts)
             } else {
                 HistogramView(histogram: liveHistogram ?? loaded)
             }
@@ -322,15 +323,6 @@ private struct InfoHistogram: View {
         var editStackHash: String?
     }
 
-    /// The HDR histogram applies while the version on screen is HDR (design §7.2): the single
-    /// loupe's photo, or the active comparison pane's.
-    private var hdrHistogram: HDRHistogram? {
-        if model.isComparing { return model.comparisonHDRHistogram }
-        guard model.mode == .loupe, model.loupeHistogramIsHDR else { return nil }
-        let editor = model.editor
-        guard editor.state == .ready, editor.item?.versionID == model.focusedItem?.versionID else { return nil }
-        return editor.hdrHistogram
-    }
 
     private var liveHistogram: Histogram? {
         let editor = model.editor
@@ -370,13 +362,35 @@ struct HistogramView: View {
     }
 }
 
+extension LibraryModel {
+    /// The inspector's histogram is the HDR one while the version on screen
+    /// is HDR (issue #282, design §7.2): the single loupe's photo, or the
+    /// active comparison pane's.
+    var showsHDRHistogram: Bool {
+        if isComparing {
+            guard let side = comparison?.active, case .hdr = comparisonHDRStatus[side] else { return false }
+            return true
+        }
+        return mode == .loupe && loupeHistogramIsHDR
+    }
+
+    /// That photo's HDR counts, nil until they are made: the inspector then
+    /// draws the HDR frame with no curve, never SDR counts (design §19.2).
+    var hdrHistogramCounts: HDRHistogram? {
+        if isComparing { return comparisonHDRHistogram }
+        guard editor.state == .ready, editor.item?.versionID == focusedItem?.versionID else { return nil }
+        return editor.hdrHistogram
+    }
+}
+
 /// The histogram of a gain-map photo's whole HDR version (issue #282,
 /// design §7.1): 0 to SDR white on today's scale in the left three fifths,
 /// up to 3 stops above it, linear in stops, in the right two fifths; a line
 /// at SDR white, a faint fill and dashed lines at +1 and +2 over the HDR
 /// part, and "HDR" in the corner. The axis never moves.
 struct HDRHistogramView: View {
-    let histogram: HDRHistogram
+    /// Nil while the counts are made: the frame with no curve (design §19.2).
+    let histogram: HDRHistogram?
     @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
@@ -394,7 +408,9 @@ struct HDRHistogramView: View {
                 context.stroke(line, with: .color(.white.opacity(0.15)), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
             }
             // Same colors and peak rule as the SDR histogram: the first and last bins don't set the scale.
-            let channels: [([UInt32], Color)] = [(histogram.red, .red), (histogram.green, .green), (histogram.blue, .blue)]
+            let channels: [([UInt32], Color)] = histogram.map {
+                [($0.red, .red), ($0.green, .green), ($0.blue, .blue)]
+            } ?? []
             let peak = max(Double(channels.compactMap { $0.0.dropFirst().dropLast().max() }.max() ?? 1), 1)
             var layer = context
             layer.blendMode = .plusLighter
@@ -422,7 +438,7 @@ struct HDRHistogramView: View {
         .help(HistogramText.hdrHelp)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(HistogramText.hdrLabel)
-        .accessibilityValue(HistogramText.hdrValue(histogram.shareAboveWhite))
+        .accessibilityValue(histogram.map { HistogramText.hdrValue($0.shareAboveWhite) } ?? "")
     }
 
     /// Each part's bins spread over its own width, the SDR part's last bin ending at the line.
