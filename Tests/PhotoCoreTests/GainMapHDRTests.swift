@@ -365,6 +365,52 @@ struct GainMapHDRTests {
         }
     }
 
+    @Test("Review F1, F11: a frame is current only for what it was asked for: SDR, or HDR at the same display headroom")
+    func framesAreCurrentForTheirHeadroom() async throws {
+        // The rule the editor's skips use (`requestRender`): a frame of the same values and overlay
+        // rendered SDR, or for another headroom, is rendered again.
+        var values = Adjustments(stack: Self.stack(Self.operation("exposure", ["ev": -0.5])))
+        values.hdrIsOn = true
+        let current = LiveFrameRules.isCurrent(frameValues:frameOverlay:frameHeadroom:wanted:overlay:headroom:)
+        #expect(current(values, nil, nil, values, nil, nil))
+        #expect(current(values, nil, 2, values, nil, 2))
+        #expect(!current(values, nil, nil, values, nil, 2), "View ▸ Show HDR: the SDR frame of these values")
+        #expect(!current(values, nil, 2, values, nil, nil), "View ▸ Hide HDR: the HDR frame of these values")
+        #expect(!current(values, nil, 3, values, nil, 2), "a brightness change or a display move")
+        // Within the tolerance a reading's noise is the same headroom.
+        #expect(current(values, nil, 2, values, nil, 2 * exp2(GainMapHeadroom.tolerance / 2)))
+        #expect(!current(values, nil, 2, values, nil, 2 * exp2(GainMapHeadroom.tolerance * 2)))
+        // Values and overlay still count.
+        var other = values
+        other.exposure.ev = 0
+        #expect(!current(other, nil, 2, values, nil, 2))
+        #expect(!current(values, UUID(), 2, values, nil, 2))
+
+        // Both renderers record what they were asked for, also where it changes nothing (an SDR file).
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: "asked.heic")
+            try HDRTestImages.writePatternedGainMap(to: url, width: 600, height: 400, seed: 2836)
+            let plain = root.appending(path: "plain.jpg")
+            try SyntheticImages.writeJPEG(to: plain, width: 600, height: 400, seed: 2837)
+            let generator = PreviewGenerator()
+            let regions = LiveRegionRenderer(source: url, generator: generator, colorSpace: nil)
+            try await regions.prepare(values)
+            let unit = CGRect(x: 0, y: 0, width: 0.5, height: 0.5)
+            let sdrTile = try await regions.render(values, unit: unit)
+            let hdrTile = try await regions.render(values, unit: unit, hdrHeadroom: 1.8)
+            #expect(sdrTile.requestedHeadroom == nil && hdrTile.requestedHeadroom == 1.8)
+            let session = LiveRenderSession(source: url, generator: generator, longEdge: 400, colorSpace: nil)
+            let sdrFrame = try await session.render(values)
+            let hdrFrame = try await session.render(values, hdrHeadroom: 3)
+            #expect(sdrFrame.requestedHeadroom == nil && hdrFrame.requestedHeadroom == 3)
+            // The frame that makes the HDR histogram is the one rendered for a headroom.
+            #expect(sdrFrame.hdrHistogram == nil && hdrFrame.hdrHistogram != nil)
+            let other = LiveRenderSession(source: plain, generator: generator, longEdge: 400, colorSpace: nil)
+            let plainFrame = try await other.render(Adjustments(), hdrHeadroom: 3)
+            #expect(plainFrame.headroom == nil && plainFrame.requestedHeadroom == 3)
+        }
+    }
+
     @Test("Review F5: the full-resolution photo refinement (a fringe slot picked again at 100%) is HDR, as the full render")
     func photoRefinementIsHDR() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in

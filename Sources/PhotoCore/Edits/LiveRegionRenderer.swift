@@ -38,6 +38,9 @@ public actor LiveRegionRenderer {
         /// For a gain-map photo's HDR frame (issue #282), the headroom it was
         /// rendered for and is tagged with; nil for an SDR frame.
         public var headroom: Float? = nil
+        /// The display headroom the frame was asked for (`render`'s
+        /// `hdrHeadroom`), nil when SDR was asked for (`LiveFrameRules.isCurrent`).
+        public var requestedHeadroom: Float? = nil
     }
 
     public enum Failure: Error, Equatable {
@@ -269,7 +272,7 @@ public actor LiveRegionRenderer {
         let elapsed = (clock.now - started).components
         return Frame(image: DecodedImage(cgImage: rendered), adjustments: values, region: region, outputSize: extent.size,
                      overlayMask: overlaid, seconds: Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18,
-                     machineLearning: base.machineLearning, headroom: headroom)
+                     machineLearning: base.machineLearning, headroom: headroom, requestedHeadroom: hdrHeadroom)
     }
 
     /// The master's gain map, loaded once (`GainMap.load`).
@@ -299,6 +302,29 @@ public enum LiveFrameRules {
     public static func isCurrent(frameValues: Adjustments?, frameOverlay: UUID?, wanted values: Adjustments,
                                  overlay: UUID?) -> Bool {
         frameValues == values && frameOverlay == overlay
+    }
+
+    /// A frame on screen already shows `values` with `overlay`, and was
+    /// rendered for what the display is wanted at now (issue #282, review
+    /// F1, F11): SDR or HDR, and in HDR the same display headroom. A frame
+    /// of the same values rendered SDR, or for another headroom, is not
+    /// current, so a View ▸ Show HDR, a display move or a brightness change
+    /// renders it again (and an HDR whole frame gives the HDR histogram).
+    public static func isCurrent(frameValues: Adjustments?, frameOverlay: UUID?, frameHeadroom: Float?,
+                                 wanted values: Adjustments, overlay: UUID?, headroom: Float?) -> Bool {
+        isCurrent(frameValues: frameValues, frameOverlay: frameOverlay, wanted: values, overlay: overlay)
+            && rendered(for: frameHeadroom, wanted: headroom)
+    }
+
+    /// A frame asked for `frameHeadroom` (nil: SDR) serves a display wanted
+    /// at `wanted` (nil: SDR): both SDR, or both HDR within
+    /// `GainMapHeadroom.tolerance` of each other.
+    public static func rendered(for frameHeadroom: Float?, wanted: Float?) -> Bool {
+        switch (frameHeadroom, wanted) {
+        case (nil, nil): return true
+        case let (frame?, wanted?): return !GainMapHeadroom.differs(frame, wanted)
+        default: return false
+        }
     }
 
     /// A whole frame goes on the base under a tile only when it shows the

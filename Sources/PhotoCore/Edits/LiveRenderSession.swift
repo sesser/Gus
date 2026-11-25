@@ -52,6 +52,11 @@ public actor LiveRenderSession {
         /// For a gain-map photo's HDR frame (issue #282): the headroom it was
         /// rendered for and is tagged with. Nil for an SDR frame.
         public var headroom: Float? = nil
+        /// The display headroom the frame was asked for (`render`'s
+        /// `hdrHeadroom`), nil when SDR was asked for: what tells a frame
+        /// still right for the display from one rendered for another
+        /// (`LiveFrameRules.isCurrent`, review F1, F11).
+        public var requestedHeadroom: Float? = nil
         /// For an HDR frame, the file's own HDR headroom and ceiling (`GainMap`).
         public var fileHeadroom: Float? = nil
         public var ceiling: Float? = nil
@@ -372,7 +377,8 @@ public actor LiveRenderSession {
                      hasOverlay: overlaid, overlayMask: overlaid ? overlayMask : nil, adjustments: adjustments,
                      maskFrameSize: CGSize(width: base.image.width, height: base.image.height),
                      scale: factor, seconds: seconds, filledCache: filledCache, machineLearning: base.machineLearning,
-                     headroom: hdr?.headroom, fileHeadroom: hdr?.file, ceiling: hdr?.ceiling, hdrHistogram: hdrHistogram)
+                     headroom: hdr?.headroom, requestedHeadroom: hdrHeadroom, fileHeadroom: hdr?.file, ceiling: hdr?.ceiling,
+                     hdrHistogram: hdrHistogram)
     }
 
     /// The master's gain map, loaded once (`GainMap.load`).

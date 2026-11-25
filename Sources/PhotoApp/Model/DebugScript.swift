@@ -1507,6 +1507,8 @@ enum DebugScript {
             let report = model.loupeGainMapReport
             func value(_ number: Float?) -> String { number.map { String(format: "%.2f", $0) } ?? "none" }
             let frame = model.editor.frame.map { $0.headroom.map { String(format: "hdr %.2f", $0) } ?? "sdr" } ?? "none"
+            // The region frame at 100% and above (review F1, F11).
+            let tile = model.editor.regionFrame.map { $0.headroom.map { String(format: "hdr %.2f", $0) } ?? "sdr" } ?? "none"
             let item = model.focusedItem
             print("debug-script: gainmap has choice \(model.editor.hasGainMap) choice \(model.editor.adjustments.hdrIsOn)"
                   + " item \(item?.hdr ?? false) wants \(report.wantsHDR)"
@@ -1517,7 +1519,7 @@ enum DebugScript {
                   + " allowed \(value(report.allowedHeadroom)) allowed now \(value(report.allowedNow))"
                   + " known limit \(value(report.settledReading)) request \(value(report.requestedHeadroom))"
                   + " file \(value(report.fileHeadroom)) ceiling \(value(report.ceiling)) refits \(report.refits)"
-                  + " live frame \(frame) showsLive \(model.editor.showsLive)"
+                  + " live frame \(frame) tile \(tile) showsLive \(model.editor.showsLive)"
                   + " crop image \(model.editor.cropImage.map { String(format: "%.2f", $0.contentHeadroom) } ?? "none")"
                   + " histogram \(model.editor.hdrHistogram.map { String(format: "hdr above white %.3f", $0.shareAboveWhite) } ?? "none")"
                   + " shows hdr histogram \(model.loupeHistogramIsHDR)"

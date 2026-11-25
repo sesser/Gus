@@ -175,6 +175,7 @@ final class AdjustmentEditor {
             if cropSession != nil, adjustments.hdrIsOn { renderCropImage() }
             // HDR coming on screen however it got there (View ▸ Show HDR, a display that gains
             // extended range) makes the HDR counts: a frame for the histogram (design §19.2, review F1).
+            // At 100% too: a frame rendered for another headroom, or SDR, is not current (`requestRender`).
             let countsHDR = oldValue == nil && adjustments.hdrIsOn
             guard showsLive || countsHDR else { return }
             requestRender(interactive: false)
@@ -1407,6 +1408,8 @@ final class AdjustmentEditor {
     }
 
     /// What the caption's spinner waits for: a sharp frame of `valuesOnScreen`.
+    /// Its headroom is left out: following the display is no wait (issue #282,
+    /// design §6.3: no spinner), though such a frame is rendered again.
     private var sharpFrameIsOnScreen: Bool {
         guard let viewport = loupeViewport else { return false }
         return regionFrameMatches(viewport)
@@ -1584,15 +1587,18 @@ final class AdjustmentEditor {
                     let content = currentContent
                     var regionShown = false
                     var decodeNote: String?
+                    // SDR or the display's headroom now: a frame rendered for another is not current (review F1, F11).
+                    let headroom = hdrHeadroom(for: next.values)
                     if let viewport = loupeViewport, canRenderRegion(content: content), let regions = regionRenderer {
                         if await regions.isReady(for: next.values) {
-                            // A frame already shows these values and this overlay over this region.
+                            // A frame already shows these values and this overlay over this region, for this display.
                             let current = regionFrameMatches(viewport)
                                 && LiveFrameRules.isCurrent(frameValues: regionFrame?.adjustments, frameOverlay: regionFrame?.overlayMask,
-                                                            wanted: next.values, overlay: overlay)
+                                                            frameHeadroom: regionFrame?.requestedHeadroom,
+                                                            wanted: next.values, overlay: overlay, headroom: headroom)
                             if !current {
                                 let rendered = try await regions.render(next.values, unit: viewport, overlayMask: overlay,
-                                                                        hdrHeadroom: hdrHeadroom(for: next.values),
+                                                                        hdrHeadroom: headroom,
                                                                         cancellation: next.cancellation)
                                 guard !Task.isCancelled, session === self.session else { break }
                                 showRegionFrame(rendered)
@@ -1621,17 +1627,20 @@ final class AdjustmentEditor {
                         scheduleRefinement()
                         continue
                     }
-                    // A whole frame already on screen for these values (a pan with nothing changing).
+                    // A whole frame already on screen for these values (a pan with nothing changing). One of
+                    // the same values rendered SDR, or for another headroom, is rendered again: it gives the
+                    // HDR histogram after View ▸ Show HDR at 100% (review F1, design §19.2).
                     if regionShown, !wholeFrameIsInteractive, frame?.content == content,
                        LiveFrameRules.isCurrent(frameValues: frame?.adjustments, frameOverlay: frame?.overlayMask,
-                                                wanted: next.values, overlay: overlay) {
+                                                frameHeadroom: frame?.requestedHeadroom,
+                                                wanted: next.values, overlay: overlay, headroom: headroom) {
                         lastFrameWasInteractive = false
                         seedPreviewIfRendered()
                         continue
                     }
                     let rendered = try await session.render(next.values, interactive: next.interactive,
                                                             allowsDrafts: allowsDrafts, overlayMask: overlay,
-                                                            content: content, hdrHeadroom: hdrHeadroom(for: next.values),
+                                                            content: content, hdrHeadroom: headroom,
                                                             cancellation: next.cancellation)
                     guard !Task.isCancelled, session === self.session else { break }
                     // A frame rendered before the map was hidden or switched: the right one follows.
