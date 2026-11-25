@@ -503,10 +503,17 @@ take ratings, keywords, albums and sidecars. There is no video editing or export
 
 **HDR**: on a display with extended dynamic range, the loupe shows HDR photos
 with highlights above white: floating-point DNGs (such as Lightroom's HDR
-merges) and HEIC and JPEG files with a gain map or HLG or PQ encoding. An **HDR**
-badge in the caption line under the photo says so. Camera raws stay SDR. The loupe first shows the
-cached preview, then the HDR render from the original, so offline originals stay
-SDR. Thumbnails and cached previews are always SDR. **View ▸ Hide HDR Highlights** turns it off.
+merges and the app's own DNG merges) and images with HLG or PQ encoding (such as
+some cameras' HDR HEIF files). An **HDR** badge in the caption line under the
+photo says so. The loupe first shows the cached preview, then the HDR render
+from the original, so an HDR photo whose original is offline stays SDR.
+**View ▸ Hide HDR Highlights** turns HDR display off.
+
+Camera raws stay SDR, and so do photos whose HDR comes only from a gain map
+(most iPhone HEIC and JPEG photos, Ultra HDR JPEGs): the loupe shows the same
+standard-range picture that you edit and export, which can look darker than an
+app that shows the gain map's HDR version. Thumbnails and cached previews are
+always SDR.
 
 **Crop & Straighten** follows **Presets** at the top of the Adjust tab. **Crop** shows
 the whole photo in the loupe under a crop frame with a rule-of-thirds grid: drag

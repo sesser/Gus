@@ -84,21 +84,25 @@ struct StalePreviewTests {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let service = PreviewService(cache: PreviewDiskCache(root: root.appending(path: "cache")),
                                          editStack: { _ in .identity })
-            // A JPEG with a gain map: its HDR rendition has a patch at four times SDR white.
+            // A PQ-encoded HEIC with a patch at four times SDR white (a gain map
+            // alone is not HDR content, issue #277).
             let plain = root.appending(path: "plain.jpg")
             try SyntheticImages.writeJPEG(to: plain, width: 800, height: 600, seed: 4,
                                           exif: .init(dateTimeOriginal: "2024:01:01 00:00:00", orientation: 1))
             let sdr = try #require(CIImage(contentsOf: plain))
             let patch = CIImage(color: CIColor(red: 4, green: 4, blue: 4, colorSpace: RenderEngine.hdrColorSpace)!)
                 .cropped(to: CGRect(x: 100, y: 100, width: 200, height: 150))
-            let data = try #require(service.generator.engine.withContext {
-                $0.jpegRepresentation(of: sdr, colorSpace: RenderEngine.outputColorSpace,
-                                      options: [.hdrImage: patch.composited(over: sdr)])
-            })
-            let source = root.appending(path: "gain-map.jpg")
+            let data = try service.generator.engine.withContext {
+                try $0.heif10Representation(of: patch.composited(over: sdr),
+                                            colorSpace: CGColorSpace(name: CGColorSpace.displayP3_PQ)!, options: [:])
+            }
+            let source = root.appending(path: "pq.heic")
             try data.write(to: source)
 
-            let edit = Self.edited(ev: -2)
+            // −1 EV keeps the patch's rendition near 2× SDR white, well above
+            // `RenderEngine.minimumHDRHeadroom`; at −2 EV it sat a few percent
+            // over it, one lossy PQ code value from no rendition at all.
+            let edit = Self.edited(ev: -1)
             let saved = Locked(EditStack.identity)
             let lagging = PreviewService(cache: PreviewDiskCache(root: root.appending(path: "cache")),
                                          editStack: { _ in saved.withLock { $0 } })
@@ -117,8 +121,11 @@ struct StalePreviewTests {
             let original = try #require(try service.generator.hdrImage(source: source, stack: .identity, longEdge: 512))
             let fitted = try #require(try await lagging.hdrImage(for: request))
             let full = try #require(try await lagging.hdrImage(for: request, fullResolution: true))
+            // The edit's rendition, not the unedited one: an unedited rendition
+            // gives the same level within one, and −1 EV measured 13.5 lower
+            // (95.6 to 82.1; drawn into 8-bit sRGB, the 2× patch still clips).
             for image in [fitted, full] {
-                #expect(try Self.meanLevel(image) < Self.meanLevel(original) - 20)
+                #expect(try Self.meanLevel(image) < Self.meanLevel(original) - 5)
             }
         }
     }
