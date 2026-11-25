@@ -227,3 +227,42 @@ New code from the designer's findings, checked and fine:
 No `/security-review` is needed for this pass. `GainMap.read` reads the same
 headers as before and adds one `isReadableFile` check. It adds no parser,
 subprocess, file writing or network code.
+
+Fourth pass, 2026-11-25. Reviewed `ac6f297..e1e6fa0` (`c3f21e7`, `21e4782`,
+`6ebce7a`, `60af4cc`, `4b1523e`, `e1e6fa0`): the fixes for QA's Q1 to Q5
+(`qa.md`, first pass) and their record in `status.md`. Build and tests at
+`e1e6fa0`: `swift build` clean; full `swift test` **1575 tests in 221 suites
+passed** (97.3 s); the HDR suites (`GainMapHDRTests`, `HDRChoiceTests`,
+`HDRChoiceOutputTests`, `GainMapAdjustmentTests`; `GainMapTimingTests` skipped
+as opt-in: 42 tests in 5 suites, parametrized cases not counted separately)
+passed 10 of 10 repeated runs (`--skip-build`). The opt-in
+`HEIC_GAINMAP_SAMPLE` test on one of the owner's files (both kinds of gain map,
+read in place, nothing copied or recorded) passed: +0.006 stops against the
+system's HDR decode, as `status.md` gives, so the maker dictionary now set on
+the receiving image leaves an ISO map's render alone. The app was not
+launched.
+
+**Verdict, fourth pass:** ready for the designer's confirmation of DQ-2 and
+then QA. Q1, Q2, Q4 and Q5 are fixed and sound. Q3's layout is correct (no
+badge can cover the marks once an arrangement is chosen), but it adds one nit
+(C10) that belongs with DQ-2: transient badges, not only a change of version
+badge, can move the marks at some widths.
+
+| QA finding | Outcome here | Commit | Check |
+| --- | --- | --- | --- |
+| Q1 | Fix sound | `c3f21e7` | `GainMap.receiving` sets the file's Apple maker dictionary on the image the map is applied to, and `ceiling(of:headroom:receiver:)` does the same for its white image. There are only two `applyingGainMap` calls in `Sources/` (`GainMap.hdr` and `ceiling`), and every HDR path goes through `hdr`: `fullHDR`, `PreviewGenerator.gainMapHDRImage` and `gainMapHDRHistogram`, `LiveRenderSession`, `LiveRegionRenderer`, `SharpeningMapRefiner`. So one change covers the loupe, panes, tiles, refinement and both histograms. With no maker dictionary the image passes through unchanged, so a Core Image ISO file renders exactly as before (AC11's byte-equality test passes for both kinds). The `@unchecked Sendable` reason now names the dictionary: a `let` of ImageIO's property dictionary, never mutated, which holds. No pipeline bump is needed: HDR versions are memory only, and no SDR output path changed (goldens pass). |
+| Q4 | Fixed | `c3f21e7` | `writeAppleGainMap` writes only Apple's auxiliary gain map, and the `loads` test asserts that (no ISO map, Apple map present, headroom exactly 4). Every HDR-making test is parametrized over both kinds. AC6 now checks the unedited HDR version against the system's decode, so a map left unapplied fails instead of drifting by nothing. Two assertions changed shape for the Apple kind, and neither is a loosened tolerance. `fitsToDisplay` expects `GainMapHeadroom.tag(display:ceiling:)` instead of `display`, which is the same value for the ISO file at the three headrooms it passed before, and it adds a per-cell check against Core Image's own rule for both kinds. `regionMatchesFullResolution` keeps `maximum > 1.05` for ISO and checks the Apple tile is over 0.3 stops above its SDR tile, with the reason written. The identity table is installed with `try?`, but a failed install would make AC6's small case equal the default, and `small != Adjustments()` would then fail, so it can't pass silently. "Fails without the fix": the engineer reports 10 of 29 tests failing without it, every one the Apple kind. The structure agrees: without the receiver's dictionary the Apple fixture isn't brightened, and `matchesSystemDecode` compares with the system's decode, where the bright part is two stops up. |
+| Q5 | Fixed | `21e4782` | "AC8: for every adjustment…" covers 29 stacks × 2 kinds, at fit (the first frame of a fresh session, interactive, then a settled-size frame) against the settled render at headroom 2, and at 100% (a region tile against the same quarter of the full-resolution render at 1.8), by mean and by a 6 × 4 grid. The limits are at least twice the measured values `status.md` gives, and within AC8's 0.05 stops. |
+| Q2 | Fixed | `6ebce7a` | `AdjustmentEditor.canSetHDR` (gain map, no crop session, original online) gates `setHDR`, the check box and `LibraryMenuState.canSetHDR`. `isOffline` reads `onlineVolumeIDs`, which is observed on `LibraryModel`, so the box and the menu state follow a volume going and coming back without a reopen. While offline, the menu shows a dimmed **Turn On HDR**, whatever the choice. That matches design §2.2 ("otherwise … dimmed with the title Turn On HDR"). Undo, Redo, History and Reset All are left to RI-8. |
+| Q3 | Layout correct; see C10 and DQ-2 | `60af4cc`, `4b1523e` | `CenteredCaptionRow`'s ideal width is the marks plus twice the wider side (position + 8, or badges + 8), so when `ViewThatFits` picks it the marks are centered and nothing reaches them. Once chosen it takes the proposed width. The badges are `fixedSize`, never squeezed. Only the last fallback can overflow: `status.md` says by a few points, into the caption's 12 pt padding, for a copy with a pick flag at 760 pt. Whether the marks may leave the center is DQ-2. The user guide's new sentence describes the build. |
+
+New finding, fourth pass:
+
+| # | Severity | Where | Finding | Failure | Rule |
+| --- | --- | --- | --- | --- | --- |
+| C10 | Nit (a design call, with DQ-2) | `Sources/PhotoApp/Loupe/LoupeView.swift:1978–2001` (`LoupeCaption.body`), `:2017–2071` (`badges`), `:2110` (`spinnerLabel`) | `ViewThatFits` picks the arrangement from the badges on screen now, and several of them are transient: the caption spinner (0.5 s after input while a sharp frame, a map refinement, a machine-learning frame or the HDR version is awaited), **Original** (`\`), the sharpening and fringe map badges, and **Spot Limit**. `status.md`'s option (a) says only a version badge change (Hide HDR) can move the marks. Any of these can do it too. | Take a loupe width where the second arrangement (marks centered, short badge) fits with nothing to spare, the marks with an **SDR** or **HDR** badge, and no room for a spinner. The band is about twice the spinner's width (a mini `ProgressView` plus 6 pt), because the centered row needs that space on both sides. At 100%, release a slider or pan. 0.5 s later `isAwaitingSharpFrame` shows the spinner, the row no longer fits, and the stars, flag and label jump left, after the position. When the sharp frame lands they jump back. Pressing `\` does the same over a wider band, since **Original** is wider. Before `60af4cc` the marks never moved, though badges could run into them. Found by reading the layout, not run. A fix, if the designer wants one, is option (b) of DQ-2, with the transient slots counted in the reserved width (or the spinner given a fixed slot). | Design §4 ("changing the badge never … moves the culling marks"); DQ-2 |
+
+No `/security-review` for this pass. `GainMap` passes through a dictionary
+ImageIO already parsed and adds no parser. `HDRTestImages` writes test files to
+temporary folders only. There is no subprocess, no file writing near masters
+and no network code.

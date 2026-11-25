@@ -60,11 +60,13 @@ menu stays at the trailing end.
 - Whether the file has a gain map is known by the time the header appears, so
   the box never pops in afterwards.
 - Checked state is the stored choice, whatever version is on screen.
-- Disabled during a crop session, with **Original**.
+- Disabled during a crop session, with **Original**, and once the original of
+  an open photo goes offline (§19.7).
 - Help tag: "Show and edit this photo in HDR, using the brightness
   information in its file. Exports are SDR."
 - The header shows only when the editor is ready, as today, so it is absent for
-  an offline original (RI-2) and while comparing.
+  a photo opened while its original is offline (RI-2) and while comparing. A
+  photo already open when its volume goes keeps the header (§19.7).
 
 ### 2.2 Menu bar
 
@@ -73,9 +75,10 @@ Exposure**): **Turn On HDR**, or **Turn Off HDR** when the focused photo's
 choice is on.
 
 - Enabled: loupe (review as for the other adjust items), editor ready,
-  gain-map photo, not comparing, not cropping. The rule is the one **Adjust ▸
-  Black & White ▸** uses, plus "has a choice". Otherwise it stays listed and
-  dimmed with the title **Turn On HDR** (HIG, Menus: show unavailable items).
+  gain-map photo, original online (§19.7), not comparing, not cropping. The rule
+  is the one **Adjust ▸ Black & White ▸** uses, plus "has a choice" and the
+  online original. Otherwise it stays listed and dimmed with the title **Turn On
+  HDR** (HIG, Menus: show unavailable items).
 - No keyboard shortcut. It is set once per photo, and the obvious combinations
   are taken or read as system commands.
 - No toolbar item and no context menu item. The grid cannot set it (non-goal).
@@ -133,7 +136,8 @@ shows only **Offline** (RI-3).
 - The two **SDR** badges without a triangle are normal states. The triangle
   (`exclamationmark.triangle`) marks "you asked for HDR and are not seeing it".
   State is carried by words and a symbol, never by color alone (HIG, Color).
-- Changing the badge never resizes the photo or moves the culling marks.
+- Changing the badge never resizes the photo. It never moves the culling marks
+  either, except in a caption too narrow to keep them centered (§19.6).
 - HLG, PQ and DNG photos keep today's **HDR** badge and tooltip, and get no
   **SDR** badge.
 - The grid and film strip show nothing (non-goal).
@@ -154,7 +158,8 @@ First match wins, so one reason is shown.
 - Short form: where the caption row can't hold the full form, the badge is the
   triangle and **SDR**; the help tag and VoiceOver label keep the reason. In the
   single loupe the row picks the form that fits (`ViewThatFits`), so the badges
-  never run into the culling marks.
+  never run into the culling marks. Where the short form doesn't fit beside
+  centered marks either, the marks give way (§19.6).
 - The choice, the check box and the menu item are unaffected by reasons 2 to 4
   and can still be changed. Under reason 1 the check box and menu item can't
   change it, though Reset All from the grid still turns it off (RI-2).
@@ -650,3 +655,50 @@ acceptable.
   In the single loupe they still return a photo zoomed to anything but 100% to
   100%. That is older than this feature and happens for every photo, so it is
   left to a follow-up bug (text in `review.md`) and doesn't hold this branch.
+
+### 19.6 DQ-2: the narrowest loupe caption (fourth review pass)
+
+**Ruling: option (a), as built.** The HIG says nothing about this case; this is
+judgment. The single loupe takes the first of these that fits whole:
+
+1. Marks centered, badges in full.
+2. Marks centered, version badge in its short form.
+3. Marks after the position, short form, badges at the trailing edge.
+4. The same without the position.
+
+- At every step the version badge and the other badges are whole, and badges
+  and position keep at least 8 pt from the marks. Nothing is drawn over
+  anything.
+- This narrows two earlier rules. Where only steps 3 or 4 fit, the marks are off
+  center. Where the width allows one badge set to stay centered and not another,
+  a change in the badges moves the marks: **View ▸ Hide HDR**, **Copy**, a map,
+  Show Original, the caption spinner, or the next photo. Both happen only in
+  narrow captions, mostly near the minimum window with the sidebar and inspector
+  shown. Wider captions lay out as before.
+- Why: what the badges say (which version is on screen, that this is a copy,
+  that it is offline) has to be readable. Centering is a matter of balance and
+  is the right thing to give up.
+- (b) would keep the marks still by holding them off center at many more widths,
+  for every gain-map photo, to prevent a move seen only in a narrow range. (c)
+  removes a control and an identity badge and, by the widths in `status.md`,
+  still fails with a color label. (d) restricts the window for every view to
+  solve one 28 pt row.
+- The position is dropped last because the film strip, when shown, marks the
+  photo's place, and comparison captions already drop it first (§9).
+- Not covered: several badges with a flag and a color label can be wider than
+  step 4 (`review.md`, F12). The order for that, for the follow-up: drop the film
+  strip toggle (**View ▸ Show / Hide Film Strip** reaches it), then **Copy** (the
+  window title names the copy), then **Filtered**; truncate the color label's
+  name to one line, never wrap it. The version badge, **Offline**, the stars, the
+  flag and the color dot stay, and the row is never wider than the caption.
+
+### 19.7 The choice when an open photo's original goes offline (fourth review pass)
+
+Accepted as built (QA Q2). The **HDR** check box stays where it is, dimmed,
+showing the stored choice; **Adjust ▸ Turn On HDR** is dimmed under that title,
+as in every other unavailable case (§2.2). Both return with the volume, without
+reopening the photo. A dimmed box is better than one that vanishes: the header
+doesn't shift, and the checked state still says what was chosen, while the
+version badge and **Offline** say why SDR is shown. What Undo, Redo, a History
+revert and **Reset All Adjustments** do then is a requirements question (RI-8 in
+`status.md`) and is not decided here.
