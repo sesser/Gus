@@ -115,19 +115,21 @@ shows only **Offline** (RI-3).
 | State | Badge | Help tag |
 | --- | --- | --- |
 | HDR on screen, not fitted | **HDR** | "Showing the HDR version. This file brightens up to %@× SDR white." |
-| HDR on screen, fitted | **HDR** | "Showing the HDR version, fitted to this display. The file brightens up to %1$@× SDR white and the display can show %2$@× now. The histogram shows the whole HDR version." |
+| HDR on screen, fitted | **HDR** | "Showing the HDR version, fitted to this display. The file brightens up to %1$@× SDR white; the display allows %2$@× now. The histogram shows the whole HDR version." |
 | Choice off | **SDR** | "Showing the SDR version. This file also has an HDR version. To use it, choose Adjust ▸ Turn On HDR." |
 | Choice on, HDR still loading | **SDR**, with the caption spinner after 0.5 s | "Loading the HDR version" (badge and spinner) |
 | Choice on, HDR can't be shown | warning triangle, **SDR** and a reason (§5) | per reason |
 
-- "Fitted" means the display's current headroom is below the file's, compared
-  at the one decimal the text shows. Screen brightness changes this: the help
-  tag follows, the badge does not change. Nothing visible announces fitting.
-  On many displays it is the normal state, and a mark that came and went with
-  the brightness keys would draw the eye away from the photo. The help tag, the
+- "Fitted" means the headroom the display allows now (§18.2) is below the
+  file's, compared at the one decimal the text shows. `%2$@` is that value,
+  never the screen's potential. While it isn't known yet, use the unfitted help
+  tag, which names only the file. Screen brightness changes this: the help tag
+  follows, the badge does not change. Nothing visible announces fitting. On
+  many displays it is the normal state, and a mark that came and went with the
+  brightness keys would draw the eye away from the photo. The help tag, the
   VoiceOver label and the user guide say it.
-- A display that can show HDR but offers 1.0× at the moment still reads
-  **HDR**, with the fitted text.
+- A display with extended range that allows little or none of it at the moment
+  (1.3×, or 1.0×) still reads **HDR**, with the fitted text (§18.2).
 - The two **SDR** badges without a triangle are normal states. The triangle
   (`exclamationmark.triangle`) marks "you asked for HDR and are not seeing it".
   State is carried by words and a symbol, never by color alone (HIG, Color).
@@ -144,7 +146,7 @@ First match wins, so one reason is shown.
 | --- | --- | --- | --- |
 | 1 | Original offline | triangle **SDR**, beside the existing **Offline** badge | "HDR is on for this photo, but its original is offline, so the cached SDR preview is shown." |
 | 2 | **View ▸ Hide HDR** | triangle **SDR: HDR Hidden** | "HDR is on for this photo. To see it, choose View ▸ Show HDR." |
-| 3 | Display has no extended range (potential headroom 1, as today's rule) | triangle **SDR: No HDR Display** | "HDR is on for this photo, but this display can't show HDR, or HDR is turned off for it in System Settings." |
+| 3 | Display reports no extended range at all (potential headroom 1, as today's rule; a low current headroom is not this reason, §18.2) | triangle **SDR: No HDR Display** | "HDR is on for this photo, but this display can't show HDR, or HDR is turned off for it in System Settings." |
 | 4 | The HDR version could not be made | triangle **SDR: HDR Failed** | "HDR is on for this photo, but its HDR version couldn't be made. Open the photo again to retry." |
 
 - **Offline** adds no second wording of its own: the **Offline** badge, with
@@ -174,6 +176,10 @@ photo, entering or leaving comparison or review), show it first and skip step
 1\. Preload neighbors that have the choice on, as HDR neighbors are preloaded
 today.
 
+Where the app doesn't yet know what the screen allows, and it turns out to be
+less than the HDR picture was rendered for, that picture is fitted again once,
+about 1.5 s later (§18.1). It is not a change of version.
+
 ### 6.2 While the photo stays open
 
 Once HDR is on screen, no SDR picture of the photo is put on screen unless the
@@ -194,8 +200,9 @@ and up during one visit.
 
 ### 6.3 Headroom (R6, R9)
 
-- Render for the window's display's current headroom, and follow it when screen
-  brightness changes or the window moves to another display, without reopening.
+- Render for the headroom the window's display allows now (§18.2, not its
+  potential), and follow it when screen brightness changes or the window moves
+  to another display, without reopening.
   Nothing in the app animates this; bursts of changes may be coalesced, but the
   picture ends at the latest value. Following is not a change of version: no
   badge change, no spinner, no SDR frame.
@@ -351,10 +358,11 @@ any entry older than this feature, turns HDR off (RI-1).
 - Check box: label "HDR", the §2.1 help tag as its hint. Full keyboard access
   reaches it in the header after **Original**.
 - Version badges have spoken labels that stand alone, not the bare letters:
-  "Showing the HDR version" (plus ", fitted to this display"), "Showing the SDR
-  version", "Loading the HDR version", and "HDR is on, showing the SDR
-  version:" followed by "original offline", "HDR is hidden in the View menu",
-  "this display can't show HDR" or "the HDR version couldn't be made".
+  "Showing the HDR version" (plus ", fitted to this display", under §4's rule
+  for "fitted"), "Showing the SDR version", "Loading the HDR version", and "HDR
+  is on, showing the SDR version:" followed by "original offline", "HDR is
+  hidden in the View menu", "this display can't show HDR" or "the HDR version
+  couldn't be made".
 - The loupe canvas's accessibility value includes the same phrase. A change is
   not announced on its own.
 - Histogram as §7.2.
@@ -378,7 +386,32 @@ HDR, the owner looks, on the HDR display:
 If E1 or E2 fails, Q2 goes back to the owner before more is built. The final
 manual checks (in `review.md`) will add: handles over highlights, the mask
 overlay's legibility, the crop session, maps, the histogram's look in both
-appearances, and narrow captions.
+appearances, narrow captions, and, on a screen that allows less than the photo
+needs, the second change on arrival (§18.1) and the badge and help tag there
+(§18.2).
+
+### 13.1 Result (2026-11-25)
+
+The owner ran the check and reported, in full:
+
+> "All four pass. The built-in display showed 2.6x I think. It looks good and
+> works as it should"
+
+**What it says.** E1 to E4 pass, and the owner finds that it looks good and
+works as it should. E1 and E2 did not fail, so Q2 stands and the rest may be
+built.
+
+**What it does not say.**
+
+- "2.6x" is from memory ("I think"), and the photo it was read on is not named.
+  The files' ceilings are 2.6×, 3.7× and 4.6×: read on IMG_0546 it would mean
+  an unfitted picture, on either of the other two a fitted one. It is not
+  recorded as a measurement.
+- Whether the owner used the external Dell display.
+- Which display and photo each check was run on, and how E3 changed the
+  headroom.
+- Anything about the second change on arrival that E4 asked about (DQ-1). The
+  E4 pass is not recorded as acceptance of it (§18.1).
 
 ## 14. Debug script
 
@@ -387,10 +420,12 @@ For AC4, AC5, AC7 and AC9 without a person (names are suggestions):
 - `adjust hdr on|off`: the per-photo choice. The existing `hdr on|off` stays the
   View setting.
 - `hdr display <headroom>|sdr|system`: overrides what the loupe takes as the
-  display's current headroom, or that it has none.
+  headroom the display allows now (as a settled reading, so the fitted texts can
+  be checked), or that it has no extended range.
 - `print hdr` adds, per shown photo or pane: has a choice, choice, version on
-  screen, badge text and reason, file headroom, display headroom used, histogram
-  kind (SDR or HDR) and its share above white.
+  screen, badge text, help tag and reason, file headroom, the screen's potential,
+  the headroom allowed now (or unknown), the headroom rendered for, refits,
+  histogram kind (SDR or HDR) and its share above white.
 - A log of version changes for the open photo, so AC7 can show at most one.
 
 ## 15. User guide
@@ -406,6 +441,11 @@ it, in these terms:
   tones; there is no strength control.
 - The badges and the four reasons; fitting to the display; the histogram's two
   parts, and that it shows the full version; the Tone Curve's backdrop is SDR.
+- How much extra brightness a display allows depends on the display, its
+  settings and brightness, and whether the app is in front. When it allows
+  little, HDR looks close to SDR; the badge still says **HDR**, and its help tag
+  gives the file's number and the display's. The first HDR photo shown on a
+  display may adjust its brightness once, a moment after it appears.
 - Thumbnails, previews and exports are SDR.
 - **View ▸ Show / Hide HDR** replaces **Hide HDR Highlights**.
 - The existing HDR paragraph stays for HLG, PQ and DNG, and says that their HDR
@@ -430,7 +470,9 @@ it, in these terms:
 
 ## 17. Requirements issues and their rulings
 
-All five are ruled; none is open. The design above follows each ruling.
+RI-1 to RI-5 are ruled. RI-6 and RI-7, raised after the early check, are open.
+The design above follows each ruling and, for the open two, the proposed
+default.
 
 - **RI-1. R8 against R2.** R8 says undo and History revert never switch to SDR;
   R2 makes the choice an undoable edit kept in History. *Settled:* R8 holds
@@ -458,3 +500,82 @@ All five are ruled; none is open. The design above follows each ruling.
 - **RI-5. R4 in narrow captions.** *Accepted by the product manager:* a full
   reason may shorten to the warning triangle and **SDR**, with the reason in the
   help tag and VoiceOver.
+- **RI-6. R6, R8 and AC7 against the second change on arrival.** The screen's
+  headroom can only be read once the app asks for extended range, and the
+  reading takes 1 to 2 s. Until then the system, not the gain map's rule, fits
+  a picture the screen can't show in full, and the app then fits it again.
+  *Open. Proposed:* R6 allows this until the screen's headroom has been read; R8
+  and AC7 count changes of version only, and this is not one. The owner has not
+  said whether the second change is acceptable (§13.1).
+- **RI-7. R4 and R5, "a display without extended range".** A screen can report
+  extended range and allow almost none of it (measured: potential 4.18, allowed
+  1.29; potential 16, allowed 9.82; an app that isn't in front may be given
+  less, #287). *Open. Proposed:* the phrase means a screen that reports none at
+  all (potential 1). Any other shows the HDR version fitted, labeled **HDR**,
+  even where it looks close to SDR; "headroom a display can currently show"
+  (Terms) is what macOS allows at the moment, not the potential.
+
+## 18. Design rulings after the early check (2026-11-25)
+
+Both are design judgment, not Apple policy (see the note at the top).
+
+### 18.1 DQ-1: the second change on arrival
+
+**Ruling: option (a), accept it, provided it really happens only rarely.** The
+owner has not accepted it by eye (§13.1); the question is with the owner, with
+this ruling as the default, and building does not wait for the answer.
+
+1. While nothing is known about a screen, render for its potential, capped at
+   the photo's ceiling. Arrival is not held back. If the settled reading is
+   lower, replace the picture once: no animation, spinner or badge change (the
+   help tag follows). AC7 counts versions, so this does not count.
+2. What was learned is remembered **per screen for as long as the app runs**,
+   outside the loupe. It survives going to the grid, a video, comparison and
+   review, and moving the window away and back; the single loupe and the
+   comparison panes share it. Stage 1 does not do this: the value belongs to
+   `LoupeController`, which is discarded when the grid, a video or comparison
+   replaces the loupe, and it is reset on a screen move. As built, each return
+   from the grid can show the second change again (read from the code, not run).
+3. A reading that settles at a request **below** the remembered value says
+   nothing about the limit and doesn't erase it. Stage 1 erases it, so a photo
+   with a low ceiling would bring the second change back for the next brighter
+   one. A reading that shows the screen now allows more does replace it.
+4. Only readings taken while the app is active are remembered. The picture
+   still follows the others (R6).
+5. A remembered value is a starting point. If brightness changed while no HDR
+   photo was shown, the next one may be fitted again once. Accepted: nothing can
+   be read without asking.
+
+Why not the others: (b) can't know in advance whether the reading will come in
+lower, so the first HDR photo on every screen, including one with room to spare,
+would arrive about 1.5 s late, and it needs a time limit for an app that is
+never given the range. (c) is untested and uses extended range for every
+gain-map photo before HDR shows. If the owner finds the step unacceptable, the
+fallback is (b), only for a screen with nothing remembered.
+
+### 18.2 What a screen allows, and what it could
+
+Three numbers differ and the UI must not mix them: the file's headroom, the
+screen's **potential** (the most it reports it could ever give) and what it
+**allows now** (the settled current reading while the app asks for extended
+range, or the remembered one, §18.1).
+
+- The potential answers one question, whether the screen has extended range at
+  all (§5, reason 3), and serves as the render value until something is known
+  (§18.1). It is never shown and never decides "fitted".
+- Wherever this design says the display's current headroom, it means what the
+  screen allows now.
+- A low value is never a reason for SDR. The badge stays **HDR** with the fitted
+  help tag at any value, 1.0× included, whatever the cause: the monitor, its
+  brightness or the app being in the background. No new reason, badge, threshold
+  or visible mark.
+- Why: the picture on screen is the HDR version fitted by the gain map's own
+  rule (R6), so **SDR** would be untrue. Any cut-off would be arbitrary, and the
+  badge would flip with the brightness keys or a change of app, which §4 and R8
+  avoid.
+- The help tag says "the display allows %2$@× now", not "can show": the limit
+  may be the system's choice at that moment, not the panel's ability.
+- Cost, stated plainly: at 1.29× no point is more than about 0.4 stops brighter
+  than in SDR, so **Turn On HDR** can look as if it did almost nothing. The help
+  tag, VoiceOver and the user guide explain it. The histogram still describes
+  the whole HDR version (§7).
