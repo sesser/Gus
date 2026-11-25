@@ -1,35 +1,39 @@
 # Edit and show gain-map photos in HDR: QA
 
 Owner: qa-tester. Date: 2026-11-25. Step 4 of `docs/WORKFLOW.md`. Issue #282.
-Tested (second pass): `feature/gain-map-hdr-editing` at `e4c14b2` (clean tree),
+Tested (third pass): `feature/gain-map-hdr-editing` at `84791f7` (clean tree),
 on a Mac16,8 (M4 Pro), macOS 27.2.1 (26B131), macOS SDK 27.2, Swift 6.4.2. The
 screen the scripted app used reported potential headroom 4.18 (the external
 display); script results at other headrooms use the debug script's override.
+This pass covers what changed since `e4c14b2`: the fixes for Q6 and Q7 (the
+loupe and comparison captions, a caption table in PhotoCore, `print loupe` and
+`panes` in the debug script). Other results stand from the second pass
+(`e4c14b2`, committed as `e335a84`) and the first (`60b95bd`, `ac6f297`).
 Nothing here was looked at on an HDR display: no visual HDR result is claimed.
-Snapshots were used only for caption and pane layout. The first pass was at
-`60b95bd` (committed as `ac6f297`).
+Snapshots were used only for caption, title and pane layout.
 
 ## Verdict
 
-**Does not pass.** Q1 to Q5 are fixed and no acceptance criterion fails: 15
-pass, 2 wait for eyes (AC8, AC18), 1 does not apply (AC16). But the Q3 fix
-brought a new fault (Q6): in the narrowest windows an ordinary caption now makes
-the loupe wider than its space and pushes the sidebar and inspector partly off
-the window. `develop` does not do this. The designer's check M18 therefore
-**fails**, so by `review.md` F12 is to be fixed on this branch.
+**Passes: no acceptance criterion fails** (15 pass, 2 wait for eyes, AC8 and
+AC18, and AC16 does not apply). Q6 is fixed, and so is the part of Q7 this
+branch added. Two new low findings are open, Q8 (a rating clipped when a map
+badge and **Offline** meet at the minimum width) and Q9 (a long file name cuts
+"copy" off the window title). Neither fails a criterion or moves a side pane,
+and in my view neither needs to hold the sign-off, but each needs a ruling (fix
+here or follow-up) first.
 
-Full `swift test` at `e4c14b2`: **1575 tests in 221 suites passed** (101.3 s),
-goldens included, no warnings. The HDR suites with #277's (`GainMapHDRTests`,
-`GainMapAdjustmentTests`, `HDRChoiceTests`, `HDRChoiceOutputTests`,
-`GainMapRenditionTests`, `GainMapTimingTests`): 46 tests in 6 suites passed,
-opt-in tests skipped there and run separately (T0). `Scripts/build-app.sh` built
-the bundle. The CI toolchain build was not rerun (`status.md` records it).
+Full `swift test` at `84791f7`: **1581 tests in 222 suites passed** (95.3 s),
+goldens included. The caption, HDR, gain-map, golden, localization and branding
+suites again by filter: 66 tests in 10 suites passed. The opt-in real-file
+tests were not rerun (nothing that renders changed). `Scripts/build-app.sh`
+built the bundle (SDK 27.2). The CI toolchain build was not rerun (`status.md`
+records it, with two warnings in test files this branch doesn't touch).
 
 After the runs: no instance of the app was running,
 `~/Library/Application Support/Gus/Library` had no file newer than the start of
-this pass (12:03), the owner's three originals have the same SHA-256 as before,
-and the scratch copies of them were deleted. The early check's files were not
-touched.
+this pass (13:45), the owner's sample originals have the same SHA-256 as at its
+start, the scratch copies of them and every snapshot were deleted, and the
+early check's files were not touched.
 
 ## Acceptance criteria
 
@@ -39,9 +43,11 @@ Apple-only support on altered copies of your photos good enough?", they answered
 "Yes, accept it". (The issue body still lists it under RI-8 as not an owner
 ruling.)
 
-Suites are in `Tests/PhotoCoreTests`. "T" scripts are this pass's, "S" scripts
-the first pass's (both under Scripts). "Both kinds" means ISO 21496-1 and
-Apple-only gain maps. The owner's three HEICs carry both; "Apple-only copies"
+Suites are in `Tests/PhotoCoreTests`. "U" scripts are this pass's, "T" scripts
+the second pass's, "S" scripts the first pass's (all under Scripts). Every named
+test ran again in this pass's full run, opt-in ones excepted; "this pass" in a
+row of the second pass's wording means the second. "Both kinds" means ISO
+21496-1 and Apple-only gain maps. The owner's three HEICs carry both; "Apple-only copies"
 are copies with the ISO map hidden.
 
 | AC | How | Evidence | Result |
@@ -49,7 +55,7 @@ are copies with the ISO map hidden.
 | AC1 | Test, Script | `GainMapHDRTests` "A gain-map HEIC or JPEG has a gain map…" (both kinds), "AC1: only a HEIC or JPEG, by name and content…"; `HDRChoiceTests` "Off is the default…". T1: gain-map HEIC and Apple-only JPEG start **SDR**, off; plain JPEG has no choice. Other file types: S1 (not rerun) | Pass |
 | AC2 | Test, Script | `HDRChoiceTests` "R2: the catalog keeps…", "R2: a virtual copy…", "R2: Reset All…". T5, with the original gone: Undo of **Turn On HDR** turns the choice off and Redo on, History lists both, a revert to a **Turn Off HDR** entry restores off, Reset All turns it off, each undone. Relaunch, pair and copy: S3, S4 (not rerun) | Pass |
 | AC3 | Test | `HDRChoiceTests` "AC3: presets and Paste Adjustments neither carry nor change the choice" (script: S5, not rerun) | Pass |
-| AC4 | Test, Script | `HDRChoiceTests` badge tests. T6, T7: every reason, 1.29 and 1.0 read **HDR**, comparison panes. T5: original gone while open: box dimmed, click and command refused, SDR throughout Undo, Redo, History revert and Reset All, label follows R4, HDR and the box return with the volume. T8: the menu item is dimmed offline (activated run). T9: opened while offline: no check box; never-seen photo shows **Offline** alone. T10, T11: at 760 pt the warning mark and **SDR** are whole in every state. The crowded states break the layout around the caption (Q6); no clause of AC4 failed | Pass |
+| AC4 | Test, Script | `HDRChoiceTests` badge tests; `LoupeCaptionLevelsTests` (the order and the never-dropped parts; it checks the table, not the layout). This pass, U1 to U4 and U6: at 760 pt the loupe column is 240 pt in every state tried, and the version badge, warning mark, **SDR** and **Offline** are whole down to a 125 pt column; wide again, the full reason returns. U1 is the layout check that fails without the fix (261 and 318 pt at `e4c14b2`, T11). U5, U7: comparison panes keep their version badges. Second pass: every reason and the offline rules (T5 to T9). Q8 clips a rating, not a badge | Pass |
 | AC5 | Test, Script | `GainMapHDRTests` "…the system's HDR decode, in every orientation" and "For a smaller headroom…" (both kinds, the latter against Core Image's own rule). T0: +0.006, +0.001, +0.000 stops on the three files, +0.006, +0.001, −0.000 on the Apple-only copies, +0.005 on an Apple-only JPEG. T1: Apple-only photos show values above white and refit at 2 and 1.29 without reopening | Pass |
 | AC6 | Test | `GainMapAdjustmentTests` "AC6: every adjustment…" (50 cases: 25 × both kinds; unedited against the system's decode, Color Fringes, identity table). T0, opt-in on the **Apple-only copies**: unedited −0.015 to −0.032 stops off the system's decode; smallest values at most 0.011 stops; strong values at most 0.0038 stops RMS (Shadows). On copies with both maps: at most 0.046 (Contrast). Color Fringes at its strong value does change pixels on real files (T0) | Pass |
 | AC7 | Test, Script | `GainMapHDRTests` "Once HDR is on screen…". T3: 82 steps on an Apple-only copy and on its original: all HDR, no version badge only during the two maps. T4 (undo, redo at fit and 100%). Turning it off shows SDR (T5, after reattaching). Undo of **Turn On HDR**, Reset All and a revert to an off entry showing SDR: S3, not rerun | Pass |
@@ -65,9 +71,11 @@ are copies with the ISO map hidden.
 | AC17 | Test | `GainMapHDRTests` every orientation, "A region frame at 100%…"; `GainMapAdjustmentTests` Distortion and spots (both kinds) | Pass |
 | AC18 | Test, Person | `GainMapHDRTests` "Design §18.1…", "AC18: each screen's allowance…". T4: grid and back with `refits 0` (overridden reading, so it shows no second fit, not what a screen reports). By hand: P2 | Open |
 
-Counts: 15 pass (6 by test and a script rerun in this pass: AC1, AC2, AC4, AC5,
-AC7, AC9; 9 by test in this pass: AC3, AC6, AC10 to AC15, AC17), 1 does not
-apply (AC16), 2 open for a person (AC8, AC18), 0 fail.
+Counts: 15 pass (6 by test and script: AC1, AC2, AC4, AC5, AC7, AC9, with
+AC4's script rerun in this pass and the others' from the second; 9 by test: AC3,
+AC6, AC10 to AC15, AC17, with the real-file runs of AC6 and AC10 from the
+second), 1 does not apply (AC16), 2 open for a person (AC8: P1; AC18: P2), 0
+fail.
 
 "Fails without the fix" for Q1: the real app showed 0.000 above white on an
 Apple-only copy at `60b95bd` (S1b) and 0.132 now (T1). The new tests compare the
@@ -76,93 +84,116 @@ reading; the engineer records 10 of 29 failing without the fix, not rerun here).
 
 ### Designer's checks answered by script
 
-- **M18** (F12): run, **fails** (T10, T11; Q6).
-- **M19** (Apple-only gain map brightens, badge true): by numbers it passes (T0,
-  T1). The eye check is part of P1.
-- **M15** (offline): T5, T8, T9, T10. Warning mark and **SDR** beside
-  **Offline**; box dimmed and checked; menu item dimmed as **Turn On HDR** in an
-  activated run; HDR and the box return in place; choice off reads **SDR** with
-  **Offline** and a help tag that does not name Turn On HDR. Not seen: the menu
-  title after reconnecting (macOS did not give the app a key window again); it
-  reads the same value as the box.
-- **M8** (narrow captions): the three cases of Q3 pass (T11). Crowded states fail
-  (Q6). Whether the moving marks look jumpy is in P7.
-- **M14** (export notice): S13, code unchanged.
-- **M1**, in part: box dimmed while cropping (T8). The menu dimmed while comparing
-  and cropping could not be verified (`key nil`): P7.
-- **M16**, **M17**, in part: at 100% the HDR histogram fills after Show HDR and
-  the tile follows overridden headrooms (T4, Apple-only copy). Real brightness
-  and System Settings: P3.
+- **M18** (F12, Q6): run (U1 to U4, U7). **Passes in every state but one**, the
+  clipped star M18 asks to note (Q8). At 760 pt with both panes: the column and
+  caption are 240.00 pt in every state, **More adjustment commands** stays at x
+  733 and a sidebar point still hits the sidebar. States: gain-map HEIC, plain
+  JPEG, PQ HEIC, floating-point DNG and a raw with machine learning noise
+  reduction not applied; filter, Original, copy, **Hide HDR**, offline,
+  sharpening and fringe maps. With a filter, a copy, 5 stars, a flag and
+  offline at once, each of the seven label names is whole (level 12). Level 13
+  is not reached at 240 pt. Narrower columns (panes dragged), crowded and
+  offline: the name is cut at 225 and 210, only the dot at 190 and 185 with the
+  stars whole, the marks clipped from 160, **SDR** and **Offline** whole down to
+  125, the end of **Offline** at 20. At the widest panes (320 and 420) the
+  window stays 760 and its points hit the sidebar and inspector. Title and
+  subtitle read **IMG_0561 copy** and **All Photos · Filtered** in full; a long
+  name does not (Q9). The help tags on the label and the compact rating can't be
+  read by script (read in the code): P6.
+- **M20** (F13, Q7): **passes** (U5, U7). At every swept width, 760 to 1,300, for
+  a gain-map photo (HDR shown and hidden) and a plain JPEG, each beside its copy,
+  unrated and rated, no pane is wider and no side pane is pushed further than on
+  `develop`. Version badges, **Copy** and **Offline** are whole; the rating turns
+  compact only when tight, each pane on its own.
+
+| Pair | Pane at 760, branch / `develop` (pt) | Inspector pushed at 760, branch / `develop` | First swept width with side panes whole, branch / `develop` |
+| --- | --- | --- | --- |
+| Plain, unrated | 136.75 / 213.25 | 25 / 101 | 850 / 1,000 |
+| Gain-map, unrated, **HDR** | 173.75 / 213.25 | 62 / 101 | 900 / 1,000 |
+| Gain-map, unrated, HDR hidden | 186.25 / 213.25 | 74 / 101 | 950 / 1,000 |
+| Plain, rated, flag, label | 236.75 / 297.75 | 125 / 186 | 1,025 / 1,150 |
+| Gain-map, rated, **HDR** | 273.75 / 297.75 | 162 / 186 | 1,100 / 1,150 |
+| Gain-map, rated, HDR hidden | 286.25 / 297.75 | 174 / 186 | 1,150 / 1,150 |
+
+  A rated gain-map copy pair whose volume is ejected: 337.75 against 346.25. The
+  overflow left is the older fault (`review.md`, fifth pass, follow-up).
+- **M8**: the layout passes by script (U6): narrowing a 5-star gain-map photo
+  with HDR hidden goes through levels 1, 2, 3, 4, 5 (the copy through 6) in
+  order, widening returns to level 1, nothing overlaps in the snapshots, and
+  stepping between photos and turning HDR on and off at 760 keeps 240 pt. The
+  **Film Strip** button still works where it shows. Whether it reads as jumpy:
+  P6.
+- **M19** (Apple-only gain map): by numbers it passes (T0, T1). The eye check is
+  part of P1.
+- **M15** (offline): T5, T8, T9, T10. **M14** (export notice): S13. **M1**, in
+  part: box dimmed while cropping (T8); the menu while comparing and cropping
+  could not be verified (`key nil`): P5. **M16**, **M17**, in part: at 100% the
+  HDR histogram fills after Show HDR and the tile follows overridden headrooms
+  (T4); zoom and place survive a reconnect (S9). Real brightness and System
+  Settings: P3.
+- Not a finding: at 760 pt an unrated gain-map copy drops the position although
+  the caption looks half empty, because below level 6 an unrated photo still
+  reserves five invisible stars. This is the design's table as written.
 
 ## Findings
 
-### Q6. A crowded narrow caption pushes the sidebar and inspector off the window (medium-high; regression)
+### Q8. A map badge with Offline clips the rating at the minimum width (low)
 
-Design §19.6 ("Nothing is drawn over anything"; "the row is never wider than the
-caption"), `review.md` F12 and M18. Brought by `60af4cc`. Affects every photo,
-not only gain-map ones.
+Design §20.1: the rating is never dropped, and from level 11 the label name (to
+24 pt) and a map's badge (to 80 pt) take only the room left. `review.md`, fifth
+pass, noted the risk from reading; it is reachable. It comes with `4b7ad86`'s
+layout.
 
-Steps: T11. A library holding one plain JPEG; window 760 × 560 with sidebar and
-inspector shown; rate it 5, pick it; filter to Picked; duplicate; press `\`.
+Steps (U2, U3, U4): a photo on a removable volume with 5 stars, a pick and a
+color label; window 760 × 560, sidebar and inspector shown; sharpening Amount 0;
+**Adjust ▸ Show Sharpening Map**; eject the volume.
 
-Expected: the loupe stays 240 pt wide (760 less the 220 pt sidebar and 300 pt
-inspector), as on `develop` (`4561cb3`) and at `60b95bd`.
+Expected: the name and the map badge are cut far enough for the whole caption to
+fit.
 
-Actual, loupe width in points:
+Actual: level 11, the name stays whole (**Orange**), and the row is about 20 pt
+too wide, clipped at its leading edge. At 760 the rating's star is almost wholly
+cut off (the digit shows); at a 770 pt window it touches the edge; from 784 it
+has its normal margin. The same on a gain-map HEIC, a plain JPEG, a PQ HEIC, a
+floating-point DNG and a raw. The column stays 240 pt, no pane moves, **Offline**
+is whole, and the map alone (online) fits. The Fringe Map ends when the volume
+goes, so only the sharpening map reaches this.
 
-| State (plain JPEG) | `develop` | `60b95bd` | `e4c14b2` |
-| --- | --- | --- | --- |
-| 5 stars, pick | 240 | 240 | 240 |
-| Filtered, Copy | 240 | 240 | **261** |
-| Filtered, Copy, Original | 240 | 240 | **318** |
+Likely cause (read, not changed): from level 3 the marks and the badges both
+have layout priority 1, so the marks are offered about half the row and the name
+takes its whole width before the map badge's minimum and **Offline** are served.
 
-On a gain-map photo (5 stars, pick, orange label; T10) at `e4c14b2`: Filtered and
-**HDR** 279; **View ▸ Hide HDR** 294; then Original 351; a copy 336; copy and
-Original 394; copy, Original and Offline 445; copy and Offline 388. At 900 pt the
-offline copy still needs about 388 of 380 pt (snapshot).
+Missing check: no test covers the caption's layout; `LoupeCaptionLevelsTests`
+passes with this fault.
 
-What gives: the window stays 760 × 560, and the split view grows wider than the
-window, centered, so each side pane moves out by half the excess. Measured: at
-274 pt every inspector button sits 17 pt right of its normal place and sidebar
-content 17 pt left, and **More adjustment commands** (29 pt wide, centered at 750)
-crosses the window edge. At 336 pt it is centered at 782, wholly outside the
-window, and points x 180 and x 500, which hit the sidebar and inspector at
-`60b95bd`, hit the loupe. At 445 pt about 102 pt of each side pane is outside
-(computed from the same rule). Those controls can't be seen or clicked until the
-badges go or the window widens. The version badge, warning mark, **SDR** and
-**Offline** were whole in every state.
+### Q9. A long file name cuts "copy" off the title while the caption drops Copy (low; design question)
 
-Likely cause (read, not changed): in `LoupeCaption`, `ViewThatFits` takes the
-last arrangement even when it doesn't fit, and the badge row and position are
-`fixedSize`, so that row's width becomes the column's minimum. Before `60af4cc`
-the badge row had a maximum width and was squeezed instead (empty boxes at
-`60b95bd`, badges over the stars on `develop`: older faults, but the layout held).
-§19.6 "Not covered" already gives the order to shed items. Also seen at 760 pt
-with an **HDR** badge and an orange label: the color name wraps to two cut lines,
-which the same paragraph rules out.
+Design §20.1 (level 7: **Copy** is still stated in the window title) and the
+user guide ("the window's title and subtitle still say both").
 
-Missing check: nothing tests that the caption never asks for more than its
-column. T11 with `print loupe` shows it.
+Steps (U7): `Holiday_2026_Lakeside_0001.jpg`, duplicated, 5 stars, pick, orange
+label, filtered to Picked, Original; window 760 × 560, both panes shown.
 
-### Q7. Comparison at the minimum window is wider than its space, more so with version badges (low; design question)
+Expected: something outside the dropped badge says this is a copy.
 
-T12. Each pane's width at 760 pt, sidebar and inspector shown, a photo beside its
-copy: `develop` 235.75 pt for both a plain JPEG pair and a gain-map pair; so two
-panes already need about 483 of 240 pt, a fault older than this branch. At
-`60b95bd` and `e4c14b2` the plain pair is 235.75 and the gain-map pair **271.25**:
-the version badges, which design §9 never drops, add about 71 pt. The first pass
-saw the badge whole and did not measure the width.
+Actual: the caption has no **Copy**, and the title reads
+**Holiday_2026_Lak...** (snapshot; toolbar glass aside). The subtitle is whole.
+The film strip's copy mark remains while the strip is shown. Short names
+(**IMG_0561 copy**) fit.
 
-For the designer: fix with Q6, or a follow-up. Proposed issue if a follow-up:
-**Comparison is wider than the window allows at its minimum size** (`bug`,
-Routine). Body: at 760 pt with sidebar and inspector shown, compare two photos;
-the comparison needs about 480 pt (550 with gain-map photos, #282) where 240 are
-free, and pushes the side panes off the window. Slug:
-`comparison-narrow-window-overflow`.
+For the designer: accept it and soften the user guide's sentence, drop **Copy**
+later, or file a follow-up (**A long file name hides "copy" in the narrowest
+window title**, `bug`, Routine, slug `narrow-title-hides-copy`).
+
+### Q6 and Q7 (second pass): fixed
+
+See Follow-up. As first written they are in `e335a84`. The older part of Q7
+(comparison wider than a narrow window, on `develop` too) is the follow-up
+proposed in `review.md`, fifth pass, for the main session to file.
 
 ### First-pass findings (Q1 to Q5)
 
-All fixed; see Follow-up. As first written they are in `ac6f297`. Q1's method is
+Fixed (second pass). As first written they are in `ac6f297`. Q1's method is
 still used here to make Apple-only copies:
 
 ```python
@@ -173,6 +204,133 @@ open(sys.argv[2], "wb").write(data.replace(b"tmap", b"xxxx"))
 ```
 
 ## Scripts
+
+### Third pass (`84791f7`)
+
+Copies of `build/Gus.app` with identifiers ending `.debugtest.qa282c` (this
+build) and `.qa282cdev` (`develop` at `4561cb3`, from `git archive`, built
+outside the checkout; `origin/develop` adds only a spike document). Every launch
+was `<copy>/Contents/MacOS/Gus --library-root $R/<library> --debug-script
+"<script>"`, from a shell. `print print-DETACH` and `print print-ATTACH` are
+markers: a helper ran `hdiutil detach -force` and `hdiutil attach` when the
+output reached them.
+
+Libraries (`photobench import`): `libA`: `PLAIN.jpg` (`photobench scenes` dusty
+sky). `libB` (copied as `libB-dev` before first use): a copy of IMG_0561 and
+`PLAIN.jpg`. `libD`, on a FAT32 disk image: a copy of IMG_0561, `PLAIN.jpg`,
+`RAWFILE.dng` (dusty-sky DNG), `PQFILE.heic` (`control-pq.heic`), and for U3 on
+also `FLOAT.dng` (a copy of `RAW_102_HDR.dng`). `libD-dev`: a second library over
+the same image. `libL`: the dusty sky as `Holiday_2026_Lakeside_0001.jpg`. U2,
+U3, U4 and U7 ran on `libD` in that order, and U5 then U6 on `libB`; later ones
+use the copies and marks the earlier ones made.
+
+Below, `S(n)` stands for `print STEP-n; print loupe; print title; print hdr;
+buttons; hit 100 300; snapshot $R/shots/n.png`.
+
+#### U1: the Q6 reproduction (`libA`)
+
+```
+wait 2; hdr on; flag any; wait 1; windowsize 760 560; wait 2; sidebarpane on; inspector on; focus PLAIN; loupe; tab adjust; wait 3; print STEP-t0-unmarked; print loupe; buttons; key 5; key p; wait 1; print STEP-t1-marks; print loupe; buttons; flag picked; wait 2; duplicate; wait 4; print STEP-t2-filtered-copy; print copies; print loupe; buttons; snapshot $R/shots/t2-copy.png; original on; wait 2; print STEP-t3-filtered-copy-original; print loupe; buttons; snapshot $R/shots/t3-original.png; original off; flag any; wait 1; quit
+```
+
+240.00 pt at every step (levels 1, 1, 5, 6); the inspector button at x 733.
+
+#### U2: crowded states, gain-map photo (`libD`)
+
+```
+wait 2; windowsize 760 560; wait 2; sidebarpane on; inspector on; hdr on; hdr display 16; focus IMG_0561; loupe; tab adjust; wait 4; S(g00); key 5; key p; key opt+2; wait 1; S(g01); adjust hdr on; wait 5; S(g02); flag picked; wait 2; S(g03); hdr off; wait 2; S(g04); original on; wait 2; S(g05); original off; duplicate; wait 4; print copies; S(g06); original on; wait 2; S(g07); print print-DETACH; wait 8; S(g08); key opt+1; wait 1; S(g09-1); (the same for opt+2 to opt+7); key opt+2; original off; wait 2; S(g10); hdr on; wait 2; S(g11); hdr off; original on; wait 1; windowsize 900 600; wait 2; S(g12); windowsize 1300 760; wait 2; S(g13); windowsize 760 560; wait 2; S(g14); windowsize 760 480; wait 2; S(g15); windowsize 760 560; wait 2; panes; panes 0 0 320; panes 1 0 300; wait 1; panes; S(g16); hit 300 546; hit 500 300; panes 1 0 460; panes 0 0 220; wait 1; panes; windowsize 900 600; wait 1; windowsize 760 560; wait 2; panes; S(g17); original off; print print-ATTACH; wait 10; S(g18); adjust amount 0; sharpenmap on; wait 3; S(g19); print print-DETACH; wait 8; S(g20); print print-ATTACH; wait 10; sharpenmap off; wait 1; fringemap on; wait 3; S(g21); print print-DETACH; wait 8; S(g22); print print-ATTACH; wait 10; fringemap off; hdr on; flag any; wait 2; quit
+```
+
+(`panes 1 0 300` widens the inspector to 420; `panes 1 0 460` returns it to
+300.) Column 240.00 everywhere but g12 (380), g13 (780) and g16 (20). Levels:
+g00 1, g01 5, g02 5, g03 6, g04 6, g05 8, g06 7, g07 8, g08 and g09 12, g10 and
+g11 8, g12 7, g13 1, g14, g15 and g17 12, g16 13, g18 7, g19 11, g20 11 (Q8),
+g21 7, g22 8.
+
+#### U3: other kinds of photo (`libD`)
+
+For `PLAIN`, `PQFILE` and `FLOAT` in turn, after `wait 2; windowsize 760 560;
+wait 2; sidebarpane on; inspector on; hdr on; hdr display 16; flag any`:
+
+```
+focus <name>; loupe; tab adjust; wait 4; S(00); key 5; key p; key opt+2; wait 1; S(01); flag picked; wait 2; S(02); original on; wait 2; S(03); original off; duplicate; wait 4; S(04); original on; wait 2; S(05); original off; adjust amount 0; sharpenmap on; wait 3; S(06); print print-DETACH; wait 8; S(07); sharpenmap off; wait 2; S(08); original on; wait 2; S(09); original off; print print-ATTACH; wait 10; flag any; wait 2
+```
+
+then
+
+```
+focus RAWFILE; loupe; tab adjust; wait 4; key 5; key p; key opt+2; wait 1; ml on; wait 5; flag picked; wait 2; duplicate; wait 6; S(r00); original on; wait 2; S(r01); original off; adjust amount 0; sharpenmap on; wait 3; S(r02); print print-DETACH; wait 8; S(r03); sharpenmap off; wait 2; S(r04); print print-ATTACH; wait 10; flag any; wait 1; quit
+```
+
+Column 240.00 throughout; every 07 and r03 (map and offline) at level 11 with
+the star clipped.
+
+#### U4: widths around Q8, and narrower columns (`libD`)
+
+`panes(s, i)` stands for `panes 1 0 460; panes 0 0 s; panes 1 0 <760 - i>; wait
+1`. Here `S(n)` has no `print hdr`.
+
+```
+wait 2; windowsize 760 560; wait 2; sidebarpane on; inspector on; hdr on; hdr display 16; flag picked; wait 1; focus IMG_0561 copy; loupe; tab adjust; wait 4; hdr off; wait 1; adjust amount 0; sharpenmap on; wait 3; S(w0); windowsize 800 560; wait 2; S(w1-800); windowsize 880 560; wait 2; S(w1-880); windowsize 760 560; wait 2; print print-DETACH; wait 8; (windowsize <w> 560; wait 2; S(w2-<w>) for 760, 770, 776, 780, 784, 788, 792, 800, 820); windowsize 760 560; wait 2; sharpenmap off; wait 1; original on; wait 1; (panes(s, i); S(n) for each pair); original off; wait 1; (panes(s, i); S(o) for each pair); panes 1 0 460; panes 0 0 220; wait 1; print print-ATTACH; wait 10; hdr on; wait 4; (panes(s, i); S(h) for each pair); panes 1 0 460; panes 0 0 220; wait 1; flag any; wait 1; quit
+```
+
+Pairs (sidebar, inspector): 220,300 220,315 220,330 220,350 220,355 230,370
+250,360 270,365 320,420, giving columns 240, 225, 210, 190, 185, 160, 150, 125,
+20.
+
+#### U5: comparison widths (`libB` on this build, `libB-dev` on `develop`)
+
+`sweep(t)` is `windowsize <w> 560; wait 1.2; print STEP-t-<w>; print compare;
+buttons; snapshot ...` for 760, 800, 850, 900, 950, 1000, 1025, 1050, 1075,
+1100, 1150, 1200, 1300, then `windowsize 1300 560; wait 1`. `pair(name, t)` is
+`grid; wait 1; focus name; loupe; wait 3; compare on; wait 4; sweep(t)`, then for
+`IMG_0561` on this build `hdr off; wait 2; sweep(t-hidden); hdr on; wait 2`, then
+`compare off; wait 2`. The `hdr` and `adjust hdr` steps are left out on
+`develop`.
+
+```
+wait 2; windowsize 1300 560; wait 2; sidebarpane on; inspector on; compare animate off; flag any; hdr on; hdr display 16; (grid; wait 1; focus <name>; loupe; wait 3; duplicate; wait 4 for IMG_0561 and PLAIN); (grid; wait 1; focus <name>; loupe; tab adjust; wait 4; adjust hdr on; wait 4 for IMG_0561 and IMG_0561 copy); pair(IMG_0561, gain); pair(PLAIN, plain); (grid; wait 1; focus <name>; wait 1; key 5; key p; key opt+2; wait 1; print copies for all four); pair(IMG_0561, gainR); pair(PLAIN, plainR); quit
+```
+
+"Pushed" is how far right of its normal place (window width less 150) the
+inspector's **Info / Adjust** control sits.
+
+#### U6: narrowing, neighbors, reasons, the Film Strip button (`libB`, after U5)
+
+`S6(n)` is `print STEP-n; print loupe; print hdr; print title; buttons; snapshot
+$R/shots/n.png`; `narrow` is `windowsize <w> 560; wait 1.2; S6` for 1500, 1300,
+1200, 1100, 1040, 1000, 960, 920, 900, 880, 860, 840, 820, 800, 780, 760, 900,
+1100, 1500.
+
+```
+wait 2; windowsize 1500 560; wait 2; sidebarpane on; inspector on; hdr on; hdr display 16; flag any; filmstrip on; focus IMG_0561; loupe; tab adjust; wait 4; hdr off; wait 1; narrow; windowsize 1500 560; wait 1; focus IMG_0561 copy; wait 3; narrow; windowsize 760 560; wait 1; focus IMG_0561; wait 3; S6(a); focus PLAIN; wait 3; S6(b); focus IMG_0561 copy; wait 3; S6(c); hdr on; wait 4; S6(d); hdr off; wait 2; S6(e); hdr on; wait 3; adjust hdr off; wait 3; S6(f); adjust hdr on; wait 4; hdr display 1.29; wait 3; S6(g); hdr display sdr; wait 3; S6(h); flag picked; wait 2; S6(i); hdr display 16; wait 3; hdr fail on; focus PLAIN; wait 2; focus IMG_0561 copy; wait 5; S6(j); hdr fail off; flag any; wait 2; windowsize 1300 560; wait 2; hdr display sdr; wait 2; S6(k); hdr display 16; wait 3; key 0; key u; key opt+0; wait 1; S6(l); click 706 546; wait 1; S6(m); filmstrip on; windowsize 760 560; wait 2; S6(n); click 437 546; wait 1; S6(o); filmstrip on; wait 1; compare animate off; compare on; wait 4; hdr display sdr; wait 3; print compare; snapshot $R/shots/m8c.png; hdr display 16; wait 3; compare off; wait 2; hdr on; quit
+```
+
+Levels, original: 1 down to 1,040; 2 from 1,000 to 880; 3 at 860 and 840; 4 at
+820 and 800; 5 at 780 and 760. Copy: 1 down to 1,100; 2 to 960; 3 to 880; 4 at
+860 and 840; 5 at 820; 6 from 800. Back up: 2 or 3 at 900, 1 at 1,100 and 1,500.
+The click at 437,546 hid the film strip (the one at 706,546 is on empty caption
+and does nothing).
+
+#### U7: a long name; comparison with the volume ejected
+
+`libL`:
+
+```
+wait 2; hdr on; flag any; windowsize 760 560; wait 2; sidebarpane on; inspector on; focus 0; loupe; tab adjust; wait 3; key 5; key p; key opt+2; flag picked; wait 1; duplicate; wait 4; original on; wait 2; print STEP-long; print loupe; print title; snapshot $R/shots/long.png; original off; flag any; wait 1; quit
+```
+
+`libD` (`C(n)` is `print STEP-n; print compare; buttons; snapshot ...`):
+
+```
+wait 2; windowsize 1300 560; wait 2; sidebarpane on; inspector on; compare animate off; hdr on; hdr display 16; flag any; focus IMG_0561; loupe; tab adjust; wait 4; adjust hdr on; wait 4; focus IMG_0561 copy; wait 3; adjust hdr on; wait 4; focus IMG_0561; wait 3; compare on; wait 4; windowsize 760 560; wait 2; C(online-760); print print-DETACH; wait 8; C(offline-760); windowsize 1050 560; wait 2; C(offline-1050); windowsize 1300 560; wait 2; C(offline-1300); print print-ATTACH; wait 10; C(back-1300); hdr display 1.29; wait 3; C(fitted-1300); compare off; wait 1; hdr display 16; quit
+```
+
+`libD-dev`, on `develop`:
+
+```
+wait 2; windowsize 1300 560; wait 2; sidebarpane on; inspector on; compare animate off; flag any; focus IMG_0561; loupe; wait 3; key 5; key p; key opt+2; wait 1; duplicate; wait 4; focus IMG_0561; wait 3; compare on; wait 4; windowsize 760 560; wait 2; C(online-760); print print-DETACH; wait 8; C(offline-760); windowsize 1050 560; wait 2; C(offline-1050); windowsize 1300 560; wait 2; C(offline-1300); print print-ATTACH; wait 10; compare off; quit
+```
 
 ### Second pass (`e4c14b2`)
 
@@ -580,68 +738,58 @@ retried.
 
 ## For a person
 
-On the final build, after Q6 is fixed. Most important first. VoiceOver, macOS 15
-and macOS 26 are left to CI. The early check of 2026-11-25 (design §13.1) passed
-and the owner accepted the second change on arrival; it used a first-stage
-build, and its record does not say which display or photo each check used.
+For the sign-off, on `84791f7`. Most important first. VoiceOver, macOS 15 and
+macOS 26 are left to CI. Already answered: the early check of 2026-11-25
+(design §13.1) passed, on a first-stage build, and its record does not say which
+display or photo each check used; the owner accepted the second change on
+arrival; the owner accepted AC6's wording. Layout widths, which badges stay, the
+offline rules, the export notice and Reset All were checked by script.
 
 ### Setup
 
-A library for the current build is ready at
-`/Users/randy/gus-qa/gain-map-hdr-editing/signoff/library`: copies of the three
-photos, `APPLE_0561.HEIC` (a copy of IMG_0561 with only Apple's gain map) and
-`PLAIN.jpg` (synthetic, no gain map), every HDR choice off. The app copy beside
-it was built at `e4c14b2`; the commands rebuild it. The early check's files are
-untouched. Quit any running copy of the app, then run in order:
-
-```zsh
-cd /Users/randy/Projects/Gus
-```
-
-```zsh
-Scripts/build-app.sh
-```
-
-```zsh
-rm -rf /Users/randy/gus-qa/gain-map-hdr-editing/signoff/Gus-signoff.app
-```
-
-```zsh
-cp -R /Users/randy/Projects/Gus/build/Gus.app /Users/randy/gus-qa/gain-map-hdr-editing/signoff/Gus-signoff.app
-```
-
-```zsh
-plutil -replace CFBundleIdentifier -string me.sesser.gus.debugtest.gainmap282signoff /Users/randy/gus-qa/gain-map-hdr-editing/signoff/Gus-signoff.app/Contents/Info.plist
-```
-
-```zsh
-codesign --force --deep --sign - /Users/randy/gus-qa/gain-map-hdr-editing/signoff/Gus-signoff.app
-```
+The library and the app copy under
+`/Users/randy/gus-qa/gain-map-hdr-editing/signoff/` were rebuilt for `84791f7`:
+copies of the three photos, `APPLE_0561.HEIC` (IMG_0561 with only Apple's gain
+map) and `PLAIN.jpg` (synthetic, no gain map), every HDR choice off, and
+IMG_0546 rated 5 with a pick and an orange label (for P6). The early check's
+files are untouched. Quit any running copy of the app, then run:
 
 ```zsh
 open -n /Users/randy/gus-qa/gain-map-hdr-editing/signoff/Gus-signoff.app --args --library-root /Users/randy/gus-qa/gain-map-hdr-editing/signoff/library
 ```
 
-To start it again, use only that last command. Never open the copy by
-double-click: it would open the real library.
+Start it again the same way. Never open the copy by double-click: it would open
+the real library.
 
 Turn HDR on with the **HDR** box at the top of the Adjust tab. The files go up to
 2.6× (IMG_0546), 3.7× (IMG_0542), 4.6× (IMG_0561) and 4.7× (APPLE_0561) SDR
 white. The **HDR** badge's help tag names what the display allows now when that
-is less. The external display allowed about 1.3× during the build, so HDR looking
+is less. The external display allowed about 1.3× in these runs, so HDR looking
 close to SDR there is expected.
 
 | P | Do | Pass looks like | Covers |
 | --- | --- | --- | --- |
 | P1 | Turn HDR on for IMG_0561, IMG_0546 and APPLE_0561. Do this on a screen where the badge's help tag names no display limit, and once where it does. At fit, then at 100% (`Z`): drag and release Exposure, Contrast, a Tone Curve point, Sharpening to its maximum and a radial mask's Exposure. Press `\` | Brightness and color don't shift while dragging or on release, away from the edit too (a soft frame while moving is fine). Original is the unedited photo, still HDR. On a screen with room above white, APPLE_0561 visibly brightens when turned on, as the others do (it need not match IMG_0561 exactly) | AC8; M19; E2 repeated |
-| P2 | On a display that allows less than the photo needs: quit, relaunch with the window there and the app in front, open a first HDR photo and wait 3 s. Then other photos, the grid, comparison (`S`), review (`F`), the window to the other display and back | At most one further change, about 1.5 s after HDR appears, on the first photo only. Badge stays **HDR**; its help tag gives the file's number and the display's | AC18; M9 |
-| P3 | With an HDR photo open, change screen brightness: at rest, during a slider drag, at 100% with the mask overlay and then with Original, during Crop. Switch apps and back. Move the window between displays (an SDR one if there is one). At 100%: **View ▸ Hide HDR**, wait, **Show HDR**. On the external display at 200% (`⌘=`), panned to a corner, turn its HDR off and on in System Settings; repeat in comparison | The picture follows with no flash, spinner, lasting wrong level or repeated jumps; the histogram doesn't change with brightness and fills within a moment of Show HDR. An SDR display reads **SDR: No HDR Display** and HDR returns. Badge and picture agree, never loading for good; zoom and place stay (if only the System Settings change returns to 100%, note it for the proposed follow-up bug) | AC5; M10 to M12, M16, M17 |
-| P4 | Turn HDR off and on, by the box and by `⌘Z`, at fit and at 100%. Arrow through the HDR photos and back; go to the grid and back | At most one change, SDR to HDR, on arrival. Off is SDR at once with no flash of HDR. Under an HDR picture the histogram is the HDR one or briefly its empty frame, never an SDR curve or another photo's | M2, M3 |
-| P5 | Over an HDR photo: Crop, straighten, Done; Crop, Esc; Edit Spots (`H`), add a spot; save a preset and hover it; sharpening map on and off; fill a fringe color, Fringe Map on and off, then pick that slot again at 100%. Put crop, mask and spot handles over the brightest areas and paint a brush mask there | No flash of SDR. A map has no version badge and no brightness ramp around it. Picking turns the picture sharp and keeps it HDR. Handles are easy to find; the mask's red reads about as clearly as in SDR | M4 to M6; AC7 by eye |
-| P6 | Compare an HDR photo with an SDR one, `A` to switch; then two HDR photos, the first time each is shown after a relaunch; review mode | Each pane has its own badge, with a small spinner if HDR takes over half a second; the histogram follows the active side without showing the other's curve | M13 |
-| P7 | Adjust header, with Keyboard Navigation on and Tab. **Adjust** menu on the photo, while comparing and while cropping. **Adjust ▸ Reset All Adjustments**, then Undo. The HDR histogram with Increase Contrast off and on, in Light and Dark system appearance; watch the Tone Curve. Narrow the window to its minimum and step between photos | **HDR** box after **Original**, evenly spaced, reached by Tab. **Turn On / Off HDR** follows the choice and is dimmed while comparing and cropping. Reset turns HDR off, Undo restores it. Histogram line, fill, dashed lines and **HDR** mark readable; the curve's backdrop keeps its axis. The stars moving off center in a narrow caption doesn't read as jumpy | M1, M7, M8 |
+| P2 | With the window on a display that allows less than the photo needs: quit, run the command again, keep the app in front, show a first HDR photo and wait 3 s. Then other HDR photos, the grid, comparison (`S`), review (`F`), the window to the other display and back | At most one further change, about 1.5 s after HDR appears, on the first photo only. Badge stays **HDR**; its help tag gives the file's number and the display's | AC18; M9 |
+| P3 | With an HDR photo open, change screen brightness: at rest, during a slider drag, at 100% with the mask overlay and then with Original, during Crop. Switch apps and back. Move the window between displays (an SDR one if there is one). On the external display at 200% (`⌘=`), panned to a corner, turn its HDR off and on in System Settings; repeat in comparison | The picture follows with no flash, spinner, lasting wrong level or repeated jumps; the histogram doesn't change with brightness. An SDR display reads **SDR: No HDR Display** and HDR returns. Badge and picture agree, never loading for good; zoom and place stay (if only the System Settings change returns to 100%, note it for the proposed follow-up bug) | AC5; M10 to M12, M16, M17 |
+| P4 | Turn HDR off and on, by the box and by `⌘Z`, at fit and at 100%; arrow through the photos; grid and back. Over an HDR photo: Crop, straighten, Done; Crop, Esc; Edit Spots (`H`), add a spot; save a preset and hover it; sharpening map on and off; fill a fringe color, Fringe Map on and off, pick that slot again at 100%. Put crop, mask and spot handles over the brightest areas and paint a brush mask there. Relaunch; compare an HDR photo with PLAIN (`A` switches), then two HDR photos; review | At most one change, SDR to HDR, on arrival; off is SDR at once. No flash of SDR. A map has no version badge and no brightness ramp around it. Picking turns the picture sharp and keeps it HDR. Handles are easy to find; the mask's red reads about as clearly as in SDR. Each pane has its own badge, with a small spinner if HDR takes over half a second. Under an HDR picture the histogram is the HDR one or briefly its empty frame, never an SDR curve or another photo's | AC7 by eye; M2 to M6, M13 |
+| P5 | With Keyboard Navigation on, Tab through the Adjust header. Open the **Adjust** menu on a gain-map photo, while comparing and while cropping. Look at the HDR histogram with Increase Contrast off and on, in Light and Dark system appearance; watch the Tone Curve | The **HDR** box follows **Original**, evenly spaced, reached by Tab. **Turn On / Off HDR** follows the choice and is dimmed while comparing and cropping. Histogram line, fill, dashed lines and **HDR** mark readable; the curve's backdrop keeps its axis | M1, M7 |
+| P6 | Sidebar and inspector shown, on IMG_0546: narrow the window slowly to its minimum and widen it again. At the minimum, arrow between photos, turn HDR on and off, zoom to 100% and pan; hover the **★ 5** and the label | Items leave and return without reading as jumpy; hovering names the rating and the label. If the stars turn into **★ 5**, or the position or **Film Strip** button leaves, for a moment while HDR loads or a sharp frame is made, note it (code review C11, left as is: an optional improvement, not a failure) | M8, M18; the look only |
 
 ## Follow-up
+
+### Third pass, 2026-11-25, `84791f7`
+
+| Finding | Result | Check |
+| --- | --- | --- |
+| Q6: crowded narrow caption pushed the side panes off the window | **Fixed** | U1 (240 pt where `e4c14b2` gave 261 and 318), U2, U3, U4, U6; `LoupeCaptionLevelsTests` |
+| Q7: version badges widened comparison panes | **Fixed** for this branch's part; the older overflow is the follow-up in `review.md` | U5, U7 against `develop` |
+| Designer's F12 (M18) | **Fixed**; one clipped star noted | Q8 |
+| Designer's F13 (M20) | **Fixed** | U5, U7 |
+| Q1 to Q5 | Still fixed | Their tests pass in the full run; scripts not rerun |
+
+Open: Q8 (engineer, with the designer's call), Q9 (designer). P1 to P6 not yet
+reported done. P numbers replace the second pass's P1 to P7.
 
 ### Second pass, 2026-11-25, `e4c14b2`
 
@@ -654,4 +802,4 @@ close to SDR there is expected.
 | Q5: AC8 automated for a few stacks | **Fixed** | 58 cases pass |
 | Designer's F12 (M18) | **Not fixed**: M18 fails | Q6 |
 
-Open: Q6 (engineer), Q7 (designer's call). P1 to P7 not yet reported done.
+Open at that pass: Q6 (engineer), Q7 (designer's call).
