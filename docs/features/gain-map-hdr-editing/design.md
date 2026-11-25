@@ -1,0 +1,460 @@
+# Edit and show gain-map photos in HDR: design
+
+Issue: #282 · PRD: the issue body (approved 2026-11-24, revised after spike
+#285) · Spike: `docs/features/gain-map-hdr/spike.md` · Builds on #277
+(`docs/features/heic-exposure-bright/`) · macOS 26 and later only (R18).
+
+The HIG's pages on images and color give no guidance on showing or editing HDR
+photos (checked 2026-11-24). Except where a section cites a HIG rule, what
+follows is design judgment, not Apple policy.
+
+## 1. Model
+
+A gain-map photo has two things that must never be confused. The UI keeps them
+apart by wording and place.
+
+| | Per-photo choice | View setting |
+| --- | --- | --- |
+| Question it answers | Is this photo edited and shown in HDR? | May this app show HDR on screen at all? |
+| Scope | One file or virtual copy; saved with its edits | App-wide preference (`loupe.showsHDR`) |
+| Where | Adjust tab check box, **Adjust** menu | **View** menu |
+| Verbs | **Turn On HDR** / **Turn Off HDR** | **Show HDR** / **Hide HDR** |
+| Undo, History | Yes | No |
+| Default | Off | On |
+
+The verbs follow the app's own convention: **Turn On / Off** changes an edit
+(**Turn On Black & White**), **Show / Hide** changes what is on screen (**Show
+Mask Overlay**). Both are changeable menu labels with a verb (HIG, Menus,
+"Toggled items").
+
+The **version on screen** is SDR or HDR. It is HDR only when the choice is on
+and no reason in §5 applies.
+
+HLG, PQ and floating-point DNG photos have no choice and change nothing
+(R16): same badge, tooltip, histogram and behavior as today. The one change
+that reaches them is the View menu's new title (§3). Everything below is about
+gain-map photos unless it says otherwise.
+
+## 2. The choice
+
+### 2.1 Check box in the Adjust tab
+
+A system check box titled **HDR** in the pinned header of the loupe's Adjust
+tab (`AdjustHeader`), after the **Original** toggle, 12 pt from it. The ⋯
+menu stays at the trailing end.
+
+```
+[ Original ]   [x] HDR                      (...)
+```
+
+- Use `AppKitCheckbox` (the debug script can click it). Not a switch and not a
+  bordered toggle button. A checkbox is the macOS control for one on/off
+  setting (HIG, Toggles), it matches the Adjust tab's group check boxes, which
+  also mean "this edit is on", and it cannot be mistaken for the **Original**
+  button beside it, which is a view state and is never saved.
+- Not under a heading: the choice belongs to the whole photo, and the pinned
+  row keeps it visible beside the histogram it changes.
+- Shown only for a gain-map photo. Other files show no control at all, not a
+  dimmed one (R1: they have no choice; a dimmed box on every raw would be
+  noise). The header's other items don't move.
+- Whether the file has a gain map is known by the time the header appears, so
+  the box never pops in afterwards.
+- Checked state is the stored choice, whatever version is on screen.
+- Disabled during a crop session, with **Original**.
+- Help tag: "Show and edit this photo in HDR, using the brightness
+  information in its file. Exports are SDR."
+- The header shows only when the editor is ready, as today, so it is absent for
+  an offline original (RI-2) and while comparing.
+
+### 2.2 Menu bar
+
+**Adjust** menu, first item after the first separator (above **Auto
+Exposure**): **Turn On HDR**, or **Turn Off HDR** when the focused photo's
+choice is on.
+
+- Enabled: loupe (review as for the other adjust items), editor ready,
+  gain-map photo, not comparing, not cropping. The rule is the one **Adjust ▸
+  Black & White ▸** uses, plus "has a choice". Otherwise it stays listed and
+  dimmed with the title **Turn On HDR** (HIG, Menus: show unavailable items).
+- No keyboard shortcut. It is set once per photo, and the obvious combinations
+  are taken or read as system commands.
+- No toolbar item and no context menu item. The grid cannot set it (non-goal).
+
+### 2.3 Behavior
+
+- Turning it on: the check mark and badge respond at once; the picture stays
+  SDR until the HDR frame is ready, then changes once (§6.1).
+- Turning it off: SDR at once.
+- One undo step and one History entry per change, both named **Turn On HDR** or
+  **Turn Off HDR** (so **Edit ▸ Undo Turn On HDR**).
+- Reset All Adjustments turns it off in its existing step, **Reset
+  Adjustments**. A photo whose only edit is the choice counts as adjusted for
+  Reset All (the ⋯ menu item, **Adjust ▸ Reset All Adjustments**, the context
+  menus and the grid batch are enabled for it).
+- It counts for nothing else: it does not enable **Save Adjustments as
+  Preset…**, it has no row in **Copy Adjustments…**, paste and presets neither
+  carry nor change it (R3), and the preset list's check mark ignores it.
+
+## 3. View menu
+
+**Show / Hide HDR Highlights** becomes **Show HDR** / **Hide HDR**. Same
+place, same preference, same enabled rule. "Highlights" is no longer true: a
+gain map brightens mid-tones too (PRD, Terms). The title is as short as
+**Show Original**, and the badge reason **HDR Hidden** (§5) points back to
+it. The item covers every HDR photo, gain-map and
+otherwise. Hiding keeps all stored choices (R5) and takes effect at once.
+
+## 4. Version badge
+
+In the loupe, review and each comparison pane, a gain-map photo always has
+exactly one version badge (`CaptionBadge`), in the slot the **HDR** badge has
+now. The exceptions are while a map is shown (§8, RI-4) and an offline photo
+with the choice off that the app doesn't know to be a gain-map photo, which
+shows only **Offline** (RI-3).
+
+| State | Badge | Help tag |
+| --- | --- | --- |
+| HDR on screen, not fitted | **HDR** | "Showing the HDR version. This file brightens up to %@× SDR white." |
+| HDR on screen, fitted | **HDR** | "Showing the HDR version, fitted to this display. The file brightens up to %1$@× SDR white and the display can show %2$@× now. The histogram shows the whole HDR version." |
+| Choice off | **SDR** | "Showing the SDR version. This file also has an HDR version. To use it, choose Adjust ▸ Turn On HDR." |
+| Choice on, HDR still loading | **SDR**, with the caption spinner after 0.5 s | "Loading the HDR version" (badge and spinner) |
+| Choice on, HDR can't be shown | warning triangle, **SDR** and a reason (§5) | per reason |
+
+- "Fitted" means the display's current headroom is below the file's, compared
+  at the one decimal the text shows. Screen brightness changes this: the help
+  tag follows, the badge does not change. Nothing visible announces fitting.
+  On many displays it is the normal state, and a mark that came and went with
+  the brightness keys would draw the eye away from the photo. The help tag, the
+  VoiceOver label and the user guide say it.
+- A display that can show HDR but offers 1.0× at the moment still reads
+  **HDR**, with the fitted text.
+- The two **SDR** badges without a triangle are normal states. The triangle
+  (`exclamationmark.triangle`) marks "you asked for HDR and are not seeing it".
+  State is carried by words and a symbol, never by color alone (HIG, Color).
+- Changing the badge never resizes the photo or moves the culling marks.
+- HLG, PQ and DNG photos keep today's **HDR** badge and tooltip, and get no
+  **SDR** badge.
+- The grid and film strip show nothing (non-goal).
+
+## 5. Reasons for SDR when the choice is on
+
+First match wins, so one reason is shown.
+
+| Order | Reason | Badge, full form | Help tag |
+| --- | --- | --- | --- |
+| 1 | Original offline | triangle **SDR**, beside the existing **Offline** badge | "HDR is on for this photo, but its original is offline, so the cached SDR preview is shown." |
+| 2 | **View ▸ Hide HDR** | triangle **SDR: HDR Hidden** | "HDR is on for this photo. To see it, choose View ▸ Show HDR." |
+| 3 | Display has no extended range (potential headroom 1, as today's rule) | triangle **SDR: No HDR Display** | "HDR is on for this photo, but this display can't show HDR, or HDR is turned off for it in System Settings." |
+| 4 | The HDR version could not be made | triangle **SDR: HDR Failed** | "HDR is on for this photo, but its HDR version couldn't be made. Open the photo again to retry." |
+
+- **Offline** adds no second wording of its own: the **Offline** badge, with
+  its volume help tag, is the visible reason.
+- Short form: where the caption row can't hold the full form, the badge is the
+  triangle and **SDR**; the help tag and VoiceOver label keep the reason. In the
+  single loupe the row picks the form that fits (`ViewThatFits`), so the badges
+  never run into the culling marks.
+- The choice, the check box and the menu item are unaffected by reasons 2 to 4
+  and can still be changed. Under reason 1 the check box and menu item can't
+  change it, though Reset All from the grid still turns it off (RI-2).
+- When a reason ends, HDR returns: at once for the View setting and a display
+  move; on the next opening for offline and failure (AC4).
+- After a failure the photo stays SDR for the rest of that opening, even if a
+  later frame would succeed. Flipping between versions is the fault #277 fixed.
+  No alert: the badge is the report.
+
+## 6. What the loupe shows
+
+### 6.1 Arrival (R8, AC7)
+
+1. The cached SDR preview may show first, badge **SDR**.
+2. The picture changes once to HDR; badge and histogram change with it.
+
+If an HDR rendition is already in memory (a preloaded neighbor, returning to a
+photo, entering or leaving comparison or review), show it first and skip step
+1\. Preload neighbors that have the choice on, as HDR neighbors are preloaded
+today.
+
+### 6.2 While the photo stays open
+
+Once HDR is on screen, no SDR picture of the photo is put on screen unless the
+choice changes (RI-1) or a reason in §5 applies. This needs care where today's
+code returns to cached renditions:
+
+- On release, the last live frame stays until the settled HDR render replaces
+  it. The new edit's cached SDR preview is never shown in between.
+- After undo, redo or a History revert that keeps the choice on, the old
+  picture stays until the new HDR render is there.
+- Zooming to 100% enlarges the HDR picture until the HDR full-resolution render
+  or region frame arrives.
+- Drafts may be soft, as today. They are HDR.
+
+The layer keeps its extended range for the whole of that time, including while
+a map is shown (§8), so the system never ramps the display's brightness down
+and up during one visit.
+
+### 6.3 Headroom (R6, R9)
+
+- Render for the window's display's current headroom, and follow it when screen
+  brightness changes or the window moves to another display, without reopening.
+  Nothing in the app animates this; bursts of changes may be coalesced, but the
+  picture ends at the latest value. Following is not a change of version: no
+  badge change, no spinner, no SDR frame.
+- During a drag, frames use the newest headroom.
+- What the screen does with a pixel depends only on that pixel and the
+  display's headroom, never on the brightest value elsewhere in the frame. An
+  edit that pushes some pixels past what the display can show must not dim or
+  brighten the rest, during a drag or on release. How (a steady headroom tag,
+  clipping at the display's limit) is the engineer's, and the early check
+  (§13) judges it.
+
+## 7. Histogram (R10)
+
+The inspector histogram describes the version on screen. With HDR shown it
+describes the **whole photo's full HDR version**, at the file's full
+brightening, the same on every display. With SDR shown for any reason, and in
+the grid, it is today's histogram.
+
+### 7.1 Drawing
+
+Same frame, height (88 pt), colors and peak rule as today.
+
+```
+|<------------ SDR, 3/5 ------------>|<---- HDR, 2/5 ----->|
+|                                    |    :       :    HDR |
+|   ▂▅▇▆▄▃▂▂▁▁                       |▂▂▁ :  ▁    :        |
+0                              SDR white   +1      +2     +3 stops
+```
+
+- Left three fifths of the plot: 0 to SDR white, on the same display-encoded
+  scale as today.
+- Right two fifths: 0 to +3 stops above SDR white (1× to 8×), linear in stops.
+  The range is fixed, never fitted to the file, the edit or the display, so
+  the axis means the same thing during a drag, after release, on every display
+  and from photo to photo. 3 stops covers the files measured (headroom up to
+  6.3×).
+- 255 bins of equal width: 153 SDR, 102 HDR. A value of exactly SDR white falls
+  in the last SDR bin; values past +3 stops collect in the last bin. As today,
+  the first and last bins don't set the height scale.
+- Channels are binned from linear Display P3 relative to SDR white.
+- A small step in the curve at the line is expected (the two scales differ by
+  about 1.4 there). Don't smooth or renormalize it.
+- A solid 1 pt line at SDR white (white, 45% opacity; 80% with Increase
+  Contrast), a faint fill over the HDR part (white, 6%), dashed lines at +1 and
+  +2 (white, 15%), and **HDR** in the caption 2 style (10 pt, white, 60%) at
+  the top trailing corner. The line and the word, not a color, say that the
+  axis changed.
+- No marker for the display's headroom: the histogram must look the same at any
+  headroom (AC9).
+- An edit that leaves nothing above white keeps the HDR axis with an empty
+  right part (R8).
+
+### 7.2 Behavior
+
+- The axis changes only when the version on screen changes: on arrival, together
+  with the picture. Once HDR is on screen the histogram never falls back to the
+  SDR thumbnail's counts, including after release while the new render is
+  pending: it keeps the last HDR counts.
+- Update timing is today's (live while dragging; may lag until a pause at
+  100%). If R11 forces fewer updates during a drag, keep the HDR axis and update
+  less often.
+- With an HDR-on photo in the active comparison pane, the histogram is the HDR
+  one, on both tabs. It follows the active side.
+- Show Original: the unedited HDR version's. Maps and mask overlay frames count
+  nothing, as today; the last photo counts stay.
+- Help tag (HDR only): "The whole photo's HDR version. Right of the line is
+  brighter than SDR white, up to 3 stops; anything brighter collects at the
+  right edge. A picture fitted to the display can differ."
+- VoiceOver: label "Histogram, HDR version", value "%lld percent of the photo is
+  brighter than SDR white" (by luminance). SDR keeps "Histogram".
+
+### 7.3 Tone Curve backdrop
+
+The histogram drawn behind the **Tone Curve** stays the **SDR** version's, in
+the same shape as today, also while HDR is shown. The curve's horizontal axis is
+the SDR tones it works on (R7); an HDR histogram behind it would put each tone
+under the wrong part of the curve. If computing it live breaks R11, it may
+update on pause. It must never show HDR counts.
+
+## 8. Modes and overlays
+
+"HDR" below means the HDR version fitted to the display, in an extended-range
+layer.
+
+| Mode | Picture | Version badge | Notes |
+| --- | --- | --- | --- |
+| Fit, 100% and above, pan | HDR | HDR | |
+| Slider, curve, wheel, mask or brush drag | HDR frames | HDR | §6.2 |
+| Hover preview (preset, look-up table) | HDR version of the previewed values | HDR | Presets don't carry the choice, so it stays |
+| Show Original | Unedited HDR version | **Original** and HDR | R8 |
+| Mask overlay, painting included | The photo with today's red tint, then brightened like the photo | HDR | See below |
+| Sharpening map, Fringe Map | The map as today: SDR values, not brightened | None; the map's badge only | See below |
+| Crop session | The whole-sensor picture under the crop frame in HDR | HDR | See below |
+| Edit Spots | HDR | HDR | Overlay drawing unchanged |
+| Fringe picking | HDR | HDR | The Pixel Magnifier's plate and readout stay SDR |
+| Film strip, grid, preset thumbnails, look-up table browser, export previews | SDR | none | R12 |
+
+- **Mask overlay.** The tint is applied to the SDR render and the file's
+  brightening follows, so red-to-photo proportions, and therefore how clearly
+  coverage reads, are those of the SDR overlay at every brightness. A tint at
+  SDR brightness laid over a highlight several times brighter would nearly
+  vanish exactly where it is needed. The overlay is never a reason to drop to
+  SDR.
+- **Maps.** A map is a diagnostic drawing, not a version of the photo: gray
+  values that mean coverage. Brightening it by the gain map would make equal
+  coverage look unequal. It is shown as today in the still extended-range layer,
+  and the picture returns straight to HDR when it ends (RI-4).
+- **Crop.** The image under the frame (`cropImage`) is the HDR version, follows
+  headroom, and shows without an SDR frame first: entering Crop keeps the
+  current picture until the HDR whole-sensor render is ready. The dimming
+  outside the frame, the frame, handles and grid are drawn as today, at SDR
+  brightness. Done and Esc return straight to HDR.
+- **Handles** (crop, mask, spot) stay SDR white with their existing outlines.
+  Check they stay findable over bright highlights (M list, §13).
+- **Pixel Magnifier.** It reports the SDR picture's pixels and values, which
+  are what picking and the controls work on. No change.
+
+## 9. Comparison and review
+
+- Each pane shows its own photo's choice, with its own version badge (R4). An
+  HDR photo beside an SDR one is a normal pairing; nothing matches them.
+- Pane captions, short of room, drop the position, then middle-truncate the
+  name, as today, then switch a §5 badge to its short form. A gain-map photo's
+  version badge never drops. HLG, PQ and DNG photos' **HDR** badge may still
+  drop last, as today.
+- While comparing, the choice can't be changed (no editing while comparing).
+- Review mode is the loupe: same badges, headroom and reasons.
+
+## 10. Export notice (R13)
+
+In the Export sheet's fixed header, a line under the subtitle, shown when at
+least one photo being exported has the choice on:
+
+- SF Symbol `info.circle`, 11 pt secondary text, laid out like `IssueText`.
+- "1 photo has HDR on. Exports are SDR." / "%lld photos have HDR on. Exports
+  are SDR." (plural variations in the catalog).
+- Counted over the sheet's frozen photos (videos excluded), whatever the View
+  setting or display, and known when the sheet appears.
+- It sits above any general issue line. It changes no button and no default, and
+  there is no alert (HIG, Alerts: "Use alerts sparingly" and "Avoid using an
+  alert merely to provide information"). The line is information in the context
+  where it matters.
+
+## 11. History
+
+Entries **Turn On HDR** and **Turn Off HDR**, like any group's. Reset All's
+entry is unchanged. Reverting to an entry writes that entry's choice with its
+other edits, so reverting to a state from before HDR was turned on, including
+any entry older than this feature, turns HDR off (RI-1).
+
+## 12. Accessibility
+
+- Check box: label "HDR", the §2.1 help tag as its hint. Full keyboard access
+  reaches it in the header after **Original**.
+- Version badges have spoken labels that stand alone, not the bare letters:
+  "Showing the HDR version" (plus ", fitted to this display"), "Showing the SDR
+  version", "Loading the HDR version", and "HDR is on, showing the SDR
+  version:" followed by "original offline", "HDR is hidden in the View menu",
+  "this display can't show HDR" or "the HDR version couldn't be made".
+- The loupe canvas's accessibility value includes the same phrase. A change is
+  not announced on its own.
+- Histogram as §7.2.
+- No motion is added, so Reduce Motion needs nothing. Increase Contrast: §7.1.
+- Strings go in the String Catalog.
+
+## 13. Early check by eye (before the rest is built)
+
+The PRD's condition on Q2. With only enough built to show and drag one file in
+HDR, the owner looks, on the HDR display:
+
+- E1. A file brighter than the display (the Pixel sample, or an iPhone photo at
+  reduced display headroom): does the fitted picture look acceptable?
+- E2. Drag Exposure up and down, Contrast, and Sharpening to its maximum: does
+  anything away from the edit shift in brightness during the drag or on
+  release?
+- E3. Change screen brightness with the photo open: does it follow without a
+  jump, a flash of SDR or a lasting wrong level?
+- E4. Open the photo from the grid: is the one SDR-to-HDR change acceptable?
+
+If E1 or E2 fails, Q2 goes back to the owner before more is built. The final
+manual checks (in `review.md`) will add: handles over highlights, the mask
+overlay's legibility, the crop session, maps, the histogram's look in both
+appearances, and narrow captions.
+
+## 14. Debug script
+
+For AC4, AC5, AC7 and AC9 without a person (names are suggestions):
+
+- `adjust hdr on|off`: the per-photo choice. The existing `hdr on|off` stays the
+  View setting.
+- `hdr display <headroom>|sdr|system`: overrides what the loupe takes as the
+  display's current headroom, or that it has none.
+- `print hdr` adds, per shown photo or pane: has a choice, choice, version on
+  screen, badge text and reason, file headroom, display headroom used, histogram
+  kind (SDR or HDR) and its share above white.
+- A log of version changes for the open photo, so AC7 can show at most one.
+
+## 15. User guide
+
+Replace the second paragraph of **HDR** (gain-map photos stay SDR) and add to
+it, in these terms:
+
+- Which files: most iPhone HEIC and JPEG photos and Ultra HDR JPEGs. Off by
+  default; **HDR** check box in the Adjust tab or **Adjust ▸ Turn On HDR**; an
+  undoable edit; not carried by presets or Copy Adjustments; Reset All turns it
+  off.
+- What changes: edits apply to both versions alike; the controls work on the SDR
+  tones; there is no strength control.
+- The badges and the four reasons; fitting to the display; the histogram's two
+  parts, and that it shows the full version; the Tone Curve's backdrop is SDR.
+- Thumbnails, previews and exports are SDR.
+- **View ▸ Show / Hide HDR** replaces **Hide HDR Highlights**.
+- The existing HDR paragraph stays for HLG, PQ and DNG, and says that their HDR
+  view turns off with some adjustments and that this does not happen to
+  gain-map photos (R16). Name those adjustments as they are today: Contrast,
+  Whites, Blacks, Highlights above 0, Tone Curve, Color Mixer, Color Grading, a
+  look-up table, Dehaze, Grain (check against `preservesExtendedRange`).
+- Add to the histogram and Export passages where they stand.
+
+## 16. Answers to the PRD's designer questions
+
+| Question | Answer |
+| --- | --- |
+| Does anything say the picture is fitted and differs from the histogram? | The **HDR** badge's and histogram's help tags, VoiceOver and the user guide. Nothing visible (§4, §7.1) |
+| Where the choice lives | **HDR** check box in the Adjust header; **Adjust ▸ Turn On / Off HDR** (§2) |
+| How the loupe states version and reason | One version badge; triangle and reason when blocked (§4, §5) |
+| Name of Show / Hide HDR Highlights | **Show HDR** / **Hide HDR** (§3) |
+| Histogram above white | SDR three fifths, +3 stops two fifths, fixed axis (§7) |
+| Mask overlay, maps, Show Original, crop | HDR except the maps, which stay as today (§8) |
+| Where the export notice appears | Export sheet header (§10) |
+| History label | **Turn On HDR** / **Turn Off HDR** (§11) |
+
+## 17. Requirements issues and their rulings
+
+All five are ruled; none is open. The design above follows each ruling.
+
+- **RI-1. R8 against R2.** R8 says undo and History revert never switch to SDR;
+  R2 makes the choice an undoable edit kept in History. *Settled:* R8 holds
+  while the choice stays on. Toggling the choice, undo or redo of the toggle,
+  and Reset All change the version, because the person asked. The owner also
+  ruled on 2026-11-24 (PRD Q3) that a History revert restores that entry's HDR
+  setting, so reverting to a state from before HDR was turned on turns it off.
+- **RI-2. Assumption 1 against offline originals.** Only the loupe's Adjust tab
+  is unavailable for an offline photo. Grid batch commands that don't read the
+  original (paste, presets, Reset All) still reach it (`BatchEdit`). *Accepted
+  by the product manager:* the check box and **Adjust ▸ Turn On / Off HDR** can
+  change the choice while SDR is shown for the View setting, the display or a
+  failure, not while the original is offline. Reset All from the grid turns the
+  choice off for an offline photo too; paste and presets leave it alone (R3).
+- **RI-3. R4 for offline photos with the choice off.** The app may not know
+  without the file whether it has a gain map. *Ruled by the owner on 2026-11-24
+  (PRD Q4):* with HDR off and the original offline, the loupe may show only
+  **Offline**. It shows the **SDR** badge too if the app already knows it is a
+  gain-map photo. No migration or re-reading of the library is asked for this.
+  With the choice on it is always known.
+- **RI-4. R4 and R8 during the maps.** The sharpening and fringe maps are
+  neither version. *Accepted by the product manager:* they show as today,
+  without a version badge, and the HDR picture returns when they end; this is
+  not a switch to SDR. The Pixel Magnifier's plate stays SDR.
+- **RI-5. R4 in narrow captions.** *Accepted by the product manager:* a full
+  reason may shorten to the warning triangle and **SDR**, with the reason in the
+  help tag and VoiceOver.
