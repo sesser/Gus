@@ -230,3 +230,64 @@ struct GainMapAdjustmentTests {
         }
     }
 }
+
+/// AC10 (R11): live frame times, SDR against HDR (histograms included), for
+/// one representative stack at fit (2560 px, the loupe's size on a Retina
+/// display) and at 100% (a 2560 × 1440 region of the full-resolution decode).
+/// `GAINMAP_TIMING=a.HEIC:b.HEIC` (the owner's files, never committed); prints
+/// medians for status.md. Not a pass or fail on time: it checks the run.
+@Suite("Gain-map photos: frame times (issue #282, AC10)")
+struct GainMapTimingTests {
+    static var stack: Adjustments {
+        var values = Adjustments()
+        values.exposure.ev = 0.3
+        values.tone.contrast = 20
+        values.tone.highlights = -30
+        values.presence.vibrance = 15
+        values.toneCurve[.rgb] = [CurvePoint(x: 0, y: 0), CurvePoint(x: 0.25, y: 0.2), CurvePoint(x: 0.75, y: 0.8),
+                                  CurvePoint(x: 1, y: 1)]
+        values.sharpen.amount = 40
+        values.hdr.isOn = true
+        return values
+    }
+
+    static func median(_ times: [Double]) -> Double {
+        let sorted = times.sorted()
+        return sorted[sorted.count / 2] * 1000
+    }
+
+    @Test("Frame times at fit and at 100%", .enabled(if: ProcessInfo.processInfo.environment["GAINMAP_TIMING"] != nil))
+    func frameTimes() async throws {
+        let paths = ProcessInfo.processInfo.environment["GAINMAP_TIMING"]?.split(separator: ":").map(String.init) ?? []
+        for path in paths {
+            let url = URL(fileURLWithPath: path)
+            let generator = PreviewGenerator()
+            let session = LiveRenderSession(source: url, generator: generator, longEdge: 2560, colorSpace: nil)
+            let region = LiveRegionRenderer(source: url, generator: generator, colorSpace: nil)
+            let unit = CGRect(x: 0.2, y: 0.2, width: 0.6, height: 0.45)
+            var fit: [String: [Double]] = [:], full: [String: [Double]] = [:]
+            for headroom in [nil, Float(4)] {
+                let name = headroom == nil ? "sdr" : "hdr"
+                var values = Self.stack
+                _ = try await session.render(values, interactive: false, allowsDrafts: false, hdrHeadroom: headroom)
+                try await region.prepare(values)
+                _ = try await region.render(values, unit: unit, hdrHeadroom: headroom)
+                for step in 0..<15 {
+                    // A slider moving: Exposure changes every frame.
+                    values.exposure.ev = 0.3 + Double(step) * 0.02
+                    let frame = try await session.render(values, interactive: true, allowsDrafts: false, hdrHeadroom: headroom)
+                    fit[name, default: []].append(frame.seconds)
+                    #expect((frame.headroom != nil) == (headroom != nil))
+                    let tile = try await region.render(values, unit: unit, hdrHeadroom: headroom)
+                    full[name, default: []].append(tile.seconds)
+                }
+            }
+            let line = String(format: "gain-map timing %@: fit SDR %.1f ms HDR %.1f ms (×%.2f); 100%% SDR %.1f ms HDR %.1f ms (×%.2f)",
+                              url.lastPathComponent, Self.median(fit["sdr"]!), Self.median(fit["hdr"]!),
+                              Self.median(fit["hdr"]!) / Self.median(fit["sdr"]!),
+                              Self.median(full["sdr"]!), Self.median(full["hdr"]!),
+                              Self.median(full["hdr"]!) / Self.median(full["sdr"]!))
+            print(line)
+        }
+    }
+}

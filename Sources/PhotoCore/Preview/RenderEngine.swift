@@ -196,6 +196,31 @@ public final class RenderEngine: @unchecked Sendable {
         return CGImageCreateCopyWithContentHeadroom(max(contentHeadroom, 1), rendered) ?? rendered
     }
 
+    /// `image` rendered now, once, to half float in the working space, as an
+    /// image over those pixels with `image`'s extent: for several renders of
+    /// one frame (a gain-map photo's HDR frame and its two histograms, issue
+    /// #282, R11) that would each evaluate the whole graph again. Values
+    /// above white and below black are kept.
+    public func materialized(_ image: CIImage) -> CIImage? {
+        let extent = image.extent.integral
+        // Kept on the GPU: an IOSurface of half floats, read by the renders that follow.
+        guard !extent.isInfinite, extent.width >= 1, extent.height >= 1,
+              let surface = IOSurface(properties: [
+                  .width: Int(extent.width), .height: Int(extent.height), .bytesPerElement: 8,
+                  .pixelFormat: kCVPixelFormatType_64RGBAHalf,
+              ])
+        else { return nil }
+        let destination = CIRenderDestination(ioSurface: surface)
+        destination.colorSpace = Self.workingColorSpace
+        do {
+            _ = try withContext { try $0.startTask(toRender: image, from: extent, to: destination, at: .zero).waitUntilCompleted() }
+        } catch {
+            return nil
+        }
+        return CIImage(ioSurface: surface, options: [.colorSpace: Self.workingColorSpace])
+            .transformed(by: CGAffineTransform(translationX: extent.minX, y: extent.minY))
+    }
+
     /// `image` rendered now to half float in `hdrColorSpace`, holding its own pixels.
     private func ownedHDRPixels(_ image: CIImage) -> CGImage? {
         guard let deferred = withContext({

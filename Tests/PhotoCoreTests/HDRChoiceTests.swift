@@ -260,3 +260,102 @@ struct HDRChoiceTests {
         }
     }
 }
+
+/// Issue #282: what the choice must not change (R12, R14, R15), and the HDR
+/// histogram (R10). Synthetic gain-map files.
+@Suite("HDR choice: SDR output, measurements and the histogram (issue #282)")
+struct HDRChoiceOutputTests {
+    private static func values(hdr: Bool) -> Adjustments {
+        var values = Adjustments()
+        values.exposure.ev = 0.4
+        values.tone.contrast = 25
+        values.hdr.isOn = hdr
+        return values
+    }
+
+    @Test("AC11: previews and photocli render are the same bytes with the choice on and off")
+    func sdrOutputUnchanged() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: "same.heic")
+            try HDRTestImages.writePatternedGainMap(to: url, width: 640, height: 480, seed: 2850)
+            let generator = PreviewGenerator()
+            let off = try generator.jpegData(source: url, stack: Self.values(hdr: false).editStack,
+                                             tiers: Set(PreviewTier.allCases))
+            let on = try generator.jpegData(source: url, stack: Self.values(hdr: true).editStack,
+                                            tiers: Set(PreviewTier.allCases))
+            #expect(!off.isEmpty && off == on)
+
+            let cli = CommandLineInterface(environment: .hermetic(currentDirectory: root))
+            var outputs: [Data] = []
+            for hdr in [false, true] {
+                let stack = root.appending(path: "stack-\(hdr).json")
+                try Self.values(hdr: hdr).editStack.jsonData().write(to: stack)
+                let out = root.appending(path: "out-\(hdr).tiff")
+                let result = await cli.run(["render", url.path, "--stack", stack.path, "--out", out.path, "--long-edge", "320"])
+                #expect(result.exitCode == 0, "\(result.standardError)")
+                outputs.append(try Data(contentsOf: out))
+            }
+            #expect(outputs[0] == outputs[1])
+        }
+    }
+
+    @Test("AC13: Auto Exposure, Auto White Balance and Color Alignment measure the same with the choice on and off")
+    func measurementsUnchanged() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: "measure.heic")
+            try HDRTestImages.writePatternedGainMap(to: url, width: 640, height: 480, seed: 2851)
+            let generator = PreviewGenerator()
+            let adjuster = AutoAdjuster(generator: generator)
+            let off = Self.values(hdr: false), on = Self.values(hdr: true)
+            #expect(try adjuster.exposure(source: url, adjustments: off) == adjuster.exposure(source: url, adjustments: on))
+            #expect(try adjuster.whiteBalance(source: url, adjustments: off)
+                    == adjuster.whiteBalance(source: url, adjustments: on))
+            #expect(try ColorAlignmentMeasurement.measure(source: url, adjustments: off, generator: generator)
+                    == ColorAlignmentMeasurement.measure(source: url, adjustments: on, generator: generator))
+        }
+    }
+
+    @Test("AC9: the HDR histogram counts values above white, differs from the SDR one, and is the same at any display")
+    func histogram() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: "histogram.heic")
+            try HDRTestImages.writePatternedGainMap(to: url, width: 800, height: 600, seed: 2852, bright: 4, dim: 1.5)
+            let session = LiveRenderSession(source: url, generator: PreviewGenerator(), longEdge: 600, colorSpace: nil)
+            var values = Adjustments()
+            values.hdr.isOn = true
+            let dim = try await session.render(values, hdrHeadroom: 1.3)
+            let bright = try await session.render(values, hdrHeadroom: 16)
+            let hdr = try #require(dim.hdrHistogram)
+            // The same whatever the display allows: the whole HDR version (R10).
+            #expect(bright.hdrHistogram == hdr)
+            #expect(hdr.shareAboveWhite > 0.1)
+            let aboveWhite = hdr.luminance[HDRHistogram.sdrBins...].reduce(0, +)
+            #expect(aboveWhite > 0)
+            // The SDR histogram (the Tone Curve's backdrop) stays, and has nothing above white.
+            let sdr = try #require(dim.histogram)
+            #expect(sdr.luminance.count == Histogram.binCount)
+            // A draft while dragging means the same axis: still above white, close to the settled share.
+            let draft = try await session.render(values, interactive: true, hdrHeadroom: 1.3)
+            let drafted = try #require(draft.hdrHistogram)
+            #expect(abs(drafted.shareAboveWhite - hdr.shareAboveWhite) < 0.05)
+            // Darkened until nothing is above white: the HDR axis stays, its right part empty (R8).
+            values.exposure.ev = -3
+            let dark = try #require(try await session.render(values, hdrHeadroom: 4).hdrHistogram)
+            #expect(dark.shareAboveWhite == 0 && dark.luminance.count == HDRHistogram.binCount)
+        }
+    }
+
+    @Test("The HDR histogram's bins: 0 to white on the display scale, then 3 stops linear in stops")
+    func histogramBins() {
+        #expect(HDRHistogram.binCount == 255)
+        #expect(HDRHistogram.bin(0) == 0)
+        #expect(HDRHistogram.bin(1) == HDRHistogram.sdrBins - 1)
+        #expect(HDRHistogram.bin(0.18) == Int(HDRHistogram.encoded(0.18) * 153))
+        #expect(HDRHistogram.bin(1.0001) == HDRHistogram.sdrBins)
+        #expect(HDRHistogram.bin(2) == HDRHistogram.sdrBins + 34)
+        #expect(HDRHistogram.bin(4) == HDRHistogram.sdrBins + 68)
+        #expect(HDRHistogram.bin(8) == HDRHistogram.binCount - 1)
+        #expect(HDRHistogram.bin(100) == HDRHistogram.binCount - 1)
+        #expect(HDRHistogram.bin(.nan) == 0)
+    }
+}

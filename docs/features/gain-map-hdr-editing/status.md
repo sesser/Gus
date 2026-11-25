@@ -131,6 +131,15 @@ Built (commit "Crop, comparison and the export notice in HDR"):
 - VoiceOver (§12): the loupe canvas's value includes the badge's phrase,
   without announcing a change of it alone.
 
+Built (commit "HDR frames render the graph once; tests for SDR output, measurements, histogram, timing"):
+- R11: an HDR live frame first rendered the whole adjustment graph three
+  times (the frame, the SDR histogram's reduction, the HDR histogram's), 2.5
+  to 3.2 times an SDR frame. Now the edited SDR frame is rendered once into a
+  half-float IOSurface (`RenderEngine.materialized`) and the HDR frame and
+  both histograms read it; the gain map is scaled to the frame as the decode
+  is. Live and settled frames still agree (AC8 test unchanged and passing).
+- Tests for AC9, AC11, AC12, AC13 and the timing run (AC10), below.
+
 ## Stage 1: what it is for
 
 Only what E1 to E4 need: one gain-map file shown and edited in HDR in the

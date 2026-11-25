@@ -336,20 +336,25 @@ public actor LiveRenderSession {
         var hdrHistogram: HDRHistogram?
         var hdr: (headroom: Float, file: Float, ceiling: Float)?
         if let hdrHeadroom, content == .photo, let map = loadedGainMap() {
+            // The edited SDR frame is rendered once at the frame's size; the HDR frame and both
+            // histograms read it (R11). The gain map, placed as the decode, is scaled the same way.
             let placed = map.placed(over: source.extent, values: adjustments, context: context)
-            let made = map.hdr(image, placed: placed, displayHeadroom: hdrHeadroom)
-            guard let output = generator.engine.makeHDRCGImage(made.image.scaledToFit(longEdge: size),
-                                                                contentHeadroom: made.headroom) else {
+                .scaledToFit(longEdge: size).settingProperties(map.image.properties)
+            guard let frameSDR = generator.engine.materialized(image.scaledToFit(longEdge: size)) else {
+                throw PreviewGenerator.Failure.renderFailed
+            }
+            let made = map.hdr(frameSDR, placed: placed, displayHeadroom: hdrHeadroom)
+            guard let output = generator.engine.makeHDRCGImage(made.image, contentHeadroom: made.headroom) else {
                 throw PreviewGenerator.Failure.renderFailed
             }
             rendered = output
             hdr = (made.headroom, map.headroom, map.ceiling)
             if !overlaid {
                 // The SDR frame's counts, from a reduction of it (`Histogram` samples 256 pixels).
-                histogram = generator.engine.makeCGImage(image.scaledToFit(longEdge: 256), colorSpace: colorSpace)
+                histogram = generator.engine.makeCGImage(frameSDR.scaledToFit(longEdge: 256), colorSpace: colorSpace)
                     .flatMap { Histogram(image: $0) }
                 // The whole HDR version's, the same on every display (R10).
-                hdrHistogram = HDRHistogram(image: map.fullHDR(image, placed: placed), engine: generator.engine)
+                hdrHistogram = HDRHistogram(image: map.fullHDR(frameSDR, placed: placed), engine: generator.engine)
             }
         } else {
             guard let output = generator.engine.makeCGImage(image.scaledToFit(longEdge: size), colorSpace: colorSpace) else {
