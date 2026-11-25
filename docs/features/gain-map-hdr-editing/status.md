@@ -8,13 +8,14 @@ Owner: swift-macos-engineer. Branch `feature/gain-map-hdr-editing`, from
 gave, GitHub was refusing the body update) and `design.md`; evidence from
 spike #285 (`docs/features/gain-map-hdr/spike.md`).
 
-**State: Done** (2026-11-25, after the first review round). Stage 1 passed
+**State: Done** (2026-11-25, after the second review round). Stage 1 passed
 the owner's early check; stage 2 built the rest of the PRD and design; the
 first-pass findings of `code-review.md` and `review.md` are fixed or answered
-below ("Review round 1"). Every acceptance criterion is built and mapped to a
+below ("Review round 1"), and the second pass's open ones (F1's rest, F11, C8,
+C9) under "Review round 2". Every acceptance criterion is built and mapped to a
 test or a check below; nothing is blocked. What only a person can check is
-listed under "For a person". Next: code review's and the designer's second
-pass, then QA.
+listed under "For a person". Next: code review's and the designer's third
+pass on round 2's commits, then QA.
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -193,6 +194,41 @@ pure values (`supersedes`, the badge, `hdrIsOn`, `GainMap.exists` on fixed
 files); no shared state, timing or pool order. The outcome test's stale case
 depends only on the service's stack closure, not on timing.
 
+## Review round 2 (2026-11-25)
+
+Fixes for the open findings of `review.md`'s second pass (F1's rest, F11; design
+§19.2, §19.4) and `code-review.md`'s Follow-up (C8, C9), commits `c629de3`
+(F1, F11), `1215ef4` (C8), `033458e` (C9). Each was reproduced first on code
+without its fix. Debug-script runs: a copy of the bundle with identifier
+`me.sesser.gus.debugtest.hdrreview282b`, scratch libraries in the session
+scratchpad (copies of the owner's three HEICs, the photo with HDR on is
+IMG_0561; for offline, the same copies on a FAT32 disk image detached and
+attached again while the app ran), shell-started, on the DELL U2723QE
+(potential 4.18; the inactive app reads 1.0 now, so `allowed 1.00` unless
+`hdr display` overrides it).
+
+| Finding | Outcome | Test or check |
+| --- | --- | --- |
+| F1 (rest: at 100%, Show HDR left the histogram an empty frame) and F11 (at 100%, a live frame didn't follow the headroom) | Reproduced, fixed (one cause, as the review said). A frame and a tile now record the display headroom they were asked for (`requestedHeadroom`, nil for SDR), and the editor's two skips in `requestRender` count a frame as current only when it shows the same values and overlay **and** was asked for the same thing now: SDR, or HDR at the same headroom within `GainMapHeadroom.tolerance` (`LiveFrameRules.isCurrent(…frameHeadroom:…headroom:)`, `rendered(for:wanted:)`). So Show HDR or a display move at 100% renders the whole frame that gives the HDR counts, and a headroom change with live frames up renders the tile again. The caption's sharp-frame spinner still ignores the headroom: following the display is no wait (design §6.3). | `GainMapHDRTests` "Review F1, F11: a frame is current only for what it was asked for…" (the rule both ways, the tolerance, values and overlay still count; both renderers record the request, an SDR file's frame too; only the HDR frame carries HDR counts). Script F1 (the review's: `hdr off`, open, `zoom`, wait, `hdr on`, wait 5 and 8 s): without the fix `live frame sdr tile hdr 1.00 … histogram none … inspector histogram hdr empty` at both waits (reproduced); with it `live frame hdr 1.00 tile hdr 1.00 … histogram hdr above white 0.381 … inspector histogram hdr`. Also at 100% from `hdr display sdr` to `system` (a move to an HDR display): `inspector histogram hdr`. Script F11 at 100% (`print hdr` now prints the tile): with Show Original, `hdr display 3` then `2`: without the fix the tile stayed `hdr 1.00` (reproduced); with it `tile hdr 3.00`, then `hdr 2.00`; with a radial mask's overlay, `2` then `3`: without, `tile hdr 2.00` both times (reproduced); with, `hdr 2.00` then `hdr 3.00`. By eye: M16 (below). |
+| C8 (an unreadable original remembered as "no gain map" for the run) | Reproduced, fixed. `GainMap.read` tells a file read without a gain map (nil) from one that can't be read now (`GainMap.ReadFailure.unreadable`, when the header or gain-map reads fail and the file isn't readable); `PreviewGenerator.gainMapHDRImage` and `gainMapHDRHistogram` use it, so `PreviewService` remembers only the first. The second is a failure of that opening (`.failed`, not `.superseded`: a share that stops answering while mounted must not leave the badge loading), and the next opening, or a remount's reload, asks again, as the help tag says. `GainMap.load` keeps its meaning for the live renderers (per session). | `GainMapHDRTests` "Code review C8: an original that can't be read fails without being remembered…" (file moved away: `read` throws, the outcome is `.failed`; moved back: the same request gives the HDR version; a plain JPEG is still a failure twice): without the fix it failed at the second request (reproduced). Script (the HDR-on photo's file renamed before launch, renamed back 9 s in, the photo opened again at about 14 s): without the fix `sdr failed` both times (reproduced); with it `sdr failed`, then `shown hdr badge 'hdr fitted' failed false`. |
+| C9 (the possibility reload recentred the loupe) | Real at zoom steps other than 100%, not at 100% itself. At exactly 100% `applyZoom` asks `NSScrollView` for the magnification it already has, which moves nothing (run: panned to a corner, `hdr display flat`, then `system`: `visible 0.6148,0.0000` throughout). At 200% (`zoomstep`) it set the zoom back to 100% (`magnification 2.000` then `1.000`, reproduced). Fixed: the loupe begins a new visit of the same version where it is (`beginsVisitInPlace`), as a pane does: it clears the tile and loads the renditions again, but sets no size and no zoom. | Script at 200%, panned to a corner: `hdr display flat` then `system`: `magnification 2.000 visible 0.8074,0.0000` before, under **SDR: No HDR Display** and back in HDR (`inspector histogram hdr`). Offline at 200% (disk image detached, then attached, photo open): `sdr offline`, then `shown hdr`, `failed false`, same magnification and position throughout. |
+| §19.4 (HDR returns in place; a photo opened while offline keeps an empty HDR histogram) | Accepted as built by the designer; the proposed follow-up bug now says so and asks for the histogram to be checked (below). | n/a |
+
+Determinism of the two new tests: structural. The F1/F11 test checks a pure
+rule with fixed values and renders fixed synthetic files; the C8 test moves a
+file in its own temporary folder between two awaited requests to a service of
+its own (distinct memory keys per case). No shared state, timing or pool order.
+
+The user guide needed no change: it already says HDR returns when the volume is
+connected again, "open the photo again to retry" (now true after an unreadable
+moment, C8), and that the histogram may show only its frame "for a moment"
+(now true at 100% too, F1).
+
+SDR output: no SDR path changed. The F1/F11 rule compares nil with nil for every
+SDR frame (a photo without the choice, or HDR not shown), so SDR live frames
+skip as before; previews, exports and `photocli render` are untouched (AC11's
+byte-equality test and every golden pass).
+
 ## Stage 1 (history): what it was for
 
 Only what E1 to E4 need: one gain-map file shown and edited in HDR in the
@@ -360,11 +396,11 @@ shell-started unless said).
 | AC2 (R2) | `HDRChoiceTests`: stack round trip, catalog column and History snapshot revert, virtual copy independence and Undo of Duplicate's removal, Reset All; script: on, relaunch still on, undo off, redo on, History lists **Turn On HDR**, revert to an entry with it off shows SDR, Reset All (menu, activated run) off, its undo on | Pass |
 | AC3 (R3) | `HDRChoiceTests` "presets and Paste Adjustments neither carry nor change the choice" (both directions, all items and one group) | Pass |
 | AC4 (R4, R5) | `HDRChoiceTests` badge reasons and order, offline with choice off (RI-3), fitted at 1.29 and 1.0 is **HDR** (RI-7); script: **SDR: HDR Hidden**, **SDR: No HDR Display** (`hdr display sdr`), **SDR: HDR Failed** (`hdr fail on`), allowance 1.29 and 1.0 read **HDR** with the fitted help tag; comparison panes each state their version; the stored choice unchanged under every reason | Pass (offline also by script since review round 1: disk image detached and attached; narrow-caption short form by eye) |
-| AC5 (R6) | `GainMapHDRTests` system decode in every orientation, smaller headroom by the gain map's rule; script: `hdr display 2`, `1.5`, `system` refit without reopening, version unchanged | Pass |
+| AC5 (R6) | `GainMapHDRTests` system decode in every orientation, smaller headroom by the gain map's rule; script: `hdr display 2`, `1.5`, `system` refit without reopening, version unchanged; at 100% with live frames up the tile follows too (review round 2, F11) | Pass |
 | AC6 (R7) | `GainMapAdjustmentTests` "every adjustment…" (24 cases: every group and control, look-up table, masks; Black & White as a switch); opt-in `GAINMAP_SAMPLES` on the owner's three files (one with only Apple's kind of gain map), table below | Pass |
 | AC7 (R8) | `GainMapHDRTests` "Once HDR is on screen…" (the visit rule); script: arrival `versions sdr,hdr changes 1`, then an Exposure change, Exposure −3 (nothing above white), crop begin and done, sharpening map on and off (no badge, HDR back), comparison and back, grid and back: still HDR, no further change; Undo of Turn On HDR, Reset All and a revert to an entry with it off show SDR | Pass (drags, zoom and hover by stage 1's scripted runs and the code path) |
 | AC8 (R9) | `GainMapHDRTests` "A live HDR frame and the settled HDR render… agree" and "A region frame at 100%…" (within 0.005 stops), still passing after the single-render change | Pass in values; by eye with the owner |
-| AC9 (R10) | `HDRChoiceOutputTests` "the HDR histogram counts values above white…" (same at headroom 1.3 and 16, draft and settled share within 0.05, dark edit keeps the axis) and its bins test; script: histogram kind and share in `print hdr` and `print compare` | Pass |
+| AC9 (R10) | `HDRChoiceOutputTests` "the HDR histogram counts values above white…" (same at headroom 1.3 and 16, draft and settled share within 0.05, dark edit keeps the axis) and its bins test; script: histogram kind and share in `print hdr` and `print compare`; at 100% after Show HDR the counts come (review round 2, F1, `GainMapHDRTests` "Review F1, F11…") | Pass |
 | AC10 (R11) | `GainMapTimingTests` (`GAINMAP_TIMING`), table below | Measured: within 1.5× |
 | AC11 (R12, R14) | `HDRChoiceOutputTests` "previews and photocli render are the same bytes with the choice on and off"; `HDRChoiceTests` render hash; every golden passes unchanged | Pass |
 | AC12 (R13) | `HDRChoiceTests` "the export notice counts…"; script: `export` prints "1 photo has HDR on. Exports are SDR." | Pass |
@@ -445,6 +481,12 @@ The timing test asserts nothing about time.
   output untouched (AC11's byte-equality test passes). CI toolchain command
   as above: **Build complete** (31.9 s), no errors; its only warnings are
   `VirtualCopiesTests.swift`'s, from `develop` (#62).
+- After review round 2 (2026-11-25, `033458e`): `swift build` clean, no
+  warnings; full `swift test`: **1574 tests in 221 suites passed**, 81.8 s.
+  Goldens unchanged; no `PreviewCacheKey.currentPipelineVersion` bump; AC11's
+  byte-equality test passes. CI toolchain:
+  `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3`:
+  **Build complete** (18.6 s, incremental), no errors, no warnings.
 - `Scripts/build-app.sh`: bundle built and signed.
 
 Debug-script results (2026-11-25) are in the AC table. Screens seen: the
@@ -493,6 +535,13 @@ Adjust tab's **HDR** check box.
     a large file, the first time it is shown); at 100%, picking a filled fringe
     slot again sharpens in HDR (F5); while HDR counts are made the histogram
     shows its empty HDR frame, never an SDR curve under an HDR picture (F2).
+12. Review round 2 (the review's M16): at 100%, **View ▸ Hide HDR**, wait,
+    **Show HDR**: the HDR histogram fills within a moment (F1). With the mask
+    overlay on, and again with Show Original, lower and raise the screen's
+    brightness on a screen that allows less than the photo needs: the picture
+    follows at 100% as it does at fit (F11). At 200%, panned to a corner,
+    eject and reconnect the photo's volume (or turn the display's HDR off and
+    on): the zoom and the place shown stay (C9).
 
 Covered by CI only, per the owner's standing ruling: VoiceOver, macOS 15 and
 macOS 26.
@@ -518,7 +567,11 @@ None open. RI-6 and RI-7 are in the revised PRD.
   `AdjustmentEditor.state == .offline` when the volume is mounted again,
   because `follow` returns early for the same version and nothing reloads it
   on `libraryAvailabilityChanged`. Seen while checking C1 (any photo, not only
-  gain-map ones; older than this branch).
+  gain-map ones; older than this branch). Per design §19.4, the issue should
+  also say: a gain-map photo with HDR on that was opened while offline keeps
+  an empty HDR histogram (the frame with no curve) after the volume returns,
+  because its counts come from the Adjust tab's editor; the fix should check
+  that the HDR histogram fills once the tab leaves its offline state.
 
 ## README
 
@@ -533,7 +586,8 @@ None open. RI-6 and RI-7 are in the revised PRD.
 - `photocli develop --set hdr.on=true|false`.
 - Debug script (CLAUDE.md lists none of these one by one): `hdr display flat`
   (review round 1) beside `hdr display <h>|sdr|system`, `hdr fail on|off`,
-  `adjust hdr on|off`.
+  `adjust hdr on|off`; `print hdr` also prints the 100% tile's version
+  (`tile hdr <h>|sdr|none`, review round 2).
 
 ## User guide
 
