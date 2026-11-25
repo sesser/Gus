@@ -44,9 +44,9 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Set by the owner 2026-11-20 (replacing #219, #218 and #87, all done); #241 and #88 left it when they shipped (2026-11-21) and #150 when it shipped (2026-11-22), so all three slots are free. #243 moved in on 2026-11-22 and shipped the same day. A PRD is required for every Now item before any work starts. The owner picks what moves in. On 2026-11-24 the owner started #282, the follow-up of bug #277.
+Set by the owner 2026-11-20 (replacing #219, #218 and #87, all done); #241 and #88 left it when they shipped (2026-11-21) and #150 when it shipped (2026-11-22), so all three slots are free. #243 moved in on 2026-11-22 and shipped the same day. A PRD is required for every Now item before any work starts. The owner picks what moves in. On 2026-11-24 the owner started #282, the follow-up of bug #277; it shipped 2026-11-25 (branch `feature/gain-map-hdr-editing`), so all three slots are free again.
 
-1. [#282](https://github.com/sesser/Gus/issues/282) `gain-map-hdr-editing`: Gain-map photos (most iPhone HEIC and JPEG) show only their SDR version; they can't be seen or edited in HDR. Started ahead of Next at the owner's request (2026-11-24)
+Nothing is in Now.
 
 ## Next
 
@@ -64,7 +64,7 @@ On 2026-11-23 the owner dropped the closed items (#64, #65, #71, #73) and set Ne
 On 2026-11-23 the owner also placed Import from Immich (#271) first in Next, ahead of #28, whose Immich target reuses the connection layer #271 creates. #271 shipped 2026-11-24 (branch `feature/immich-import`), so #28 became first in Next and builds on its `remoteService` and `remoteLink` tables and connection layer. Later that day HDR export of gain-map photos (#286), split out of #282, was placed ahead of it.
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
-1. [#286](https://github.com/sesser/Gus/issues/286) `gain-map-hdr-export`: An HDR edit of a gain-map photo can't leave the app, since exports are SDR. Ahead of #28 at the owner's choice (2026-11-24): the next step after #282, which it depends on
+1. [#286](https://github.com/sesser/Gus/issues/286) `gain-map-hdr-export`: An HDR edit of a gain-map photo can't leave the app, since exports are SDR. Ahead of #28 at the owner's choice (2026-11-24): the next step after #282, which it builds on
 1. [#28](https://github.com/sesser/Gus/issues/28) `publishing-engine`: Getting edited photos into Apple Photos or Immich means exporting to a folder and uploading by hand
 1. [#85](https://github.com/sesser/Gus/issues/85) `dng-export`: No DNG output
 1. [#90](https://github.com/sesser/Gus/issues/90) `stacks`: No hand-made or burst stacks

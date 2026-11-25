@@ -1505,18 +1505,74 @@ gain map alone is no longer HDR content (the owner's ruling RI-1, 2026-11-24):
 (`PreviewGenerator.hasHDREncoding`), so the loupe and comparison panes show the
 SDR rendition, with no HDR badge, at fit, at 100% and after a release.
 Floating-point DNGs and HLG or PQ images, with or without a gain map, keep their
-HDR rendition; camera raws stay SDR. View ▸ Show / Hide HDR Highlights is
-unchanged. No `PreviewCacheKey.currentPipelineVersion` bump (13), no golden
+HDR rendition; camera raws stay SDR. View ▸ Show / Hide HDR Highlights was
+unchanged (renamed Show / Hide HDR by #282). No `PreviewCacheKey.currentPipelineVersion` bump (13), no golden
 moved, previews and exports render as before. The opt-in real-file test is
 `HEIC_GAINMAP_SAMPLE=path/to/IMG.HEIC swift test --filter
-GainMapRenditionTests` (the owner's file is never committed). Known: HDR editing
-of gain-map photos is #282; HLG HEICs still jump on release and their fitted
+GainMapRenditionTests` (the owner's file is never committed). HDR editing of
+gain-map photos came with #282 (below), as a choice per photo; a photo without it
+still shows SDR as here. Known: HLG HEICs still jump on release and their fitted
 render is darker than their 100% render (about 1.6 stops on synthetic files; no
 real file measured; #283); HDR photos show SDR while a slider is held, as before
 this fix. Shipped; the owner signed off 2026-11-24 at 53a496b, no check named as
 left open (P1 to P5 were not recorded one by one,
 `docs/features/heic-exposure-bright/qa.md`). Covered by CI only: VoiceOver,
 macOS 15 and macOS 26.
+
+Gain-map photos in HDR (`docs/features/gain-map-hdr-editing/`, issue #282,
+branch `feature/gain-map-hdr-editing`; spike `docs/features/gain-map-hdr/`): a
+HEIC or JPEG (Ultra HDR included) with a gain map macOS reads, not a raw, HLG or
+PQ, has an HDR choice, off by default: the **HDR** check box after Original in
+the Adjust tab and Adjust ▸ Turn On / Off HDR (macOS 26 or later). It is one
+`hdr` operation in the edit stack (no group), left out of the render hash, with a
+copy in `version.hdr` (migration v17) written with every stack: one undo step and
+History entry, a History revert restores the entry's value, Reset All turns it
+off, presets and Copy and Paste Adjustments never carry or change it, a virtual
+copy starts with the original's, each file of a RAW+JPEG pair has its own. The
+check box and menu item can't change it while the original is offline, while
+comparing or while cropping. With it on, the loupe, review and each comparison
+pane show the HDR version: the edited SDR render with the file's gain map applied
+last, taken through Distortion, spots and the crop, so every adjustment works in
+HDR and keeps each point's brightening; live frames (fit and 100%), settled
+renders, mask overlay, crop session and Show Original are HDR, with at most one
+SDR-to-HDR change on arrival; sharpening and fringe maps and the Pixel Magnifier
+stay SDR. The picture is fitted to what the display allows by the gain map's own
+rule and follows it; on a screen that allows less than the photo needs the first
+HDR photo may change once more about 1.5 s later (accepted by the owner; the
+allowance is remembered per screen for the run). The caption says **HDR** or
+**SDR**, with the reason when HDR can't be shown (HDR Hidden, No HDR Display,
+HDR Failed, Offline); View ▸ Show / Hide HDR still wins and keeps the choices.
+The histogram describes the whole HDR version on a fixed +3 stop axis (the Tone
+Curve's stays SDR). Thumbnails, cached previews, exports, `photocli render` and
+automatic measurements are SDR, byte for byte the same with the choice on or off;
+the Export sheet says how many photos have HDR on. `photocli develop --set
+hdr.on=true|false` (refused for a file without a gain map or an unreadable
+original). HLG, PQ and floating-point DNG photos behave as before. In narrow
+windows the loupe caption drops items in a fixed order
+(`Browser/LoupeCaptionLevels.swift`), never widening the column or dropping the
+version badge or Offline. Core Image takes an Apple gain map's headroom from the
+receiving image's Apple maker dictionary, so `GainMap` sets the file's on the
+picture it brightens. Code: PhotoCore `Preview/GainMap.swift`,
+`Preview/HDRVersionStatus.swift`, `Edits/HDRChoice.swift`,
+`Edits/HDRHistogram.swift`; PhotoApp the loupe, comparison and inspector views
+and `Model/HDRText.swift`. Opt-in real-file tests: `GAINMAP_SAMPLES=a.HEIC:b.HEIC
+swift test --filter "GainMapAdjustmentTests/everyAdjustmentOnRealFiles"` and
+`GAINMAP_TIMING=a.HEIC swift test --filter GainMapTimingTests` (the owner's files,
+never committed; all three carry both ISO and Apple maps, so Apple-only was
+checked on copies with the ISO map hidden, accepted by the owner 2026-11-25).
+Debug script: `hdr display <h>|sdr|flat|system`, `hdr fail on|off`, `adjust hdr
+on|off`, `print hdr`, `panes`. No `PreviewCacheKey.currentPipelineVersion` bump
+(13), no golden moved, no new package. Known and left: comparison captions
+overflow narrow windows (older, less than before); a rating can be clipped by a
+map badge beside Offline at the minimum width (#291); a long file name cuts
+"copy" off the narrowest window title (#292); a photo that goes offline while
+open keeps its Adjust tab, so Undo, History and Reset All still act on the
+choice, and one opened offline needs reopening (#290); Show / Hide HDR and a
+display move return a zoomed loupe to 100% (older). Not built: HDR export
+(#286), a strength control (#288), background HDR suppression (#287). Shipped;
+the owner signed off 2026-11-25 at 84791f7, no check named as left open (P1 to
+P6 were not recorded one by one, `docs/features/gain-map-hdr-editing/qa.md`).
+VoiceOver and macOS 26 are left to CI; nothing checks macOS 15.
 
 Not yet: publishing back to Immich or Apple Photos (#28; it will build on the
 `remoteService` and `remoteLink` tables and the connection layer, widen the
@@ -1542,8 +1598,12 @@ and built-in look profiles (dropped 2026-11-18, #89 and #216; a profile's
 hue/saturation and look tables are not applied), a Profile group or any
 Neutral or Flat base look (#219 removed it; the loss is accepted),
 a sharper X-Trans demosaic (#199),
-general (hand-made or burst) stacks, showing and
-editing gain-map photos in HDR (#282), hierarchical
+general (hand-made or burst) stacks, HDR export
+of gain-map photos (#286), an HDR strength control or any control for light above
+SDR white (#288), holding HDR back while the app is in the background (#287),
+HDR in the grid, film strip or cached previews, the HDR choice for a grid
+selection or app-wide, gain maps in raws (iPhone ProRAW included) or other file
+types, hierarchical
 keywords, PTP cameras, a second backup destination. Writing metadata into
 originals was dropped (2026-11-04, `docs/roadmap.md`): originals are never
 written.
