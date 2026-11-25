@@ -778,6 +778,26 @@ close to SDR there is expected.
 
 ## Follow-up
 
+### Owner's sign-off, 2026-11-25, `84791f7`
+
+Relayed by the main session. **The owner signed off** (step 5).
+
+- **Commit signed off:** `84791f7`, the build of the third pass's sign-off bundle
+  and library (see For a person, Setup). The owner ran its open command. The
+  branch's head at the time of this record, `92b8629`, differs from it only in
+  this file.
+- **Caption findings:** asked "File the two minor caption faults as follow-up
+  bugs, or fix them before you sign off?", the owner answered "File them". Q8 is
+  #291 and Q9 is #292. Neither is fixed on this branch. This is the ruling that
+  the Verdict says each one needed.
+- **Checks:** asked "How did your sign-off checks (P1–P6) go?", the owner
+  answered, in full: "Signed off". They named no check as left open and reported
+  nothing check by check, so P1 to P6 are not recorded one by one, and none is
+  recorded here as individually passed. AC8 (P1) and AC18 (P2) have no result of
+  their own beyond this sign-off.
+- **Checks left open:** none named. VoiceOver, macOS 15 and macOS 26 are covered
+  by CI only.
+
 ### Third pass, 2026-11-25, `84791f7`
 
 | Finding | Result | Check |
