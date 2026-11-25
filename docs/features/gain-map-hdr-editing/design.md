@@ -411,7 +411,8 @@ built.
 - Which display and photo each check was run on, and how E3 changed the
   headroom.
 - Anything about the second change on arrival that E4 asked about (DQ-1). The
-  E4 pass is not recorded as acceptance of it (§18.1).
+  E4 pass is not recorded as acceptance of it. The owner was asked separately
+  later the same day and accepted it (RI-6, §17; §18.1).
 
 ## 14. Debug script
 
@@ -470,9 +471,9 @@ it, in these terms:
 
 ## 17. Requirements issues and their rulings
 
-RI-1 to RI-5 are ruled. RI-6 and RI-7, raised after the early check, are open.
-The design above follows each ruling and, for the open two, the proposed
-default.
+None is open. RI-6 and RI-7, raised after the early check, were settled on
+2026-11-25: RI-6 by the owner, RI-7 by the product manager's clarification,
+which the owner can overrule. The design above follows each.
 
 - **RI-1. R8 against R2.** R8 says undo and History revert never switch to SDR;
   R2 makes the choice an undoable edit kept in History. *Settled:* R8 holds
@@ -504,16 +505,22 @@ default.
   headroom can only be read once the app asks for extended range, and the
   reading takes 1 to 2 s. Until then the system, not the gain map's rule, fits
   a picture the screen can't show in full, and the app then fits it again.
-  *Open. Proposed:* R6 allows this until the screen's headroom has been read; R8
-  and AC7 count changes of version only, and this is not one. The owner has not
-  said whether the second change is acceptable (§13.1).
+  *Ruled by the owner on 2026-11-25: accepted.* Asked whether the second change
+  is acceptable, with the default "accept it, limited to rare cases (normally
+  once per screen each time the app runs), checked again in the final manual
+  checks" and the alternative of delaying HDR about 1.5 s on the first photo of
+  such a screen, the owner answered, verbatim: "Yes, Accept it. I did notice it
+  in fact. It's fine". In the PRD: R6 states the allowance and its limit, R8 and
+  AC7 say it is not a change of version, AC18 tests that it stays rare.
 - **RI-7. R4 and R5, "a display without extended range".** A screen can report
   extended range and allow almost none of it (measured: potential 4.18, allowed
   1.29; potential 16, allowed 9.82; an app that isn't in front may be given
-  less, #287). *Open. Proposed:* the phrase means a screen that reports none at
-  all (potential 1). Any other shows the HDR version fitted, labeled **HDR**,
-  even where it looks close to SDR; "headroom a display can currently show"
-  (Terms) is what macOS allows at the moment, not the potential.
+  less, #287). *Clarified by the product manager on 2026-11-25 as proposed (not
+  an owner ruling; the owner can overrule):* the phrase means a screen that
+  reports none at all (potential 1). Any other shows the HDR version fitted,
+  labeled **HDR**, even where it looks close to SDR; a display's "current
+  headroom" (Terms) is what macOS allows at the moment, not the potential. In
+  the PRD: Terms, R5, AC4.
 
 ## 18. Design rulings after the early check (2026-11-25)
 
@@ -522,8 +529,9 @@ Both are design judgment, not Apple policy (see the note at the top).
 ### 18.1 DQ-1: the second change on arrival
 
 **Ruling: option (a), accept it, provided it really happens only rarely.** The
-owner has not accepted it by eye (§13.1); the question is with the owner, with
-this ruling as the default, and building does not wait for the answer.
+owner accepted it on 2026-11-25: "Yes, Accept it. I did notice it in fact. It's
+fine" (RI-6, §17; PRD R6 and AC18). The final manual checks look at it again on
+a screen that allows less than the photo needs.
 
 1. While nothing is known about a screen, render for its potential, capped at
    the photo's ceiling. Arrival is not held back. If the settled reading is
@@ -550,7 +558,7 @@ Why not the others: (b) can't know in advance whether the reading will come in
 lower, so the first HDR photo on every screen, including one with room to spare,
 would arrive about 1.5 s late, and it needs a time limit for an app that is
 never given the range. (c) is untested and uses extended range for every
-gain-map photo before HDR shows. If the owner finds the step unacceptable, the
+gain-map photo before HDR shows. Should the question ever come back, the
 fallback is (b), only for a screen with nothing remembered.
 
 ### 18.2 What a screen allows, and what it could
@@ -579,3 +587,36 @@ range, or the remembered one, §18.1).
   than in SDR, so **Turn On HDR** can look as if it did almost nothing. The help
   tag, VoiceOver and the user guide explain it. The histogram still describes
   the whole HDR version (§7).
+
+## 19. Rulings at design review (2026-11-25)
+
+Design judgment, not Apple policy. Findings are in `review.md`.
+
+### 19.1 SDR badge, choice off, original offline
+
+§4's help tag for **SDR** with the choice off ends by naming **Adjust ▸ Turn On
+HDR**, which is dimmed while the original is offline (§2.2, RI-2). For that case
+only (the app knows the file has a gain map, RI-3) the help tag is:
+
+> "Showing the cached SDR preview. This file also has an HDR version, which
+> needs the original."
+
+The badge and its VoiceOver label are unchanged. A help tag must not send people
+to a command they can't use.
+
+### 19.2 The histogram while HDR counts aren't there yet
+
+§7.2 ties the axis to the picture. When the HDR picture is on screen (the single
+loupe, or the active comparison pane) and its counts aren't ready, the
+inspector draws the HDR frame (line, fill, dashed lines, **HDR** mark) with no
+curve, until they arrive. It never draws SDR counts, from the editor or the
+thumbnail, under an HDR picture, and VoiceOver gives the label with no
+percentage. An empty plot for a moment is honest; the other photo's or the
+other version's counts are not. Counts must also be made whenever HDR comes on
+screen, however it got there: arrival, **View ▸ Show HDR**, a display move, a
+side switch.
+
+### 19.3 Accepted as built
+
+The **HDR** help tag "Showing the HDR version." before the file's headroom is
+known (not in §4's table).
