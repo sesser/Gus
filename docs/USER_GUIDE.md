@@ -545,10 +545,12 @@ a spinner, before the HDR version takes its place once.
 When HDR is on but can't be shown, a warning sign and **SDR** say so, followed
 by the reason. Where the caption line is too narrow for the reason, only the
 warning sign and **SDR** remain, and the help tag and VoiceOver give the
-reason. In the narrowest windows, where even that doesn't fit beside the
-centered stars, the stars, flag and label move toward the left (after the
-photo's position, or in its place) so that no badge covers them. The reasons
-are:
+reason. In the narrowest windows the stars, flag and label move toward the left
+so that no badge covers them. If that isn't enough, the caption leaves things
+out, starting with the position and the **Film Strip** button, and shows the
+rating as one star and a number. **Copy** and **Filtered** can go too (the
+window's title and subtitle still say both). The badge that says which version
+is on screen and the **Offline** badge always stay. The reasons are:
 
 - **SDR: HDR Hidden**: HDR is hidden; choose **View ▸ Show HDR** to see it.
 - **SDR: No HDR Display**: the display has no extended range, or HDR is turned
