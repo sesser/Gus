@@ -6,29 +6,62 @@ Issue: #282 · Against `design.md` (with §19) and the PRD (issue body, revised
 | Pass | Reviewed | Verdict |
 | --- | --- | --- |
 | First, 2026-11-25 | `3c3867f` | Changes needed: F1 to F10 |
-| Second, 2026-11-25 | `2e98a11` | **Changes needed**, narrowly: F1 partly open (at 100%), F11 new (low). F2 to F10 fixed |
+| Second, 2026-11-25 | `2e98a11` | Changes needed, narrowly: F1 partly open (at 100%), F11 new (low). F2 to F10 fixed |
+| Third, 2026-11-25 | `1f5dd6a` | **Passed**: no open findings. Manual checks M1 to M17 are open |
 
-**How this was checked.** By reading the source and `docs/USER_GUIDE.md`.
-Nothing was built, run or looked at. Test and debug-script results are the
-engineer's (`status.md`) and were not re-run. "Pass" below means the code does
-what the design says; anything that depends on how it looks or behaves on a
-screen is "manual".
+**How this was checked.** By reading the source (and, in the first two passes,
+`docs/USER_GUIDE.md`). Nothing was built, run or looked at. Test and
+debug-script results are the engineer's (`status.md`) and were not re-run.
+"Pass" below means the code does what the design says; anything that depends on
+how it looks or behaves on a screen is "manual".
 
-## Second pass
+## Third pass
 
 ### Verdict
 
-**Changes needed.** Nine of the ten findings are fixed. F1 is fixed at fit but,
-read from the code, not at 100% and above: **View ▸ Show HDR** there can leave
-the HDR histogram an empty frame until the next edit. The same check leaves a
-live frame at 100% at an old headroom (F11). Both have one cause and a small
-fix. No Requirements issues. One new ruling, design §19.4.
+**Passed.** F1 and F11 are fixed, and the change from code-review C9 (zoom and
+position kept) is right. No open design findings, no Requirements issues. One
+new ruling, design §19.5, and one follow-up, not required for this branch. The
+manual checks below are still to be done by a person.
 
-### First-pass findings
+| Item | Result | What was confirmed in the code |
+| --- | --- | --- |
+| F1 (rest): empty HDR histogram after **Show HDR** at 100% | **Fixed**; manual (M16) | Frames and tiles record the headroom asked for (`requestedHeadroom`), and both skips in `requestRender` require it to match (`LiveFrameRules.isCurrent`). An SDR whole frame of the same values is rendered again in HDR, which makes the counts |
+| F11: live frame at 100% kept an old headroom | **Fixed**; manual (M16) | The same rule renders the tile and the whole frame again when the headroom differs by more than the tolerance. The caption spinner ignores headroom, so following the display shows no wait (§6.3) |
+| C9: in-place HDR change reset the zoom | Accepted (§19.5); manual (M17) | `beginsVisitInPlace` starts a new visit without resizing the photo or applying zoom, and drops the old tile |
+| C8: unreadable original remembered as having no gain map | No design effect | A momentary failure is **SDR: HDR Failed** and the next opening asks again, which makes that help tag true (§5) |
+
+With the mask overlay on, **Show HDR** can still leave the HDR histogram an
+empty frame until the overlay is off. That follows §7.2 (overlay frames count
+nothing) and is not a finding.
+
+### Follow-up proposed
+
+**Show / Hide HDR and a screen move: a follow-up, acceptable here.** It is older
+than this feature, affects every photo, loses no data and no criterion asks for
+it. It will be noticed more now that **View ▸ Show / Hide HDR** invites
+comparing at high zoom.
+
+- **Title:** Show / Hide HDR and a move to another display return a zoomed loupe
+  to 100%
+- **Labels:** `bug`. Proposed Complexity: Routine.
+- **Body:** In the loupe, zoom to 200% and pan to a corner, then choose **View ▸
+  Hide HDR** (or Show HDR), or move the window to another display. Expected: the
+  zoom and the place shown stay, as in comparison panes and as when the original
+  goes offline or comes back (#282, design §19.5). Actual: the photo returns to
+  100%. Any zoom other than fit or 100% is affected, on any photo; older than
+  #282. Cause: both paths clear the loupe's shown key (`hdrSetting`, and the
+  screen observer's `reload`), so `show` treats the photo as new and applies the
+  zoom again. Fix direction: begin a new visit in place (`beginsVisitInPlace`).
+  A move between displays of different backing scales must also resize the
+  photo for the new scale, keeping the same center. Check fit and 100% don't
+  change. Slug: `loupe-zoom-kept-on-hdr-reload`.
+
+## First-pass findings, as confirmed in the second pass
 
 | Finding | Result | What was confirmed in the code |
 | --- | --- | --- |
-| F1 HDR histogram missing or stale | **Partly fixed** | At fit: a headroom arriving makes the counts (`hdrDisplayHeadroom.didSet`), and an SDR frame of other values drops them. At 100%: see below |
+| F1 HDR histogram missing or stale | Fixed (at fit in the second pass, at 100% in the third) | A headroom arriving makes the counts (`hdrDisplayHeadroom.didSet`), and an SDR frame of other values drops them. At 100%: see the third pass |
 | F2 SDR or another photo's counts under HDR | Fixed | The inspector draws `HDRHistogramView` with nil counts (frame, no curve, no VoiceOver value) whenever HDR is on screen; comparison clears the counts before counting the new active photo |
 | F3 Turn Off HDR flashes the old frame | Fixed | `showLiveFrame` refuses a frame or tile of the other choice, or an HDR one once HDR can't be shown |
 | F4 no spinner in comparison | Fixed; manual (M13) | Mini spinner beside the pane's version badge after 0.5 s, same help tag and VoiceOver label, never dropped |
@@ -38,48 +71,6 @@ fix. No Requirements issues. One new ruling, design §19.4.
 | F8 offline help tag | Fixed | Text matches §19.1 and is in the String Catalog |
 | F9 pane's VoiceOver value | Fixed; VoiceOver by CI only | Pane value has the version phrase; a change of it alone is not announced |
 | F10 user guide | Fixed | All four points; also the pane spinner, the empty histogram frame and "only HEIC and JPEG". Terms match the UI |
-
-### Open findings
-
-#### F1 (rest). At 100%, Show HDR can leave the histogram empty (§19.2, §7.2, R10)
-
-`requestRender` treats a frame as current by its values and overlay only
-(`LiveFrameRules.isCurrent`). With the region renderer ready, an SDR whole
-frame of the same values counts as current, so the whole frame is skipped
-(`AdjustmentEditor.swift:1625`). Region frames carry no counts. So the render
-that `didSet` asks for "for the histogram" makes none:
-
-1. **View ▸ Hide HDR**, open an HDR-on photo (or edit one), zoom to 100% and
-   wait.
-2. **View ▸ Show HDR**.
-
-Expected from the code: the picture returns in HDR (from the loupe's own
-renditions) and the inspector keeps the empty HDR frame until an edit. A move
-from an SDR display to an HDR one at 100% takes the same path. To confirm by
-script: `hdr off`, open the photo, `zoom`, wait, `hdr on`, wait, `print hdr`
-(expected today: `histogram none ... inspector histogram hdr empty`).
-
-Fix: a frame is current only if it was also rendered for what is wanted now:
-SDR or HDR, and the same headroom. Apply it to the whole frame and the tile (see
-F11), or have the counts request bypass the skip.
-
-#### F11. At 100%, a live frame does not follow the headroom (R6, §6.3). Low
-
-Same cause. While live frames stay up (mask overlay, Show Original), a change of
-headroom calls `requestRender`, but the tile and the whole frame are "current",
-so nothing is rendered; the loupe's own refit skips live frames. At fit the
-frame is rendered again. At 100% the picture stays rendered for the old
-headroom, left to the system to fit, until the next input. Read from the code,
-not run. M16 checks it by eye.
-
-### Ruling
-
-**§19.4.** HDR returning in place when the original comes back is accepted (§5
-said "on the next opening"; AC4 allows sooner). Accepted with it: a photo opened
-while offline keeps an empty HDR histogram after the volume returns, because the
-Adjust tab stays offline until it is reopened. The follow-up bug proposed in
-`status.md` ("The Adjust tab stays offline after a photo's volume returns")
-should say so and check the histogram.
 
 ## Design requirements
 
@@ -96,9 +87,10 @@ should say so and check the histogram.
 | §4 loading spinner after 0.5 s, loupe and panes | Pass; manual | M13 |
 | §5 four reasons, order, texts, short form | Pass; short form manual | M8 |
 | §5 and §19.4 reason ends, HDR returns; failure stays SDR | Pass; manual | M12, M15 |
+| §19.5 zoom and position kept when HDR becomes possible or impossible in place | Pass in code; manual. Show / Hide HDR and a screen move: follow-up | M17 |
 | §6.1 arrival changes once; cached HDR first; neighbors preloaded | Pass in code; manual | M2 |
 | §6.2 no SDR picture over HDR (release, undo, zoom, drafts, maps keep the range) | Pass in code; manual | M3, M5, M6 |
-| §6.3 headroom followed, steady tag | **Fail** at 100% with live frames (F11); otherwise pass in code | M10, M11, M16 |
+| §6.3 headroom followed, steady tag | Pass in code, at fit and 100%; manual | M10, M11, M16 |
 | §7.1 histogram drawing, bins, axis, Increase Contrast | Pass; look manual | M7 |
 | §7.2 axis with the picture, never SDR counts, comparison, help tag, VoiceOver | Pass | M3, M13 |
 | §7.3 Tone Curve backdrop SDR | Pass | |
@@ -112,7 +104,7 @@ should say so and check the histogram.
 | §18.1 per-screen memory, shared, outside the loupe; lower request keeps it, higher allowance replaces, inactive not kept | Pass (code and AC18 tests); manual | M9 |
 | §18.2 potential only decides "has extended range"; low allowance reads **HDR** | Pass | |
 | §19.1 offline help tag | Pass; manual | M15 |
-| §19.2 empty frame while counts load; counts made whenever HDR comes on screen | **Fail** at 100% (F1) | M16 |
+| §19.2 empty frame while counts load; counts made whenever HDR comes on screen | Pass in code; manual | M3, M16 |
 
 ## Improvements (judgment, not required)
 
@@ -143,9 +135,8 @@ Carried over from the first pass.
 ## Manual checks
 
 On an HDR display, with the owner's three photos on the scratch library. Build
-and launch with the command under "For a person" in `status.md`. M16 is expected
-to fail until F1 and F11 are fixed; the rest can be run now. VoiceOver, macOS 15
-and macOS 26 are left to CI.
+and launch with the command under "For a person" in `status.md`. All can be run
+now. VoiceOver, macOS 15 and macOS 26 are left to CI.
 
 | # | Check | Expected |
 | --- | --- | --- |
@@ -164,7 +155,19 @@ and macOS 26 are left to CI.
 | M13 | Comparison of an HDR photo with an SDR one, A to switch; two HDR photos, the first time each is shown; review mode | Each pane its own badge, with a small spinner if HDR takes over half a second; histogram follows the active side without showing the other's counts |
 | M14 | Export sheet with one and with several HDR-on photos, plus an issue line if one can be provoked | Notice under the subtitle, above the issue, correct singular and plural |
 | M15 | With copies of the photos on an external drive or disk image: eject it with an HDR-on photo open, reconnect; open an HDR-off one while ejected | Triangle **SDR** beside **Offline**, no HDR picture; HDR returns on reconnect. HDR off: **SDR** and **Offline** if the photo was already known to have a gain map, the help tag not naming Turn On HDR. A photo first opened while ejected may keep an empty histogram until reopened (§19.4) |
-| M16 | At 100%: **View ▸ Hide HDR**, wait, **Show HDR**; then, with the mask overlay on and again with Show Original, lower and raise screen brightness on a screen that allows less than the photo needs | The HDR histogram fills within a moment (F1); the picture follows brightness as it does at fit (F11) |
+| M16 | At 100%: **View ▸ Hide HDR**, wait, **Show HDR**; then, with the mask overlay on and again with Show Original, lower and raise screen brightness on a screen that allows less than the photo needs | The HDR histogram fills within a moment (F1); the picture follows brightness as it does at fit (F11), with no spinner |
+| M17 | At 200%, panned to a corner: eject and reconnect the photo's volume; then turn the display's HDR off and on in System Settings (external display) | Same zoom and place throughout; a briefly soft picture is acceptable, and while offline it stays soft. If only the System Settings change returns to 100%, macOS reported it as a screen change: note it on the follow-up above |
+
+## Second pass rulings and findings (history, at `2e98a11`)
+
+- **F1 (rest).** At 100%, **View ▸ Show HDR** or a move to an HDR display left
+  the HDR histogram an empty frame until an edit: a frame counted as current by
+  its values and overlay alone, so the HDR whole frame was skipped.
+- **F11.** Same cause: at 100%, live frames (mask overlay, Show Original) did
+  not follow a change of headroom. Low.
+- **Ruling §19.4.** HDR returning in place when the original comes back is
+  accepted. A photo opened while offline keeps an empty HDR histogram until
+  reopened; the follow-up bug proposed in `status.md` covers it.
 
 ## First-pass findings (history, at `3c3867f`)
 

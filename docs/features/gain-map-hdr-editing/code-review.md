@@ -177,3 +177,53 @@ New findings, second pass:
 
 Neither nit needs `/security-review`: this pass adds no parser, subprocess,
 file writing or network code. The `.heic` and `.jpg` check narrows what is read.
+
+Third pass, 2026-11-25. Reviewed `81ccfb8..1f5dd6a` (`c629de3`, `1215ef4`,
+`033458e`, `1f5dd6a`): the fixes for C8 and C9 and for the designer's F1 (its
+rest, at 100%) and F11. Build and tests at `1f5dd6a`: `swift build` clean; full
+`swift test` **1574 tests in 221 suites passed** (81.6 s); the HDR suites
+(`GainMapHDRTests`, `HDRChoiceTests`, `HDRChoiceOutputTests`,
+`GainMapAdjustmentTests`, `GainMapTimingTests` skipped as opt-in: 41 tests in 5
+suites) passed 10 of 10 repeated runs (`--skip-build`). The app was not
+launched.
+
+**Verdict, third pass:** ready for QA. C8 and C9 are fixed, the F1 and F11 fix
+is sound, and this pass adds no new finding.
+
+| # | Outcome | Commit | Check |
+| --- | --- | --- | --- |
+| C8 | Fixed | `1215ef4` | `GainMap.read` throws `ReadFailure.unreadable` when the header, gain-map or HDR decode fails and `isReadableFile` is false, and returns nil only for a file it read (or one whose name isn't HEIC or JPEG). `PreviewGenerator.gainMapHDRImage` and `gainMapHDRHistogram` call it, so the throw leaves the lane job before `PreviewService.gainMapHDRImage` reaches `standardRange.insert`. `supersedes` doesn't list it, so the outcome is `.failed` for that visit (right while the file can't be read), and the next visit, or the in-place reload a remount triggers (C1, C9), asks again. The comparison pane's histogram reads it through `try?`, so a throw is the same nil as before. The live renderers and the refiner still use `load` (nil either way); their gain map is per session, so a reopen loads it again. The new test moves the file away and back between two requests with the same key; by its code, without the fix the first nil would be remembered and the second request would fail as `status.md` says. A race where the file comes back between the failed decode and `isReadableFile` would still be remembered; that window is a few microseconds and needs a remount timed to it, so it's not a finding. |
+| C9 | Fixed | `033458e` | `reloadIfHDRPossibilityChanged` now sets `reloadsSameKey` and `beginsVisitInPlace` and calls `show`, so `sameVersion` holds: no frame resize, no `applyZoom`, no `cancelPendingClick`. `inPlace` begins a new visit, which resets `visitFailed` and `visitHDRPossible`. It takes the general rendition branch, where `rendition` goes to `.placeholder` before `immediateImage` is shown, so an SDR preview can replace an HDR picture on the way offline. It clears the tile and runs `loadFullResolution` at 100%. The flag is cleared in the same `show` that reads it, and every path that sets it calls `show` right away; a `show` that returns early leaves `shownKey` nil, and then `sameVersion` is false. The guard's early-return branch calls this function, but `reloadsSameKey` makes the inner `show` pass the guard, so there's no recursion loop. |
+
+New code from the designer's findings, checked and fine:
+
+- **F1, F11 (`c629de3`).** `requestedHeadroom` is the `hdrHeadroom` argument
+  in both renderers (nil for SDR), set even when the file has no gain map and
+  the frame comes out SDR. The editor's two skips in `requestRender` now also
+  need `LiveFrameRules.rendered(for:wanted:)`: both nil, or both set and within
+  `GainMapHeadroom.tolerance`. The editor computes `headroom` once per loop
+  pass and uses it for the check and for both renders, so a check and its
+  render can't ask for two different headrooms. When no HDR is wanted, both
+  sides are nil, so SDR skips (pans with nothing changing) work as before. At
+  100%, the `hdrDisplayHeadroom` nil-to-value `requestRender` now re-renders
+  the tile and the whole frame (the frame that gives the HDR counts). A
+  headroom change with live frames up re-renders the tile. The refiner's photo
+  frame records no `requestedHeadroom`. It's built only while a fringe slot is
+  replaced, which `canRenderRegion` excludes from both skips, so at most it
+  costs one extra whole-frame render once picking ends. `sharpFrameIsOnScreen`
+  ignores the headroom on purpose (design §6.3, no spinner while following the
+  display). The new test checks the rule in both directions, the tolerance,
+  values and overlay, and what both renderers record.
+- **Debug script.** `print hdr` adds `tile hdr <h>|sdr|none` from
+  `editor.regionFrame`. It changes nothing.
+- **SDR output.** No path for previews, export or `photocli render` changed.
+  AC11's byte-equality test and the goldens pass.
+- **Determinism.** The two new tests render fixed synthetic files or check a
+  pure rule. The C8 test uses its own service and temporary folder, a distinct
+  memory key per case, and moves files only between awaited requests. Nothing
+  depends on timing or shared state. I accept that structural argument, and 10
+  of 10 runs agree with it.
+
+No `/security-review` is needed for this pass. `GainMap.read` reads the same
+headers as before and adds one `isReadableFile` check. It adds no parser,
+subprocess, file writing or network code.

@@ -637,3 +637,16 @@ proposed as its own bug in `status.md`), so its HDR histogram has no counts and
 stays an empty frame (§19.2) until the photo is opened again. The empty frame is
 right while there are no counts; the cure is that bug's fix, which should check
 the histogram too.
+
+### 19.5 Zoom and position when the picture is reloaded (third review pass)
+
+A change in what can be shown should not move the photo: zoom and position stay,
+in the loupe and the panes. A soft moment while the sharp rendition loads is
+acceptable.
+
+- Accepted as built: the original going offline or coming back, and a screen
+  that starts or stops reporting extended range in place.
+- **View ▸ Show / Hide HDR** and a move to another display should do the same.
+  In the single loupe they still return a photo zoomed to anything but 100% to
+  100%. That is older than this feature and happens for every photo, so it is
+  left to a follow-up bug (text in `review.md`) and doesn't hold this branch.
