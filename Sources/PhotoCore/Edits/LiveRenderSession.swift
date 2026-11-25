@@ -49,6 +49,21 @@ public actor LiveRenderSession {
         /// What the decode did with the values' machine learning request:
         /// the loupe's not-applied state follows the frame on screen.
         public let machineLearning: MachineLearningNoiseReduction.Outcome
+        /// For a gain-map photo's HDR frame (issue #282): the headroom it was
+        /// rendered for and is tagged with. Nil for an SDR frame.
+        public var headroom: Float? = nil
+        /// The display headroom the frame was asked for (`render`'s
+        /// `hdrHeadroom`), nil when SDR was asked for: what tells a frame
+        /// still right for the display from one rendered for another
+        /// (`LiveFrameRules.isCurrent`, review F1, F11).
+        public var requestedHeadroom: Float? = nil
+        /// For an HDR frame, the file's own HDR headroom and ceiling (`GainMap`).
+        public var fileHeadroom: Float? = nil
+        public var ceiling: Float? = nil
+        /// For an HDR frame showing the photo, the histogram of its whole HDR
+        /// version at the file's full brightening (`HDRHistogram`, design §7);
+        /// `histogram` stays the SDR version's (the Tone Curve's backdrop, §7.3).
+        public var hdrHistogram: HDRHistogram? = nil
 
         /// The frame shows the photo as it is (no overlay, not the map): only
         /// such a frame may give the histogram or become a cached preview.
@@ -94,6 +109,9 @@ public actor LiveRenderSession {
     /// false renders every frame whole, for comparison.
     public let cachesStages: Bool
     private var stages = StageCache()
+    /// The master's gain map, loaded the first time an HDR frame is asked
+    /// for (the inner nil: the file has none).
+    private var gainMap: GainMap??
 
     private struct BaseKey: Hashable {
         var settings: RAWDecodeSettings
@@ -269,8 +287,17 @@ public actor LiveRenderSession {
     /// With `content` `.sharpeningMap` the frame shows the sharpening map of
     /// `adjustments` at the frame's scale (an estimate of the full-resolution
     /// map, `SharpeningMapRefiner`), with no overlay and no histogram.
+    ///
+    /// With `hdrHeadroom` (a display's headroom now), a frame of a gain-map
+    /// photo showing the photo is its HDR version fitted to that headroom
+    /// (issue #282): the same frame with the gain map applied last
+    /// (`GainMap.hdr`), as a half-float image tagged with the headroom it was
+    /// rendered for (`Frame.headroom`), the mask overlay's tint brightened
+    /// with the photo. Its `histogram` is the SDR frame's (the Tone Curve's
+    /// backdrop) and `hdrHistogram` the whole HDR version's at the file's
+    /// full brightening (design §7). Maps and other files ignore it.
     public func render(_ adjustments: Adjustments, interactive: Bool = false, allowsDrafts: Bool = true,
-                       overlayMask: UUID? = nil, content: Content = .photo,
+                       overlayMask: UUID? = nil, content: Content = .photo, hdrHeadroom: Float? = nil,
                        cancellation: RenderCancellation? = nil) throws -> Frame {
         let clock = ContinuousClock()
         let started = clock.now
@@ -309,11 +336,39 @@ public actor LiveRenderSession {
             image = Self.withOverlay(image, alpha: alpha)
             overlaid = true
         }
-        image = image.scaledToFit(longEdge: Int((Double(longEdge) * factor).rounded()))
-        guard let rendered = generator.engine.makeCGImage(image, colorSpace: colorSpace) else {
-            throw PreviewGenerator.Failure.renderFailed
+        let size = Int((Double(longEdge) * factor).rounded())
+        let rendered: CGImage
+        var histogram: Histogram?
+        var hdrHistogram: HDRHistogram?
+        var hdr: (headroom: Float, file: Float, ceiling: Float)?
+        if let hdrHeadroom, content == .photo, let map = loadedGainMap() {
+            // The edited SDR frame is rendered once at the frame's size; the HDR frame and both
+            // histograms read it (R11). The gain map, placed as the decode, is scaled the same way.
+            let placed = map.placed(over: source.extent, values: adjustments, context: context)
+                .scaledToFit(longEdge: size).settingProperties(map.image.properties)
+            guard let frameSDR = generator.engine.materialized(image.scaledToFit(longEdge: size)) else {
+                throw PreviewGenerator.Failure.renderFailed
+            }
+            let made = map.hdr(frameSDR, placed: placed, displayHeadroom: hdrHeadroom)
+            guard let output = generator.engine.makeHDRCGImage(made.image, contentHeadroom: made.headroom) else {
+                throw PreviewGenerator.Failure.renderFailed
+            }
+            rendered = output
+            hdr = (made.headroom, map.headroom, map.ceiling)
+            if !overlaid {
+                // The SDR frame's counts, from a reduction of it (`Histogram` samples 256 pixels).
+                histogram = generator.engine.makeCGImage(frameSDR.scaledToFit(longEdge: 256), colorSpace: colorSpace)
+                    .flatMap { Histogram(image: $0) }
+                // The whole HDR version's, the same on every display (R10).
+                hdrHistogram = HDRHistogram(image: map.fullHDR(frameSDR, placed: placed), engine: generator.engine)
+            }
+        } else {
+            guard let output = generator.engine.makeCGImage(image.scaledToFit(longEdge: size), colorSpace: colorSpace) else {
+                throw PreviewGenerator.Failure.renderFailed
+            }
+            rendered = output
+            histogram = overlaid || content != .photo ? nil : Histogram(image: rendered)
         }
-        let histogram = overlaid || content != .photo ? nil : Histogram(image: rendered)
         let elapsed = (clock.now - started).components
         let seconds = Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
         // A frame that filled the stage cache is slow once; it says nothing about the next.
@@ -321,7 +376,17 @@ public actor LiveRenderSession {
         return Frame(image: DecodedImage(cgImage: rendered), histogram: histogram, content: content,
                      hasOverlay: overlaid, overlayMask: overlaid ? overlayMask : nil, adjustments: adjustments,
                      maskFrameSize: CGSize(width: base.image.width, height: base.image.height),
-                     scale: factor, seconds: seconds, filledCache: filledCache, machineLearning: base.machineLearning)
+                     scale: factor, seconds: seconds, filledCache: filledCache, machineLearning: base.machineLearning,
+                     headroom: hdr?.headroom, requestedHeadroom: hdrHeadroom, fileHeadroom: hdr?.file, ceiling: hdr?.ceiling,
+                     hdrHistogram: hdrHistogram)
+    }
+
+    /// The master's gain map, loaded once (`GainMap.load`).
+    private func loadedGainMap() -> GainMap? {
+        if let gainMap { return gainMap }
+        let loaded = GainMap.load(source)
+        gainMap = .some(loaded)
+        return loaded
     }
 
     /// Red at half the mask's alpha over the photo.

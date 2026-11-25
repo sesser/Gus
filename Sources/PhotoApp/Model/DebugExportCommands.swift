@@ -124,6 +124,8 @@ enum DebugExportCommands {
             print("debug-script: export presets " + export.presets.map(\.name).joined(separator: ", "))
         default:
             print("debug-script: export \(export.versionIDs.count) photos (videos \(export.skippedVideos)) to \(export.destination.path)")
+            // Issue #282: the SDR notice for photos with HDR on (design §10).
+            print("debug-script: export hdr notice '\(export.hdrPhotos > 0 ? HDRText.exportNotice(export.hdrPhotos) : "")'")
             print("debug-script: export settings \((try? export.settings.jsonString()) ?? "")")
         }
     }

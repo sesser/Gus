@@ -87,6 +87,24 @@ public struct AdjustmentRenderer: EditStackRenderer {
         return globalSteps(adjustments, image, extent: image.extent, context: context, estimates: nil)
     }
 
+    /// A gain map (issue #282, R19) taken through the steps that move picture
+    /// content before the crop, so the HDR brightening lands on the picture
+    /// it describes: Distortion's warp, then the spots (a healed or cloned
+    /// spot takes its source's brightening, so it leaves no glow), then the
+    /// turns, straightening and crop. Lens Vignetting, Color Alignment and
+    /// Color Fringes move nothing a one-channel gain map holds. `map` is
+    /// stretched over the decode's extent; `values` are the photo's.
+    public static func gainMapGeometry(_ values: Adjustments, _ map: CIImage, context: RenderContext) -> CIImage {
+        let adjustments = values.effective
+        var image = map
+        let plan = LensCorrectionPlan(adjustments, lens: context.lens)
+        if let warp = plan.warp, LensKernels.isAvailable {
+            image = applyWarp(image, warp, frame: lensFrame(of: map.extent, context: context)) ?? image
+        }
+        image = spotStep(adjustments, image)
+        return crop(adjustments, context: context).apply(to: image)
+    }
+
     /// The spots over the image after the Lens heading's steps, in the mask
     /// frame. `adjustments` are the effective ones: spots turned off are gone.
     static func spotStep(_ adjustments: Adjustments, _ image: CIImage) -> CIImage {

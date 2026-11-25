@@ -149,6 +149,10 @@ public struct CatalogItem: Hashable, Sendable, Identifiable {
     /// A copy made with Duplicate: a version that is not its master's default
     /// one. It is never half of a pair, and no sidecar holds its values.
     public var isCopy = false
+    /// The version's HDR choice (`HDRChoice`, issue #282): its stack asks
+    /// for the HDR version in the loupe. The catalog's copy of the stack's
+    /// value (`version.hdr`).
+    public var hdr = false
 
     /// Which of its master's copies this is, from 1 ("copy", "copy 2"…); nil
     /// for an original (`CopyNaming`).
@@ -277,7 +281,7 @@ extension Catalog {
             SELECT version.id, version.imageId, image.volumeId, version.rating, version.flag,
                    version.colorLabel, image.contentHash, version.editStackHash, image.relativePath,
                    image.pixelWidth, image.pixelHeight, image.orientation, image.duration,
-                   version.versionNumber, version.isDefault
+                   version.versionNumber, version.isDefault, version.hdr
             FROM version
             JOIN image ON image.id = version.imageId
             \(whereClause)
@@ -346,7 +350,7 @@ extension Catalog {
                     SELECT version.id, version.imageId, image.volumeId, version.rating, version.flag,
                            version.colorLabel, image.contentHash, version.editStackHash, image.relativePath,
                            image.pixelWidth, image.pixelHeight, image.orientation, image.duration,
-                           version.versionNumber, version.isDefault
+                           version.versionNumber, version.isDefault, version.hdr
                     FROM version
                     JOIN image ON image.id = version.imageId
                     WHERE version.id IN (\(databaseQuestionMarks(count: chunk.count)))
@@ -357,7 +361,7 @@ extension Catalog {
         }
     }
 
-    /// Decodes the fifteen columns of the item queries.
+    /// Decodes the sixteen columns of the item queries.
     static func item(from row: Row) -> CatalogItem {
         var item = CatalogItem(
             versionID: row[0], imageID: row[1], volumeID: row[2],
@@ -370,6 +374,7 @@ extension Catalog {
         item.duration = row[12]
         item.versionNumber = row[13]
         item.isCopy = !(row[14] as Bool)
+        item.hdr = row[15]
         return item
     }
 

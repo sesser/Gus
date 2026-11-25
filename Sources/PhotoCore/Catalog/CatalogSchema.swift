@@ -21,6 +21,7 @@ enum CatalogSchema {
         migrator.registerMigration("v14", migrate: addEditHistory)
         migrator.registerMigration("v15", migrate: addMaskRasters)
         migrator.registerMigration("v16", migrate: addRemoteServices)
+        migrator.registerMigration("v17", migrate: addHDRChoice)
         return migrator
     }
 
@@ -463,6 +464,16 @@ enum CatalogSchema {
         }
         try db.alter(table: "editHistory") { t in
             t.add(column: "maskRasters", .text)
+        }
+    }
+
+    /// Issue #282: each version's HDR choice, a copy of its edit stack's
+    /// (`EditStack.hdrChoice`), written with the stack (`setEditStacks`), so
+    /// the loupe knows it from the item without reading the stack. No stack
+    /// written before this migration holds the choice, so every row starts off.
+    private static func addHDRChoice(_ db: Database) throws {
+        try db.alter(table: "version") { t in
+            t.add(column: "hdr", .boolean).notNull().defaults(to: false)
         }
     }
 

@@ -80,6 +80,11 @@ import PhotoUI
 ///     print sharpenmap      (asked for, on screen with its badge and legend, refining, can show, the
 ///                           overlay and Show Original, the inspector, the scroll position of the Adjust tab)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
+///     hdr display <h>|sdr|system (#282: what the loupe takes the screen to allow now, as a settled
+///                           reading; `sdr` a screen without extended range; `flat` the screen's
+///                           potential reading 1 in place, with no reload; `system` the screen's own)
+///     hdr fail on|off       (#282: the next gain-map HDR versions fail, as if the render had)
+///     adjust hdr on|off     (#282: the open photo's HDR choice, as the Adjust tab's HDR check box)
 ///     filmstrip on|off|toggle   (the loupe's film strip, as its toggle: slides)
 ///     filmstripsize <points>    (stores the nearest step, as a release does)
 ///     windowsize <width> <height>   (the library window's content size, e.g. a short window for the strip's cap)
@@ -538,9 +543,26 @@ enum DebugScript {
             }
             try? await Task.sleep(for: .milliseconds(1500))
         case "hdr":
-            model.showsHDR = rest.first != "off"
+            if rest.first == "display" {
+                // Issue #282: what the loupe takes the screen to allow now (a settled reading), `sdr`:
+                // a screen without extended range, `system`: the screen's own.
+                let value = rest.dropFirst().first
+                model.debugNoExtendedRange = value == "sdr"
+                // `flat`: the screen's potential reads 1 in place (review F6); anything else ends it.
+                model.debugFlatScreen = value == "flat"
+                model.debugDisplayHeadroom = value.flatMap(Float.init)
+            } else if rest.first == "fail" {
+                // Issue #282: gain-map photos' HDR versions fail from the next opening (design §5, reason 4).
+                model.debugFailsGainMapHDR = rest.dropFirst().first != "off"
+            } else {
+                model.showsHDR = rest.first != "off"
+            }
         case "metadata", "sidecars":
             await DebugMetadataCommands.run(verb, rest, model: model)
+        case "adjust" where rest.first == "hdr":
+            // Issue #282: the photo's HDR choice, as its check box (the View setting is `hdr on|off`).
+            model.editor.setHDR(rest.dropFirst().first != "off")
+            try? await Task.sleep(for: .milliseconds(300))
         case "adjust":
             await DebugAdjustCommands.run(rest, editor: model.editor)
         case "lens":
@@ -697,6 +719,12 @@ enum DebugScript {
             print("debug-script: hidden sections \(model.hiddenSidebarSections.map(\.rawValue).sorted())")
         case "sidebarpane":
             model.showsSidebar = rest.first != "off"
+            try? await Task.sleep(for: .milliseconds(500))
+        case "panes":
+            // `panes`: the window's split views and their panes' widths; `panes <split> <divider> <x>`
+            // moves a divider as a drag would, within the panes' limits (issue #282, design §20.1:
+            // the side panes dragged wider than their defaults).
+            splitViews(rest)
             try? await Task.sleep(for: .milliseconds(500))
         case "menuitems":
             printMenuItems(containing: rest.joined(separator: " "))
@@ -1056,8 +1084,11 @@ enum DebugScript {
             return
         }
         let visible = scrollView.documentVisibleRect
-        var line = String(format: "debug-script: loupe mode %@ magnification %.3f visible %.0f,%.0f %.0fx%.0f",
-                          "\(model.mode)", scrollView.magnification, visible.minX, visible.minY, visible.width, visible.height)
+        // Issue #282, design §20.1: the loupe column's width (the scroll view's frame) and the
+        // caption's level and width, so a check can see that the caption never widens the column.
+        var line = String(format: "debug-script: loupe mode %@ magnification %.3f visible %.0f,%.0f %.0fx%.0f column %.2f caption level %d width %.2f",
+                          "\(model.mode)", scrollView.magnification, visible.minX, visible.minY, visible.width, visible.height,
+                          scrollView.frame.width, LoupeCaptionReport.level, LoupeCaptionReport.width)
         if let point = windowPoint(words, in: window), let document = scrollView.documentView {
             let imagePoint = document.convert(point, from: nil)
             line += String(format: " point %.1f,%.1f", imagePoint.x, imagePoint.y)
@@ -1089,6 +1120,28 @@ enum DebugScript {
                      editor.loupeViewport == nil ? "no" : "yes", scroll.magnification, image?.bounds.width ?? 0, image?.bounds.height ?? 0, editor.showsLive ? "yes" : "no", tile ? "shown" : "none", frame,
                      editor.isAwaitingSharpFrame ? "yes" : "no", editor.histogram.map { String(format: "%x", abs($0.hashValue) % 0xffffff) } ?? "none",
                      editor.loupeViewport.map { String(format: "%.4f,%.4f %.4fx%.4f", $0.minX, $0.minY, $0.width, $0.height) } ?? "-"))
+    }
+
+    /// `panes [<split> <divider> <x>]`: lists every split view in the window
+    /// (index, orientation, each pane's width), after moving the given
+    /// divider to `x` in its split view's coordinates if one is given.
+    private static func splitViews(_ words: [String]) {
+        guard let window else { return }
+        var splits: [NSSplitView] = []
+        func collect(_ view: NSView) {
+            if let split = view as? NSSplitView { splits.append(split) }
+            view.subviews.forEach(collect)
+        }
+        if let root = window.contentView?.superview { collect(root) }
+        if words.count == 3, let index = Int(words[0]), let divider = Int(words[1]), let x = Double(words[2]),
+           splits.indices.contains(index) {
+            splits[index].setPosition(x, ofDividerAt: divider)
+            splits[index].layoutSubtreeIfNeeded()
+        }
+        for (index, split) in splits.enumerated() {
+            let widths = split.arrangedSubviews.map { String(format: "%.1f%@", $0.frame.width, $0.isHidden ? " hidden" : "") }
+            print("debug-script: panes split \(index) \(split.isVertical ? "vertical" : "horizontal") widths [\(widths.joined(separator: ", "))]")
+        }
     }
 
     private static func descendant<V: NSView>(of type: V.Type, in view: NSView?) -> V? {
@@ -1477,8 +1530,34 @@ enum DebugScript {
             editor.resetFrameTrace()
         case "hdr":
             let potential = window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1
+            let current = window?.screen?.maximumExtendedDynamicRangeColorComponentValue ?? 1
             let headroom = model.loupeHDRHeadroom.map { String(format: "%.2f", $0) } ?? "none"
-            print("debug-script: hdr setting \(model.showsHDR) screen potential \(potential) loupe headroom \(headroom)")
+            print("debug-script: hdr setting \(model.showsHDR) screen potential \(potential) current \(current)"
+                  + " loupe headroom \(headroom)")
+            // Issue #282: a gain-map photo in HDR (the temporary switch, then the visit).
+            let report = model.loupeGainMapReport
+            func value(_ number: Float?) -> String { number.map { String(format: "%.2f", $0) } ?? "none" }
+            let frame = model.editor.frame.map { $0.headroom.map { String(format: "hdr %.2f", $0) } ?? "sdr" } ?? "none"
+            // The region frame at 100% and above (review F1, F11).
+            let tile = model.editor.regionFrame.map { $0.headroom.map { String(format: "hdr %.2f", $0) } ?? "sdr" } ?? "none"
+            let item = model.focusedItem
+            print("debug-script: gainmap has choice \(model.editor.hasGainMap) choice \(model.editor.adjustments.hdrIsOn)"
+                  + " can set \(model.editor.canSetHDR)"
+                  + " item \(item?.hdr ?? false) wants \(report.wantsHDR)"
+                  + " gain-map \(report.isGainMap) shown \(report.visit.shown?.rawValue ?? "none")"
+                  + " changes \(report.visit.changes) versions \(report.shownVersions.map(\.rawValue).joined(separator: ","))"
+                  + " badge '\(report.badge)' spinner \(model.loupeHDRSpinner) failed \(report.failed)"
+                  + " rendered \(value(report.visit.renderedHeadroom)) display \(value(report.displayHeadroom))"
+                  + " allowed \(value(report.allowedHeadroom)) allowed now \(value(report.allowedNow))"
+                  + " known limit \(value(report.settledReading)) request \(value(report.requestedHeadroom))"
+                  + " file \(value(report.fileHeadroom)) ceiling \(value(report.ceiling)) refits \(report.refits)"
+                  + " live frame \(frame) tile \(tile) showsLive \(model.editor.showsLive)"
+                  + " crop image \(model.editor.cropImage.map { String(format: "%.2f", $0.contentHeadroom) } ?? "none")"
+                  + " histogram \(model.editor.hdrHistogram.map { String(format: "hdr above white %.3f", $0.shareAboveWhite) } ?? "none")"
+                  + " shows hdr histogram \(model.loupeHistogramIsHDR)"
+                  + " inspector histogram \(model.showsHDRHistogram ? (model.hdrHistogramCounts == nil ? "hdr empty" : "hdr") : "sdr")")
+            print("debug-script: hdr badge text '\(HDRText.badge(model.loupeHDRStatus) ?? "")'"
+                  + " help '\(HDRText.help(model.loupeHDRStatus) ?? "")'")
         case "messages":
             // Every Activity row, oldest first, and whether an alert or sheet is up.
             for message in model.activity.messages {

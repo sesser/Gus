@@ -349,11 +349,14 @@ struct CommandTests {
         // Spots, like masks, are objects, not a module of parameters: their group only turns them off and on.
         // The stored decode has no group; scripts see its decoder version only, never a Look (issue #219, R8).
         let expected = Set(Adjustments.Group.presetGroups.flatMap(\.kinds).map(\.rawValue)
-                           + [Crop.kind.rawValue, RawDecode.kind.rawValue])
+                           + [Crop.kind.rawValue, RawDecode.kind.rawValue, HDRChoice.kind.rawValue])
         #expect(kinds == expected)
         let decode = modules.first { $0["kind"] == "rawDecode" }
         #expect(decode?["group"] == .null && decode?["section"] == .null)
         #expect(decode?["parameters"]?.arrayValue?.compactMap { $0["name"]?.stringValue } == ["decoderVersion"])
+        // The HDR choice (issue #282, R17) has no group: presets and paste never carry it.
+        let hdr = modules.first { $0["kind"] == "hdr" }
+        #expect(hdr?["group"] == .null && hdr?["parameters"]?.arrayValue?.first?["type"] == "boolean")
         let exposure = modules.first { $0["kind"] == "exposure" }
         #expect(exposure?["group"] == "light" && exposure?["section"] == "develop")
         #expect(exposure?["parameters"]?.arrayValue?.first?["minimum"] == -5)

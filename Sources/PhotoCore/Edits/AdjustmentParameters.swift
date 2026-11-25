@@ -74,7 +74,7 @@ extension Adjustments {
                 describe(BlackAndWhite.self), describe(ColorGrade.self), describe(LensDistortion.self),
                 describe(LensVignetting.self), describe(ColorAlignment.self), describe(ColorFringes.self),
                 describe(LookTable.self), describe(Vignette.self),
-                describe(NoiseReduction.self), describe(Sharpen.self), describe(Grain.self)]
+                describe(NoiseReduction.self), describe(Sharpen.self), describe(Grain.self), describe(HDRChoice.self)]
     }()
 
     public static func moduleDescription(_ kind: EditOperationKind) -> AdjustmentModuleDescription? {

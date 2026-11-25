@@ -128,6 +128,43 @@ public struct PreviewGenerator: Sendable {
         return rendered.contentHeadroom >= RenderEngine.minimumHDRHeadroom ? rendered : nil
     }
 
+    /// A gain-map photo's HDR version (issue #282), no larger than `longEdge`
+    /// pixels (nil for full resolution), fitted to a display that can show
+    /// `displayHeadroom` now: the stack rendered over the same decode as the
+    /// SDR renditions (`rendering`), with the file's gain map applied last
+    /// (`GainMap.hdr`). A half-float image in `RenderEngine.hdrColorSpace`
+    /// tagged with the headroom it was rendered for. Every stack has one:
+    /// nothing in the stack turns it away. Nil when the file is not a
+    /// gain-map photo; throws `GainMap.ReadFailure` when it can't be read
+    /// (`GainMap.read`). `gainMap` saves loading it again.
+    public func gainMapHDRImage(source: URL, stack: EditStack, longEdge: Int?, displayHeadroom: Float,
+                                gainMap: GainMap? = nil) throws -> (image: CGImage, fileHeadroom: Float, ceiling: Float)? {
+        // A file that can't be read now throws: it may have a gain map once it can (code review C8).
+        guard let map = try gainMap ?? GainMap.read(source) else { return nil }
+        let decoded = try Self.decode(source, longEdge: decodeLongEdge(source, stack: stack, longEdge: longEdge),
+                                      draft: false, settings: renderer.decodeSettings(for: stack))
+        let rendered = try renderer.apply(stack, to: decoded.image, context: decoded.context)
+        let placed = map.placed(over: decoded.image.extent, values: Adjustments(stack: stack), context: decoded.context)
+        var (image, headroom) = map.hdr(rendered, placed: placed, displayHeadroom: displayHeadroom)
+        if let longEdge {
+            image = image.scaledToFit(longEdge: longEdge)
+        }
+        guard let output = engine.makeHDRCGImage(image, contentHeadroom: headroom) else { throw Failure.renderFailed }
+        return (output, map.headroom, map.ceiling)
+    }
+
+    /// The histogram of a gain-map photo's whole HDR version with `stack`
+    /// (issue #282, R10), counted from a decode about `sampleSize` pixels
+    /// long; nil when the file is not a gain-map photo. For photos shown
+    /// without a live editor (a comparison pane).
+    public func gainMapHDRHistogram(source: URL, stack: EditStack, sampleSize: Int = 512) throws -> HDRHistogram? {
+        guard let map = try GainMap.read(source) else { return nil }
+        let decoded = try Self.decode(source, longEdge: sampleSize, draft: true, settings: renderer.decodeSettings(for: stack))
+        let rendered = try renderer.apply(stack, to: decoded.image, context: decoded.context)
+        let placed = map.placed(over: decoded.image.extent, values: Adjustments(stack: stack), context: decoded.context)
+        return HDRHistogram(image: map.fullHDR(rendered, placed: placed), engine: engine)
+    }
+
     /// Full-resolution (or capped) rendition for 1:1 viewing, in `colorSpace`
     /// (Display P3 when nil), rendered before it returns (`makeSurfaceImage`):
     /// never by its first draw on the main thread.

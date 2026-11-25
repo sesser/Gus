@@ -910,6 +910,17 @@
         }
       }
     },
+    "%lld percent of the photo is brighter than SDR white" : {
+      "comment" : "VoiceOver value of the HDR histogram: the share of the photo above SDR white, by luminance",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld percent of the photo is brighter than SDR white"
+          }
+        }
+      }
+    },
     "%lld photos" : {
       "comment" : "Window subtitle; also VoiceOver, after the result of a culling action on several photos (“Picked, 12 photos”)",
       "localizations" : {
@@ -949,6 +960,29 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld photos could not be written."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld photos have HDR on. Exports are SDR." : {
+      "comment" : "Export sheet header: how many of the exported photos have their HDR choice on",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo has HDR on. Exports are SDR."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos have HDR on. Exports are SDR."
                 }
               }
             }
@@ -3996,6 +4030,94 @@
         }
       }
     },
+    "HDR is hidden in the View menu" : {
+      "comment" : "VoiceOver: why a photo with HDR on shows SDR",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HDR is hidden in the View menu"
+          }
+        }
+      }
+    },
+    "HDR is on for this photo, but its HDR version couldn't be made. Open the photo again to retry." : {
+      "comment" : "Help tag of the loupe's SDR badge: the HDR version failed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HDR is on for this photo, but its HDR version couldn't be made. Open the photo again to retry."
+          }
+        }
+      }
+    },
+    "HDR is on for this photo, but its original is offline, so the cached SDR preview is shown." : {
+      "comment" : "Help tag of the loupe's SDR badge: the original is offline",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HDR is on for this photo, but its original is offline, so the cached SDR preview is shown."
+          }
+        }
+      }
+    },
+    "HDR is on for this photo, but this display can't show HDR, or HDR is turned off for it in System Settings." : {
+      "comment" : "Help tag of the loupe's SDR badge: the display has no extended range",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HDR is on for this photo, but this display can't show HDR, or HDR is turned off for it in System Settings."
+          }
+        }
+      }
+    },
+    "HDR is on for this photo. To see it, choose View ▸ Show HDR." : {
+      "comment" : "Help tag of the loupe's SDR badge: HDR is hidden in the View menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HDR is on for this photo. To see it, choose View ▸ Show HDR."
+          }
+        }
+      }
+    },
+    "HDR is on, showing the SDR version: %@" : {
+      "comment" : "VoiceOver: the loupe's version badge when HDR is on but SDR is shown; the reason follows",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HDR is on, showing the SDR version: %@"
+          }
+        }
+      }
+    },
+    "Hide HDR" : {
+      "comment" : "View menu: the loupe shows SDR only",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide HDR"
+          }
+        }
+      }
+    },
+    "Histogram, HDR version" : {
+      "comment" : "VoiceOver label of the inspector's histogram while it shows the HDR version",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Histogram, HDR version"
+          }
+        }
+      }
+    },
     "https://photos.example.com" : {
       "comment" : "Server sheet: the address field's prompt",
       "localizations" : {
@@ -4330,6 +4452,17 @@
         }
       }
     },
+    "Loading the HDR version" : {
+      "comment" : "Help tag and VoiceOver label of the loupe's SDR badge and spinner while the HDR version loads",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading the HDR version"
+          }
+        }
+      }
+    },
     "macOS can't tell who issued the certificate that “%@” presented. That is normal for a server you set up yourself, but another device on your network can present a certificate too. Trust it only if the fingerprint below matches your server's." : {
       "comment" : "Certificate page: a certificate the system does not trust; the host",
       "localizations" : {
@@ -4650,6 +4783,17 @@
         }
       }
     },
+    "original offline" : {
+      "comment" : "VoiceOver: why a photo with HDR on shows SDR",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "original offline"
+          }
+        }
+      }
+    },
     "Paste the key here" : {
       "comment" : "Server sheet: the key field's prompt when adding",
       "localizations" : {
@@ -4870,6 +5014,50 @@
         }
       }
     },
+    "SDR" : {
+      "comment" : "Loupe caption badge: the SDR version of a gain-map photo is on screen",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SDR"
+          }
+        }
+      }
+    },
+    "SDR: HDR Failed" : {
+      "comment" : "Loupe caption badge: HDR is on for the photo but its HDR version couldn't be made",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SDR: HDR Failed"
+          }
+        }
+      }
+    },
+    "SDR: HDR Hidden" : {
+      "comment" : "Loupe caption badge: HDR is on for the photo but hidden in the View menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SDR: HDR Hidden"
+          }
+        }
+      }
+    },
+    "SDR: No HDR Display" : {
+      "comment" : "Loupe caption badge: HDR is on for the photo but the display has no extended range",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SDR: No HDR Display"
+          }
+        }
+      }
+    },
     "Send my key and photos without encryption" : {
       "comment" : "Server sheet: the unencrypted notice's check box",
       "localizations" : {
@@ -4958,6 +5146,28 @@
         }
       }
     },
+    "Show and edit this photo in HDR, using the brightness information in its file. Exports are SDR." : {
+      "comment" : "Help tag and VoiceOver hint of the Adjust tab's HDR check box",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show and edit this photo in HDR, using the brightness information in its file. Exports are SDR."
+          }
+        }
+      }
+    },
+    "Show HDR" : {
+      "comment" : "View menu: the loupe may show HDR (gain-map, HLG, PQ and floating-point DNG photos)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show HDR"
+          }
+        }
+      }
+    },
     "Show only photos taken within a date range" : {
       "comment" : "Import window toolbar: Date Range tooltip",
       "localizations" : {
@@ -4987,6 +5197,83 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show presets as thumbnails"
+          }
+        }
+      }
+    },
+    "Showing the HDR version" : {
+      "comment" : "VoiceOver: the loupe's version badge",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the HDR version"
+          }
+        }
+      }
+    },
+    "Showing the HDR version, fitted to this display" : {
+      "comment" : "VoiceOver: the loupe's version badge",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the HDR version, fitted to this display"
+          }
+        }
+      }
+    },
+    "Showing the HDR version, fitted to this display. The file brightens up to %@× SDR white; the display allows %@× now. The histogram shows the whole HDR version." : {
+      "comment" : "Help tag of the loupe's HDR badge when the picture is fitted to the display. The arguments are numbers such as 3.7 and 1.3",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the HDR version, fitted to this display. The file brightens up to %1$@× SDR white; the display allows %2$@× now. The histogram shows the whole HDR version."
+          }
+        }
+      }
+    },
+    "Showing the HDR version." : {
+      "comment" : "Help tag of the loupe's HDR badge before the file's headroom is known",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the HDR version."
+          }
+        }
+      }
+    },
+    "Showing the HDR version. This file brightens up to %@× SDR white." : {
+      "comment" : "Help tag of the loupe's HDR badge. The argument is a number such as 2.6",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the HDR version. This file brightens up to %@× SDR white."
+          }
+        }
+      }
+    },
+    "Showing the SDR version" : {
+      "comment" : "VoiceOver: the loupe's version badge",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the SDR version"
+          }
+        }
+      }
+    },
+    "Showing the SDR version. This file also has an HDR version. To use it, choose Adjust ▸ Turn On HDR." : {
+      "comment" : "Help tag of the loupe's SDR badge for a gain-map photo with HDR off",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the SDR version. This file also has an HDR version. To use it, choose Adjust ▸ Turn On HDR."
           }
         }
       }
@@ -5148,6 +5435,17 @@
         }
       }
     },
+    "the HDR version couldn't be made" : {
+      "comment" : "VoiceOver: why a photo with HDR on shows SDR",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the HDR version couldn't be made"
+          }
+        }
+      }
+    },
     "The key couldn't be saved" : {
       "comment" : "Server check: Keychain failure",
       "localizations" : {
@@ -5302,6 +5600,17 @@
         }
       }
     },
+    "The whole photo's HDR version. Right of the line is brighter than SDR white, up to 3 stops; anything brighter collects at the right edge. A picture fitted to the display can differ." : {
+      "comment" : "Help tag of the inspector's histogram while it shows the HDR version",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The whole photo's HDR version. Right of the line is brighter than SDR white, up to 3 stops; anything brighter collects at the right edge. A picture fitted to the display can differ."
+          }
+        }
+      }
+    },
     "This API key is missing permissions" : {
       "comment" : "Server check: missing permissions",
       "localizations" : {
@@ -5320,6 +5629,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This connection is not encrypted"
+          }
+        }
+      }
+    },
+    "this display can't show HDR" : {
+      "comment" : "VoiceOver: why a photo with HDR on shows SDR",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "this display can't show HDR"
           }
         }
       }
@@ -5522,6 +5842,17 @@
         }
       }
     },
+    "Turn Off HDR" : {
+      "comment" : "Adjust menu item, undo action name and History entry: the photo's HDR choice",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn Off HDR"
+          }
+        }
+      }
+    },
     "Turn On Constrain to Image" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -5529,6 +5860,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Turn On Constrain to Image"
+          }
+        }
+      }
+    },
+    "Turn On HDR" : {
+      "comment" : "Adjust menu item, undo action name and History entry: the photo's HDR choice",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn On HDR"
           }
         }
       }
@@ -9014,17 +9356,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hide Fringe Map"
-          }
-        }
-      }
-    },
-    "Hide HDR Highlights" : {
-      "comment" : "View menu: the loupe clips highlights at SDR white",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hide HDR Highlights"
           }
         }
       }
@@ -14804,17 +15135,6 @@
         }
       }
     },
-    "Show HDR Highlights" : {
-      "comment" : "View menu: the loupe shows highlights above SDR white on displays with extended dynamic range",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show HDR Highlights"
-          }
-        }
-      }
-    },
     "Show History" : {
       "comment" : "View menu: expands the loupe's History panel in the inspector",
       "localizations" : {
@@ -15063,6 +15383,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Showed how to apply the lens corrections Fujifilm stores in its raw files. This app's version was written after reading how darktable does it; no code was copied."
+          }
+        }
+      }
+    },
+    "Showing the cached SDR preview. This file also has an HDR version, which needs the original." : {
+      "comment" : "Help tag of the loupe's SDR badge for a gain-map photo with HDR off whose original is offline",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the cached SDR preview. This file also has an HDR version, which needs the original."
           }
         }
       }

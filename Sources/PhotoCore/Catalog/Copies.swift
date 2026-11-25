@@ -260,12 +260,25 @@ extension Catalog {
                 copy.modifiedAt = date
                 try copy.insert(db)
                 guard let copyID = copy.id else { continue }
+                // The HDR choice's copy in the catalog (issue #282) follows the stack the copy starts with.
+                try db.execute(sql: "UPDATE version SET hdr = (SELECT hdr FROM version WHERE id = ?) WHERE id = ?",
+                               arguments: [id, copyID])
                 try copyKeywords.execute(arguments: [copyID, id])
                 try copyAlbums.execute(arguments: [copyID, id])
                 made.append(DuplicatedVersion(sourceVersionID: id, copy: copy))
             }
             return made
         }
+    }
+
+    /// Sets the catalog's copy of a version's HDR choice (`version.hdr`,
+    /// issue #282) from its stored stack, for rows put back by a record
+    /// insert, which leaves the column at its default. A stack this build
+    /// can't read has no choice it can show (the editor is off for it).
+    static func storeHDRChoice(_ db: Database, versionID: Int64, stackJSON: String) throws {
+        let choice = (try? EditStack.decode(from: stackJSON))?.hdrChoice ?? false
+        guard choice else { return }
+        try db.execute(sql: "UPDATE version SET hdr = 1 WHERE id = ?", arguments: [versionID])
     }
 
     /// Makes one copy (`duplicateVersions`).
@@ -317,6 +330,7 @@ extension Catalog {
             for copy in copies {
                 var version = copy.version
                 try version.insert(db)
+                try Self.storeHDRChoice(db, versionID: copy.versionID, stackJSON: version.editStack)
                 for keywordID in copy.keywordIDs {
                     try db.execute(sql: """
                         INSERT OR IGNORE INTO versionKeyword (versionId, keywordId)

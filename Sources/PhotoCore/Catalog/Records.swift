@@ -243,6 +243,10 @@ public struct VersionRecord: Codable, Hashable, Sendable, Identifiable, Fetchabl
         public static let colorLabel = Column(CodingKeys.colorLabel)
         public static let editStack = Column(CodingKeys.editStack)
         public static let editStackHash = Column(CodingKeys.editStackHash)
+        /// `EditStack.hdrChoice` of `editStack` (issue #282, migration v17), kept in
+        /// sync on every write so item queries read it without the stack. Not a
+        /// property of the record: migrations before v17 read and write records.
+        public static let hdr = Column("hdr")
         public static let modifiedAt = Column(CodingKeys.modifiedAt)
     }
 

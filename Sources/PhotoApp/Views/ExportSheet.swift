@@ -89,6 +89,16 @@ private struct ExportHeader: View {
                 Text(subtitle)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                // Information, not an issue: above any general issue (issue #282, design §10).
+                if export.hdrPhotos > 0 {
+                    Label {
+                        Text(HDRText.exportNotice(export.hdrPhotos)).fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "info.circle")
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                }
                 if let issue = export.issue, issue.place == .general {
                     IssueText(text: issue.text)
                 }

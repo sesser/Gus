@@ -1,0 +1,427 @@
+import CoreImage
+import Foundation
+import ImageIO
+import PhotoFixtures
+import Testing
+@testable import PhotoCore
+
+/// Issue #282: every adjustment works in HDR (R7, AC6), and the HDR
+/// brightening follows the picture under Distortion and spots (R19, AC17).
+/// Synthetic gain-map files of both kinds (ISO 21496-1, and Apple's alone:
+/// QA Q1, Q4); the owner's photos run in the opt-in tests of
+/// `GainMapHDRTests` and below.
+@Suite("Gain-map photos: every adjustment and the geometry (issue #282)")
+struct GainMapAdjustmentTests {
+    typealias Pixels = GainMapHDRTests.Pixels
+
+    /// One adjustment at its smallest non-neutral value and at a strong one.
+    struct Case: Sendable, CustomStringConvertible {
+        var name: String
+        var small: @Sendable (inout Adjustments) -> Void
+        var strong: @Sendable (inout Adjustments) -> Void
+        /// An on/off conversion (Black & White) has no small value: turned on with
+        /// every filter at 0 it changes the picture, in both versions alike.
+        var isSwitch = false
+        var description: String { name }
+    }
+
+    static let table = BuiltInLookTables.all.first?.identifier ?? ""
+
+    /// An identity look-up table, installed in the tests' store: AC6's
+    /// smallest look-up table (a person can import one; the stack names it
+    /// like any other).
+    static let identityTable: String = {
+        var lines = ["TITLE \"Identity\"", "LUT_3D_SIZE 2"]
+        for blue in 0...1 {
+            for green in 0...1 {
+                for red in 0...1 { lines.append("\(red).0 \(green).0 \(blue).0") }
+            }
+        }
+        return (try? GoldenCase.lookTables.install(Data(lines.joined(separator: "\n").utf8))) ?? ""
+    }()
+
+    static let kinds = HDRTestImages.GainMapKind.allCases
+
+    /// Every group and control of the Adjust tab that changes pixels, masks
+    /// and spots included (crop, Distortion and spots move pixels: AC17 below).
+    static let cases: [Case] = [
+        Case(name: "white balance") { $0.whiteBalance.preset = .custom; $0.whiteBalance.relativeTemperature = 1 }
+            strong: { $0.whiteBalance.preset = .custom; $0.whiteBalance.relativeTemperature = 60 },
+        Case(name: "exposure") { $0.exposure.ev = 0.01 } strong: { $0.exposure.ev = 1.5 },
+        Case(name: "contrast") { $0.tone.contrast = 1 } strong: { $0.tone.contrast = 80 },
+        Case(name: "highlights") { $0.tone.highlights = -1 } strong: { $0.tone.highlights = -80 },
+        Case(name: "highlights up") { $0.tone.highlights = 1 } strong: { $0.tone.highlights = 80 },
+        Case(name: "shadows") { $0.tone.shadows = 1 } strong: { $0.tone.shadows = 80 },
+        Case(name: "whites") { $0.tone.whites = 1 } strong: { $0.tone.whites = 80 },
+        Case(name: "blacks") { $0.tone.blacks = 1 } strong: { $0.tone.blacks = 80 },
+        Case(name: "clarity") { $0.presence.clarity = 1 } strong: { $0.presence.clarity = 80 },
+        Case(name: "dehaze") { $0.presence.dehaze = 1 } strong: { $0.presence.dehaze = 60 },
+        Case(name: "vibrance") { $0.presence.vibrance = 1 } strong: { $0.presence.vibrance = 80 },
+        Case(name: "saturation") { $0.presence.saturation = 1 } strong: { $0.presence.saturation = 80 },
+        Case(name: "tone curve") {
+            $0.toneCurve[.rgb] = [CurvePoint(x: 0, y: 0), CurvePoint(x: 0.5, y: 0.502), CurvePoint(x: 1, y: 1)]
+        } strong: {
+            $0.toneCurve[.rgb] = [CurvePoint(x: 0, y: 0), CurvePoint(x: 0.25, y: 0.15),
+                                  CurvePoint(x: 0.75, y: 0.85), CurvePoint(x: 1, y: 1)]
+        },
+        Case(name: "color mixer") { $0.colorMixer[.orange] = .init(saturation: 1) }
+            strong: { $0.colorMixer[.orange] = .init(saturation: 80); $0.colorMixer[.blue] = .init(luminance: -60) },
+        Case(name: "black and white", small: { $0.blackAndWhite.isOn = true },
+             strong: { $0.blackAndWhite.isOn = true; $0.blackAndWhite[.red] = 100 }, isSwitch: true),
+        Case(name: "color grading") { $0.colorGrade.highlights.amount = 1 }
+            strong: { $0.colorGrade.highlights.hue = 40; $0.colorGrade.highlights.amount = 80 },
+        // The smallest look-up table AC6 names: an identity table, at full intensity.
+        Case(name: "look-up table") { $0.lookTable.identifier = identityTable; $0.lookTable.intensity = 100 }
+            strong: { $0.lookTable.identifier = table; $0.lookTable.intensity = 100 },
+        Case(name: "vignette") { $0.vignette.amount = -1 } strong: { $0.vignette.amount = -80 },
+        Case(name: "grain") { $0.grain.strength = 1 } strong: { $0.grain.strength = 80 },
+        Case(name: "sharpening") { $0.sharpen.amount = 1 } strong: { $0.sharpen.amount = 150 },
+        Case(name: "noise reduction") { $0.noiseReduction.luminance = 1 } strong: { $0.noiseReduction.luminance = 80 },
+        Case(name: "lens vignetting") { $0.lensVignetting = LensVignetting(isOn: true, source: .manual, amount: 1) }
+            strong: { $0.lensVignetting = LensVignetting(isOn: true, source: .manual, amount: 80) },
+        Case(name: "color fringes") {
+            $0.colorFringes.slot1 = .init(color: SIMD3(0.5, 0.15, -0.15), tolerance: 1)
+        } strong: {
+            $0.colorFringes.slot1 = .init(color: SIMD3(0.5, 0.15, -0.15), tolerance: 100)
+            $0.colorFringes.slot2 = .init(color: SIMD3(0.6, -0.15, 0.12), tolerance: 100)
+        },
+        Case(name: "color alignment") { $0.colorAlignment.setByHand(red: 0.1) }
+            strong: { $0.colorAlignment.setByHand(red: 20, blue: -20) },
+        Case(name: "mask") {
+            $0.local.masks = [GoldenCase.mask([.radial(RadialGradient(center: MaskPoint(x: 0.4, y: 0.5), radiusX: 0.3,
+                                                                      radiusY: 0.3))]) { $0.exposure = 0.01 }]
+        } strong: {
+            $0.local.masks = [GoldenCase.mask([.radial(RadialGradient(center: MaskPoint(x: 0.4, y: 0.5), radiusX: 0.3,
+                                                                      radiusY: 0.3))]) {
+                $0.exposure = 1
+                $0.contrast = 60
+            }]
+        },
+    ]
+
+    /// The HDR version at the file's full brightening and the SDR version as
+    /// shown, both in linear Display P3, of `values` on `url`.
+    static func pair(_ url: URL, _ values: Adjustments, generator: PreviewGenerator, longEdge: Int = 600)
+        throws -> (hdr: Pixels, sdr: Pixels) {
+        let hdr = try #require(try generator.gainMapHDRImage(source: url, stack: values.editStack, longEdge: longEdge,
+                                                             displayHeadroom: 100))
+        let sdr = try generator.image(source: url, stack: values.editStack, longEdge: longEdge)
+        return (Pixels(hdr.image), Pixels(GainMap.clamped(sdr, maximum: 1)))
+    }
+
+    /// How far, in stops, the unedited HDR version's mean is from the
+    /// system's HDR decode of the file: near 0 when the gain map is applied,
+    /// a stop or so when it isn't (QA Q1, Q4: a drift alone can't tell).
+    static func offSystemDecode(_ url: URL, _ unedited: Pixels) throws -> Double {
+        let system = Pixels(try GainMapHDRTests.systemHDR(url), size: CGSize(width: unedited.width, height: unedited.height))
+        return log2(Double(unedited.mean / system.mean))
+    }
+
+    @Test("AC6: every adjustment keeps each point's brightening; its smallest value changes nothing visible",
+          arguments: cases, kinds)
+    func everyAdjustment(_ adjustment: Case, kind: HDRTestImages.GainMapKind) async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: "every.heic")
+            try HDRTestImages.writePatternedGainMap(to: url, width: 600, height: 450, seed: 2840, kind: kind)
+            let renderer = AdjustmentRenderer(lookTables: GoldenCase.lookTables)
+            let generator = PreviewGenerator(renderer: renderer)
+            let unedited = try Self.pair(url, Adjustments(), generator: generator)
+            #expect(unedited.hdr.maximum > 2)
+            // The gain map is applied: unedited, the HDR version is the system's HDR decode.
+            let off = try Self.offSystemDecode(url, unedited.hdr)
+            #expect(abs(off) < 0.05, "\(kind): unedited HDR is \(off) stops off the system's decode")
+
+            var small = Adjustments()
+            adjustment.small(&small)
+            #expect(small != Adjustments(), "\(adjustment): the small value is not an edit")
+            let nudged = try Self.pair(url, small, generator: generator)
+            let shift = log2(Double(nudged.hdr.mean / unedited.hdr.mean))
+            if adjustment.isSwitch {
+                // The HDR version moves as the SDR one does, and stays above white.
+                let sdrShift = log2(Double(nudged.sdr.mean / unedited.sdr.mean))
+                #expect(abs(shift - sdrShift) < 0.05, "\(adjustment) on: HDR moved \(shift), SDR \(sdrShift) stops")
+                #expect(nudged.hdr.maximum > 1, "\(adjustment) on: values above white are kept")
+            } else {
+                #expect(abs(shift) < 0.05, "\(adjustment) small: mean moved \(shift) stops")
+                #expect(nudged.hdr.maximum > 2, "\(adjustment) small: values above white are kept")
+            }
+
+            var strong = Adjustments()
+            adjustment.strong(&strong)
+            let edited = try Self.pair(url, strong, generator: generator)
+            let drift = GainMapHDRTests.drift(hdr: edited.hdr, sdr: edited.sdr, hdr0: unedited.hdr, sdr0: unedited.sdr)
+            #expect(drift < 0.05, "\(adjustment) strong: \(drift) stops RMS")
+            #expect(edited.hdr.maximum > 1, "\(adjustment) strong: not clipped to SDR white")
+        }
+    }
+
+    /// `GAINMAP_SAMPLES=a.HEIC:b.HEIC` (the owner's files, never committed):
+    /// AC6 on real files: the unedited HDR version is the system's HDR
+    /// decode, each adjustment's smallest value changes nothing visible, its
+    /// strong value keeps each point's brightening. Run it on a file that
+    /// carries only Apple's kind of gain map too: the owner's iPhone files
+    /// carry both, so a copy with the ISO map hidden stands in (QA Q4: each
+    /// `tmap` code renamed). Prints each value for status.md.
+    @Test("AC6 on real files, Apple-only gain maps included",
+          .enabled(if: ProcessInfo.processInfo.environment["GAINMAP_SAMPLES"] != nil))
+    func everyAdjustmentOnRealFiles() async throws {
+        let paths = ProcessInfo.processInfo.environment["GAINMAP_SAMPLES"]?.split(separator: ":").map(String.init) ?? []
+        let renderer = AdjustmentRenderer(lookTables: GoldenCase.lookTables)
+        let generator = PreviewGenerator(renderer: renderer)
+        for path in paths {
+            let url = URL(fileURLWithPath: path)
+            let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+            let iso = CGImageSourceCopyAuxiliaryDataInfoAtIndex(source, 0, kCGImageAuxiliaryDataTypeISOGainMap) != nil
+            let unedited = try Self.pair(url, Adjustments(), generator: generator, longEdge: 1024)
+            // A gain map left unapplied drifts by nothing (QA Q4): the unedited HDR version must be the system's.
+            let off = try Self.offSystemDecode(url, unedited.hdr)
+            print("gain-map sample \(url.lastPathComponent) \(iso ? "ISO" : "Apple-only") unedited: \(String(format: "%+.4f", off)) stops off the system's HDR decode, maximum \(unedited.hdr.maximum)")
+            #expect(abs(off) < 0.05, "\(url.lastPathComponent): unedited HDR \(off) stops off the system's decode")
+            #expect(unedited.hdr.maximum > 1, "\(url.lastPathComponent): values above white")
+            for adjustment in Self.cases {
+                // Its smallest value changes nothing visible and keeps the values above white (AC6's first half).
+                var small = Adjustments()
+                adjustment.small(&small)
+                let nudged = try Self.pair(url, small, generator: generator, longEdge: 1024)
+                var shift = log2(Double(nudged.hdr.mean / unedited.hdr.mean))
+                if adjustment.isSwitch { shift -= log2(Double(nudged.sdr.mean / unedited.sdr.mean)) }
+                print("gain-map sample \(url.lastPathComponent) \(iso ? "ISO" : "Apple-only") \(adjustment) small: \(String(format: "%+.4f", shift)) stops")
+                #expect(abs(shift) < 0.05, "\(url.lastPathComponent) \(adjustment) small: \(shift) stops")
+                #expect(nudged.hdr.maximum > 1, "\(url.lastPathComponent) \(adjustment) small: values above white")
+
+                var strong = Adjustments()
+                adjustment.strong(&strong)
+                let edited = try Self.pair(url, strong, generator: generator, longEdge: 1024)
+                let drift = GainMapHDRTests.drift(hdr: edited.hdr, sdr: edited.sdr, hdr0: unedited.hdr, sdr0: unedited.sdr)
+                print("gain-map sample \(url.lastPathComponent) \(iso ? "ISO" : "Apple-only") \(adjustment): \(String(format: "%.4f", drift)) stops RMS")
+                #expect(drift < 0.05, "\(url.lastPathComponent) \(adjustment): \(drift) stops RMS")
+            }
+        }
+    }
+
+    // MARK: AC8: live frames and the settled render, for every adjustment (QA Q5)
+
+    /// One stack the loupe can show while a change is in progress.
+    struct LiveCase: Sendable, CustomStringConvertible {
+        var name: String
+        var apply: @Sendable (inout Adjustments) -> Void
+        var description: String { name }
+    }
+
+    /// Every adjustment's strong value (`cases`), the identity table, and
+    /// the edits that move picture content: crop with a turn and Straighten,
+    /// Distortion, a healed spot.
+    static let liveCases: [LiveCase] = cases.map { LiveCase(name: $0.name, apply: $0.strong) } + [
+        LiveCase(name: "identity look-up table") { $0.lookTable.identifier = identityTable; $0.lookTable.intensity = 100 },
+        LiveCase(name: "crop, turn, straighten") {
+            $0.crop = Crop(rect: CropRect(x: 0.1, y: 0.15, width: 0.6, height: 0.5), quarterTurns: 1, angle: 3)
+        },
+        LiveCase(name: "distortion") { $0.distortion = LensDistortion(isOn: true, source: .manual, amount: 60) },
+        LiveCase(name: "spot") {
+            $0.spots.spots = [Spot(mode: .heal, center: MaskPoint(x: 0.25, y: 0.15), size: 0.06,
+                                   source: MaskPoint(x: 0.25, y: 0.75), feather: 20, opacity: 100)]
+        },
+    ]
+
+    /// Mean brightness of two pictures, and of each cell of a 6 × 4 grid, in stops.
+    static func difference(_ first: Pixels, _ second: Pixels) -> (mean: Double, worstCell: Double) {
+        let cells = zip(first.cells(columns: 6, rows: 4), second.cells(columns: 6, rows: 4))
+            .filter { $0.1 > 0.005 }
+            .map { abs(log2(Double($0.0 / $0.1))) }
+        return (abs(log2(Double(first.mean / second.mean))), cells.max() ?? 0)
+    }
+
+    @Test("AC8: for every adjustment, the live HDR frame during a change and the render after it agree, at fit and at 100%",
+          arguments: liveCases, kinds)
+    func liveMatchesSettledForEveryAdjustment(_ live: LiveCase, kind: HDRTestImages.GainMapKind) async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: "live.heic")
+            try HDRTestImages.writePatternedGainMap(to: url, width: 1200, height: 900, seed: 2843, orientation: 6, kind: kind)
+            let generator = PreviewGenerator(renderer: AdjustmentRenderer(lookTables: GoldenCase.lookTables))
+            var values = Adjustments()
+            live.apply(&values)
+
+            // At fit: the frames a drag shows (interactive, drafts allowed) and the last one after it.
+            let session = LiveRenderSession(source: url, generator: generator, longEdge: 800, colorSpace: nil)
+            let settled = try #require(try generator.gainMapHDRImage(source: url, stack: values.editStack, longEdge: 800,
+                                                                     displayHeadroom: 2))
+            let still = Pixels(settled.image)
+            // A frame during a drag may be a draft (soft, R9), so it is held to AC8's brightness match with
+            // room for softness (measured on macOS 27.2: at most 0.0042 stops of mean, 0.027 in a cell); the
+            // frame at the settled size much closer (0.0015, 0.002).
+            for (interactive, meanLimit, cellLimit) in [(true, 0.01, 0.05), (false, 0.005, 0.02)] {
+                let frame = try await session.render(values, interactive: interactive, hdrHeadroom: 2)
+                #expect(frame.headroom == settled.image.contentHeadroom, "\(live) \(kind)")
+                let shown = Pixels(frame.image.cgImage, size: CGSize(width: still.width, height: still.height))
+                let (mean, worst) = Self.difference(shown, still)
+                #expect(mean < meanLimit, "\(live) \(kind) at fit, interactive \(interactive): mean \(mean) stops")
+                #expect(worst < cellLimit, "\(live) \(kind) at fit, interactive \(interactive): worst cell \(worst) stops")
+            }
+
+            // At 100%: a region frame and the same part of the full-resolution render.
+            let regions = LiveRegionRenderer(source: url, generator: generator, colorSpace: nil)
+            try await regions.prepare(values)
+            let tile = try await regions.render(values, unit: CGRect(x: 0.5, y: 0.5, width: 0.5, height: 0.5), hdrHeadroom: 1.8)
+            #expect(tile.headroom == 1.8, "\(live) \(kind)")
+            let full = try #require(try generator.gainMapHDRImage(source: url, stack: values.editStack, longEdge: nil,
+                                                                  displayHeadroom: 1.8))
+            // The bottom-right quarter of the photo as shown (Core Image's y axis points up).
+            let whole = CIImage(cgImage: full.image)
+            let quarter = whole.cropped(to: CGRect(x: whole.extent.width / 2, y: 0,
+                                                   width: whole.extent.width / 2, height: whole.extent.height / 2))
+            let region = Pixels(tile.image.cgImage)
+            let (mean, worst) = Self.difference(region, Pixels(quarter, size: CGSize(width: region.width, height: region.height)))
+            // Measured: at most 0.0015 stops of mean, 0.0021 in a cell.
+            #expect(mean < 0.005, "\(live) \(kind) at 100%: mean \(mean) stops")
+            #expect(worst < 0.02, "\(live) \(kind) at 100%: worst cell \(worst) stops")
+        }
+    }
+
+    // MARK: AC17: the brightening follows Distortion and spots
+
+    /// The system's HDR decode (the gain map baked into the picture) taken
+    /// through the same steps that move content: what our HDR version of a
+    /// stack that only moves content must equal, cell by cell.
+    static func reference(_ url: URL, _ values: Adjustments, longEdge: Int) throws -> Pixels {
+        let expanded = try GainMapHDRTests.systemHDR(url)
+        let moved = AdjustmentRenderer.gainMapGeometry(values, expanded, context: RenderContext())
+        // Unwrapped here: `Pixels` takes an optional size, through which `#require` passed nil before.
+        let size: CGSize = try #require(try sizeOf(url, values, longEdge: longEdge))
+        return Pixels(moved, size: size)
+    }
+
+    static func sizeOf(_ url: URL, _ values: Adjustments, longEdge: Int) throws -> CGSize? {
+        let made = try PreviewGenerator().gainMapHDRImage(source: url, stack: values.editStack, longEdge: longEdge,
+                                                          displayHeadroom: 100)
+        return made.map { CGSize(width: $0.image.width, height: $0.image.height) }
+    }
+
+    @Test("AC17: under Distortion, with a crop and a turn, the brightening lands on the same picture content",
+          arguments: kinds)
+    func distortion(kind: HDRTestImages.GainMapKind) async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: "distort.heic")
+            // A bright patch near a corner, where Distortion moves the picture most.
+            try HDRTestImages.writePatternedGainMap(to: url, width: 800, height: 600, seed: 2841, orientation: 6,
+                                                    brightRegion: CGRect(x: 0.04, y: 0.05, width: 0.12, height: 0.12),
+                                                    kind: kind)
+            var values = Adjustments()
+            values.distortion = LensDistortion(isOn: true, source: .manual, amount: 100, constrain: false)
+            values.crop = Crop(rect: CropRect(x: 0.05, y: 0.1, width: 0.85, height: 0.8), quarterTurns: 1, angle: 2)
+            let made = try #require(try PreviewGenerator().gainMapHDRImage(source: url, stack: values.editStack,
+                                                                           longEdge: 800, displayHeadroom: 100))
+            let ours = Pixels(made.image).cells(columns: 24, rows: 18)
+            let theirs = try Self.reference(url, values, longEdge: 800).cells(columns: 24, rows: 18)
+            let worst = zip(ours, theirs).map { abs(log2($0 / $1)) }.max() ?? .infinity
+            #expect(worst < 0.05, "worst cell \(worst) stops")
+
+            // Without the warp on the gain map (crop only), the bright part lands elsewhere.
+            let map = try #require(GainMap.load(url))
+            let decoded = try PreviewGenerator.decode(url, longEdge: 800, draft: false, settings: RAWDecodeSettings())
+            let rendered = try AdjustmentRenderer().apply(values.editStack, to: decoded.image, context: decoded.context)
+            let unwarped = map.hdr(rendered, placed: map.placed(over: decoded.image.extent, crop: values.effective.crop),
+                                   displayHeadroom: 100).image
+            let wrong = Pixels(unwarped, size: CGSize(width: made.image.width, height: made.image.height))
+                .cells(columns: 24, rows: 18)
+            let missed = zip(wrong, theirs).map { abs(log2($0 / $1)) }.max() ?? 0
+            #expect(missed > 0.2 && missed > 4 * worst,
+                    "the test can't tell: an unwarped gain map is \(missed) stops off, the warped one \(worst)")
+        }
+    }
+
+    @Test("AC17: a healed or cloned spot over the bright part takes its source's brightening, no glow",
+          arguments: [SpotMode.heal, .clone], kinds)
+    func spotsTakeTheSourcesBrightening(_ mode: SpotMode, kind: HDRTestImages.GainMapKind) async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: "spot.heic")
+            // A small bright object (×4, 40 × 40 pixels) at (200, 90), ×1.5 around it: a light to heal away.
+            try HDRTestImages.writePatternedGainMap(to: url, width: 800, height: 600, seed: 2842, bright: 4, dim: 1.5,
+                                                    brightRegion: CGRect(x: 0.225, y: 0.1167, width: 0.05, height: 0.0667),
+                                                    kind: kind)
+            var values = Adjustments()
+            values.spots.spots = [Spot(mode: mode, center: MaskPoint(x: 0.25, y: 0.15), size: 0.06,
+                                       source: MaskPoint(x: 0.25, y: 0.75), feather: 20, opacity: 100)]
+            let generator = PreviewGenerator()
+            let edited = try Self.pair(url, values, generator: generator, longEdge: 800)
+            // The ratio at the spot's middle (a 20-pixel square): the source's ×1.5, not the ×4 it covers.
+            func stops(_ pair: (hdr: Pixels, sdr: Pixels), x: Int, y: Int) -> Double {
+                var sum = 0.0, count = 0.0
+                for row in (y - 10)..<(y + 10) {
+                    for column in (x - 10)..<(x + 10) {
+                        let index = row * pair.hdr.width + column
+                        guard pair.sdr.luminance[index] > 0.005 else { continue }
+                        sum += log2(Double(pair.hdr.luminance[index] / pair.sdr.luminance[index]))
+                        count += 1
+                    }
+                }
+                return sum / max(count, 1)
+            }
+            let atSpot = stops(edited, x: 200, y: 90)
+            let atSource = stops(edited, x: 200, y: 450)
+            #expect(abs(atSpot - atSource) < 0.1, "\(mode): \(atSpot) stops at the spot, \(atSource) at its source")
+            let unedited = try Self.pair(url, Adjustments(), generator: generator, longEdge: 800)
+            #expect(stops(unedited, x: 200, y: 90) > atSource + 1, "the spot covers the bright part")
+        }
+    }
+}
+
+/// AC10 (R11): live frame times, SDR against HDR (histograms included), for
+/// one representative stack at fit (2560 px, the loupe's size on a Retina
+/// display) and at 100% (a 2560 × 1440 region of the full-resolution decode).
+/// `GAINMAP_TIMING=a.HEIC:b.HEIC` (the owner's files, never committed); prints
+/// medians for status.md. Not a pass or fail on time: it checks the run.
+@Suite("Gain-map photos: frame times (issue #282, AC10)")
+struct GainMapTimingTests {
+    static var stack: Adjustments {
+        var values = Adjustments()
+        values.exposure.ev = 0.3
+        values.tone.contrast = 20
+        values.tone.highlights = -30
+        values.presence.vibrance = 15
+        values.toneCurve[.rgb] = [CurvePoint(x: 0, y: 0), CurvePoint(x: 0.25, y: 0.2), CurvePoint(x: 0.75, y: 0.8),
+                                  CurvePoint(x: 1, y: 1)]
+        values.sharpen.amount = 40
+        values.hdr.isOn = true
+        return values
+    }
+
+    static func median(_ times: [Double]) -> Double {
+        let sorted = times.sorted()
+        return sorted[sorted.count / 2] * 1000
+    }
+
+    @Test("Frame times at fit and at 100%", .enabled(if: ProcessInfo.processInfo.environment["GAINMAP_TIMING"] != nil))
+    func frameTimes() async throws {
+        let paths = ProcessInfo.processInfo.environment["GAINMAP_TIMING"]?.split(separator: ":").map(String.init) ?? []
+        for path in paths {
+            let url = URL(fileURLWithPath: path)
+            let generator = PreviewGenerator()
+            let session = LiveRenderSession(source: url, generator: generator, longEdge: 2560, colorSpace: nil)
+            let region = LiveRegionRenderer(source: url, generator: generator, colorSpace: nil)
+            let unit = CGRect(x: 0.2, y: 0.2, width: 0.6, height: 0.45)
+            var fit: [String: [Double]] = [:], full: [String: [Double]] = [:]
+            for headroom in [nil, Float(4)] {
+                let name = headroom == nil ? "sdr" : "hdr"
+                var values = Self.stack
+                _ = try await session.render(values, interactive: false, allowsDrafts: false, hdrHeadroom: headroom)
+                try await region.prepare(values)
+                _ = try await region.render(values, unit: unit, hdrHeadroom: headroom)
+                for step in 0..<15 {
+                    // A slider moving: Exposure changes every frame.
+                    values.exposure.ev = 0.3 + Double(step) * 0.02
+                    let frame = try await session.render(values, interactive: true, allowsDrafts: false, hdrHeadroom: headroom)
+                    fit[name, default: []].append(frame.seconds)
+                    #expect((frame.headroom != nil) == (headroom != nil))
+                    let tile = try await region.render(values, unit: unit, hdrHeadroom: headroom)
+                    full[name, default: []].append(tile.seconds)
+                }
+            }
+            let line = String(format: "gain-map timing %@: fit SDR %.1f ms HDR %.1f ms (×%.2f); 100%% SDR %.1f ms HDR %.1f ms (×%.2f)",
+                              url.lastPathComponent, Self.median(fit["sdr"]!), Self.median(fit["hdr"]!),
+                              Self.median(fit["hdr"]!) / Self.median(fit["sdr"]!),
+                              Self.median(full["sdr"]!), Self.median(full["hdr"]!),
+                              Self.median(full["hdr"]!) / Self.median(full["sdr"]!))
+            print(line)
+        }
+    }
+}

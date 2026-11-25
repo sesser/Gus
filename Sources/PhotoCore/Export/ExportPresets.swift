@@ -82,6 +82,21 @@ public enum ExportTargets {
         return (ids, videos)
     }
 
+    /// How many of the photos `resolve` exports have their HDR choice on
+    /// (issue #282, R13): the Export sheet says exports are SDR. A pair item
+    /// whose JPEG or HEIC stands in for its raw exports the raw, which has no
+    /// choice; each version counts once; videos never.
+    public static func hdrCount(_ items: [CatalogItem]) -> Int {
+        var seen = Set<Int64>()
+        var count = 0
+        for item in items where !item.isVideo {
+            let exportsPartner = item.partnerVersionID != nil && item.fileKind != .raw && item.partnerKind == .raw
+            guard !exportsPartner, seen.insert(item.versionID).inserted, item.hdr else { continue }
+            count += 1
+        }
+        return count
+    }
+
     /// File ▸ Export…, the toolbar's Export and the context menu's Export…:
     /// only when the targets include a photo (videos are never exported) and
     /// no export runs (design.md I1). Pass a lazy sequence: the first photo

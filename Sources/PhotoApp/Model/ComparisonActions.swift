@@ -60,6 +60,8 @@ extension LibraryModel {
             comparisonEntersFrom = animates ? focusedItem.flatMap { state.side(of: $0.versionID) } : nil
             comparisonLeaving = nil
             comparisonHDRHeadroom = [:]
+        comparisonHDRStatus = [:]
+        comparisonHDRSpinner = []
             comparison = state
             rememberComparison(state)
             selectComparison(state)
@@ -75,6 +77,8 @@ extension LibraryModel {
         comparisonLeaving = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil : state
         comparison = nil
         comparisonHDRHeadroom = [:]
+        comparisonHDRStatus = [:]
+        comparisonHDRSpinner = []
         comparisonDidEnd()
         announceLoupePhoto()
     }
@@ -87,6 +91,8 @@ extension LibraryModel {
         comparison = nil
         comparisonLeaving = nil
         comparisonHDRHeadroom = [:]
+        comparisonHDRStatus = [:]
+        comparisonHDRSpinner = []
         if wasComparing { comparisonDidEnd() }
     }
 
@@ -148,6 +154,8 @@ extension LibraryModel {
         state[state.active] = item.versionID
         comparison = state
         comparisonHDRHeadroom[state.active] = nil
+        comparisonHDRStatus[state.active] = nil
+        comparisonHDRSpinner.remove(state.active)
         rememberComparison(state)
         selectComparison(state)
         if announces {

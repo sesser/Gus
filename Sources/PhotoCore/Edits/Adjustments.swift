@@ -54,6 +54,24 @@ public struct Adjustments: Hashable, Sendable {
     public var noiseReduction = NoiseReduction()
     public var sharpen = Sharpen()
     public var grain = Grain()
+    /// A gain-map photo's HDR choice (issue #282). Not one of the `Group`s:
+    /// presets, copy and paste never carry it (R3); Reset All Adjustments
+    /// turns it off. Renders no SDR pixel (`HDRChoice`). Read and set the
+    /// choice through `hdrIsOn`, which agrees with `EditStack.hdrChoice`.
+    public var hdr = HDRChoice()
+
+    /// The HDR choice as it applies: on, and its operation not turned off.
+    /// Nothing here turns the operation off, but a stack can hold a turned-off
+    /// one (a hand edit, a later build); it then reads as off everywhere, as
+    /// `EditStack.hdrChoice` (the catalog's copy) reads it. Setting it turns
+    /// the operation back on.
+    public var hdrIsOn: Bool {
+        get { hdr.isOn && !disabled.contains(HDRChoice.kind) }
+        set {
+            hdr.isOn = newValue
+            disabled.remove(HDRChoice.kind)
+        }
+    }
     /// Modules that keep their values but are turned off. Change it through
     /// `setEnabled(_:_:)`, which only records modules away from their defaults.
     public private(set) var disabled: Set<EditOperationKind> = []
@@ -147,6 +165,7 @@ public struct Adjustments: Hashable, Sendable {
         add(noiseReduction)
         add(sharpen)
         add(grain)
+        add(hdr)
         return EditStack(operations: operations + preserved)
     }
 
@@ -185,6 +204,7 @@ public struct Adjustments: Hashable, Sendable {
         case NoiseReduction.kind: noiseReduction = NoiseReduction(values)
         case Sharpen.kind: sharpen = Sharpen(values)
         case Grain.kind: grain = Grain(values)
+        case HDRChoice.kind: hdr = HDRChoice(values)
         default: return false
         }
         return true
@@ -215,6 +235,7 @@ public struct Adjustments: Hashable, Sendable {
         case NoiseReduction.kind: noiseReduction.parameters
         case Sharpen.kind: sharpen.parameters
         case Grain.kind: grain.parameters
+        case HDRChoice.kind: hdr.parameters
         default: [:]
         }
     }
@@ -244,6 +265,7 @@ public struct Adjustments: Hashable, Sendable {
         case NoiseReduction.kind: noiseReduction = NoiseReduction()
         case Sharpen.kind: sharpen = Sharpen()
         case Grain.kind: grain = Grain()
+        case HDRChoice.kind: hdr = HDRChoice()
         default: break
         }
         disabled.remove(kind)
@@ -274,6 +296,7 @@ public struct Adjustments: Hashable, Sendable {
         case NoiseReduction.kind: noiseReduction = source.noiseReduction
         case Sharpen.kind: sharpen = source.sharpen
         case Grain.kind: grain = source.grain
+        case HDRChoice.kind: hdr = source.hdr
         default: return
         }
         if source.disabled.contains(kind) {

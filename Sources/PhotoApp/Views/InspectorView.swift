@@ -294,7 +294,15 @@ private struct InfoHistogram: View {
     @State private var loaded: Histogram?
 
     var body: some View {
-        HistogramView(histogram: liveHistogram ?? loaded)
+        Group {
+            // The whole HDR version's, while the loupe shows a gain-map photo's HDR version (issue #282, §7);
+            // its frame with no curve while the counts are made, never SDR counts (§19.2).
+            if model.showsHDRHistogram {
+                HDRHistogramView(histogram: model.hdrHistogramCounts)
+            } else {
+                HistogramView(histogram: liveHistogram ?? loaded)
+            }
+        }
             .frame(height: 88)
             .task(id: Key(versionID: model.focusedItem?.versionID, editStackHash: model.focusedItem?.editStackHash)) {
                 loaded = nil
@@ -314,6 +322,7 @@ private struct InfoHistogram: View {
         var versionID: Int64?
         var editStackHash: String?
     }
+
 
     private var liveHistogram: Histogram? {
         let editor = model.editor
@@ -350,6 +359,95 @@ struct HistogramView: View {
         }
         .background(Color.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
         .accessibilityLabel(Text("Histogram"))
+    }
+}
+
+extension LibraryModel {
+    /// The inspector's histogram is the HDR one while the version on screen
+    /// is HDR (issue #282, design §7.2): the single loupe's photo, or the
+    /// active comparison pane's.
+    var showsHDRHistogram: Bool {
+        if isComparing {
+            guard let side = comparison?.active, case .hdr = comparisonHDRStatus[side] else { return false }
+            return true
+        }
+        return mode == .loupe && loupeHistogramIsHDR
+    }
+
+    /// That photo's HDR counts, nil until they are made: the inspector then
+    /// draws the HDR frame with no curve, never SDR counts (design §19.2).
+    var hdrHistogramCounts: HDRHistogram? {
+        if isComparing { return comparisonHDRHistogram }
+        guard editor.state == .ready, editor.item?.versionID == focusedItem?.versionID else { return nil }
+        return editor.hdrHistogram
+    }
+}
+
+/// The histogram of a gain-map photo's whole HDR version (issue #282,
+/// design §7.1): 0 to SDR white on today's scale in the left three fifths,
+/// up to 3 stops above it, linear in stops, in the right two fifths; a line
+/// at SDR white, a faint fill and dashed lines at +1 and +2 over the HDR
+/// part, and "HDR" in the corner. The axis never moves.
+struct HDRHistogramView: View {
+    /// Nil while the counts are made: the frame with no curve (design §19.2).
+    let histogram: HDRHistogram?
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        Canvas { context, size in
+            let plot = CGRect(origin: .zero, size: size).insetBy(dx: 6, dy: 6)
+            let white = plot.minX + plot.width * 3 / 5
+            // The HDR part's fill and its +1 and +2 lines.
+            context.fill(Path(CGRect(x: white, y: plot.minY, width: plot.maxX - white, height: plot.height)),
+                         with: .color(.white.opacity(0.06)))
+            for stop in 1...2 {
+                let x = white + (plot.maxX - white) * CGFloat(stop) / CGFloat(HDRHistogram.stops)
+                var line = Path()
+                line.move(to: CGPoint(x: x, y: plot.minY))
+                line.addLine(to: CGPoint(x: x, y: plot.maxY))
+                context.stroke(line, with: .color(.white.opacity(0.15)), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
+            }
+            // Same colors and peak rule as the SDR histogram: the first and last bins don't set the scale.
+            let channels: [([UInt32], Color)] = histogram.map {
+                [($0.red, .red), ($0.green, .green), ($0.blue, .blue)]
+            } ?? []
+            let peak = max(Double(channels.compactMap { $0.0.dropFirst().dropLast().max() }.max() ?? 1), 1)
+            var layer = context
+            layer.blendMode = .plusLighter
+            for (bins, color) in channels {
+                var path = Path()
+                path.move(to: CGPoint(x: plot.minX, y: plot.maxY))
+                for (index, count) in bins.enumerated() {
+                    let x = Self.x(bin: index, plot: plot, white: white)
+                    let height = min(Double(count) / peak, 1) * plot.height
+                    path.addLine(to: CGPoint(x: x, y: plot.maxY - height))
+                }
+                path.addLine(to: CGPoint(x: plot.maxX, y: plot.maxY))
+                path.closeSubpath()
+                layer.fill(path, with: .color(color.opacity(0.55)))
+            }
+            // SDR white.
+            var line = Path()
+            line.move(to: CGPoint(x: white, y: plot.minY))
+            line.addLine(to: CGPoint(x: white, y: plot.maxY))
+            context.stroke(line, with: .color(.white.opacity(contrast == .increased ? 0.8 : 0.45)), lineWidth: 1)
+            context.draw(Text(HistogramText.hdrMark).font(.system(size: 10)).foregroundStyle(.white.opacity(0.6)),
+                         at: CGPoint(x: plot.maxX - 2, y: plot.minY + 1), anchor: .topTrailing)
+        }
+        .background(Color.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+        .help(HistogramText.hdrHelp)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(HistogramText.hdrLabel)
+        .accessibilityValue(histogram.map { HistogramText.hdrValue($0.shareAboveWhite) } ?? "")
+    }
+
+    /// Each part's bins spread over its own width, the SDR part's last bin ending at the line.
+    private static func x(bin: Int, plot: CGRect, white: CGFloat) -> CGFloat {
+        if bin < HDRHistogram.sdrBins {
+            return plot.minX + CGFloat(bin) / CGFloat(HDRHistogram.sdrBins - 1) * (white - plot.minX)
+        }
+        let index = bin - HDRHistogram.sdrBins
+        return white + CGFloat(index + 1) / CGFloat(HDRHistogram.hdrBins) * (plot.maxX - white)
     }
 }
 

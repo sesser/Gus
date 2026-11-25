@@ -506,14 +506,86 @@ with highlights above white: floating-point DNGs (such as Lightroom's HDR
 merges and the app's own DNG merges) and images with HLG or PQ encoding (such as
 some cameras' HDR HEIF files). An **HDR** badge in the caption line under the
 photo says so. The loupe first shows the cached preview, then the HDR render
-from the original, so an HDR photo whose original is offline stays SDR.
-**View ▸ Hide HDR Highlights** turns HDR display off.
+from the original, so an HDR photo whose original is offline stays SDR. Their
+HDR view turns off while one of these adjustments is in use, on the photo or in
+a mask: Contrast, Whites, Blacks, Highlights above 0, Tone Curve, Color Mixer,
+Color Grading, a look-up table, Dehaze or Grain. This does not happen to
+gain-map photos (below). **View ▸ Hide HDR** turns HDR display off for every
+photo, and **View ▸ Show HDR** back on; the choices below are kept.
 
-Camera raws stay SDR, and so do photos whose HDR comes only from a gain map
-(most iPhone HEIC and JPEG photos, Ultra HDR JPEGs): the loupe shows the same
-standard-range picture that you edit and export, which can look darker than an
-app that shows the gain map's HDR version. Thumbnails and cached previews are
-always SDR.
+**HDR photos with a gain map**: most iPhone HEIC and JPEG photos and Ultra HDR
+JPEGs hold a gain map, information in the file that says how much brighter each
+part of the picture is in its HDR version, mid-tones as well as highlights. Such
+a photo opens in its SDR (standard range) version, as before. To see and edit
+it in HDR, check **HDR** at the top of the Adjust tab, next to **Original**, or
+choose **Adjust ▸ Turn On HDR** (**Turn Off HDR** to go back). The choice is
+saved with the photo's edits: it is one undo step and a History entry
+(**Turn On HDR**, **Turn Off HDR**), going back in History restores the setting
+that entry had (entries from before you turned it on have it off), **Reset All
+Adjustments** turns it off, and a copy made with **File ▸ Duplicate** starts
+with its original's choice and keeps its own after that. Presets, **Copy
+Adjustments** and **Paste Adjustments** never carry it or change it. Only HEIC
+and JPEG files have the choice: raws, HLG and PQ files, TIFFs, PNGs and videos
+don't. The check box and the menu item can't change it while the original is
+offline, while comparing or while cropping; **Reset All Adjustments** chosen in
+the grid still turns it off for a photo whose original is offline.
+
+There is one set of adjustments: each edit changes the HDR version by as much,
+in stops, as the SDR version, and every control of the Adjust tab works on the
+picture's SDR tones (Highlights, curves and masks reach the same parts of the
+picture in both versions). Light above SDR white has no control of its own, and
+there is no control for how much HDR. Spots and Distortion move the HDR
+brightening with the picture, so a healed light leaves no glow.
+
+The badge in the caption line says which version is on screen: **HDR**, or
+**SDR** for a photo with HDR off. Right after you open a photo with HDR on, the
+cached SDR preview may show for a moment, with **SDR** and, after half a second,
+a spinner, before the HDR version takes its place once.
+
+When HDR is on but can't be shown, a warning sign and **SDR** say so, followed
+by the reason. Where the caption line is too narrow for the reason, only the
+warning sign and **SDR** remain, and the help tag and VoiceOver give the
+reason. In the narrowest windows the stars, flag and label move toward the left
+so that no badge covers them. If that isn't enough, the caption leaves things
+out, starting with the position and the **Film Strip** button, and shows the
+rating as one star and a number. **Copy** and **Filtered** can go too (the
+window's title and subtitle still say both). The badge that says which version
+is on screen and the **Offline** badge always stay. The reasons are:
+
+- **SDR: HDR Hidden**: HDR is hidden; choose **View ▸ Show HDR** to see it.
+- **SDR: No HDR Display**: the display has no extended range, or HDR is turned
+  off for it in System Settings.
+- **SDR: HDR Failed**: the HDR version couldn't be made; open the photo again to
+  retry.
+- The **Offline** badge beside **SDR**: the original is offline, so the cached
+  SDR preview is shown. HDR returns when its volume is connected again.
+
+While a sharpening or fringe map is shown there is no version badge, and the
+photo returns in HDR when the map ends.
+
+How much extra brightness a display allows depends on the display, its
+settings and brightness, and whether the app is in front. Where a photo goes
+brighter than the display allows now, the loupe fits the HDR version to the
+display by the gain map's own rule, mid-tones included, and follows when you
+change the screen's brightness or move the window to another display. The badge
+still says **HDR**; its help tag gives how bright the file goes and what the
+display allows now. Where a display allows little, the HDR version can look
+close to SDR. The first HDR photo shown on a display may adjust its brightness
+once more, a moment after it appears, while the app learns what the display
+allows; later photos on that display open fitted to it. This normally happens
+once per display each time the app runs, and can happen again if what the
+display allows has changed since (its brightness, say).
+
+Show Original shows the unedited HDR version; the mask overlay, Crop and Edit
+Spots show the photo in HDR, with their handles and lines as before. The Pixel
+Magnifier's plate and values stay SDR. Side-by-side comparison and review show
+each photo as its choice says, each pane with its own badge and, while its HDR
+version loads, its own spinner. Thumbnails, the
+film strip, cached previews, `photocli render` and exports are always SDR, the
+same with HDR on or off; the Export sheet says so when photos with HDR on are
+among those exported. HDR editing needs macOS 26 or later.
+
+Camera raws stay SDR.
 
 **Crop & Straighten** follows **Presets** at the top of the Adjust tab. **Crop** shows
 the whole photo in the loupe under a crop frame with a rule-of-thirds grid: drag
@@ -663,6 +735,16 @@ small spinner shows in the caption, and the same after you let go while the
 photo's full detail arrives. The window keeps responding meanwhile, and moving
 to another photo at 100% doesn't pause it. The histogram always describes the whole
 photo, and at these zooms it can lag until you pause.
+
+While a photo with a gain map is shown in HDR, the histogram describes its
+whole HDR version, at the file's full brightness, the same on every display:
+the left three fifths run from black to SDR white as before, a line marks SDR
+white, and the right two fifths run up to 3 stops above it (anything brighter
+collects at the right edge), with **HDR** in the corner. A picture fitted to the
+display can differ from it. For a moment after the HDR version appears, the
+histogram may show only its frame, with no curve, while it is counted; it never
+shows the SDR version's counts under an HDR picture. The histogram behind the
+Tone Curve stays the SDR version's, since the curve works on SDR tones.
 
 A raw always opens with its decoder's own contrast and color rendering; the
 Adjust tab has no choice of base rendering, and photos edited in an earlier
@@ -983,7 +1065,7 @@ row; Space or Return applies the focused row. Hovering has no keyboard
 equivalent. The **Save…**, **Import…** and **Manage…** buttons match the menu
 commands below. **Copy Adjustments…**, **Paste Adjustments** and
 **Reset All Adjustments** are in the ⋯ menu at the top of the Adjust tab, next
-to **Original** (`\`).
+to **Original** (`\`) and, for a photo with a gain map, the **HDR** check box.
 
 **Copy Adjustments…** (⇧⌘C; also in the Adjust menu, the context menus, the ⋯
 menu and as a toolbar item) asks what to copy from the photo: the focused photo
@@ -1063,7 +1145,9 @@ imports it.
 
 **Export** (**File ▸ Export…**, ⇧⌘E) writes the selected photos, or the one in
 the loupe, to a folder with their adjustments. A RAW+JPEG pair is exported once,
-from its RAW; videos are not exported. A sheet on the library window sets:
+from its RAW; videos are not exported. Exports are SDR: when photos with HDR on
+are among them, a line under the sheet's title says how many. A sheet on the
+library window sets:
 
 - **File names**: the original name, or a template with the import tokens, plus
   `{export:yyyy-MM-dd}` for today and `{seq:4}` for the position in the export.
@@ -1213,7 +1297,9 @@ generation, cache reads and catalog queries. See
 `photocli` (built with `swift build --product photocli`) works on a library
 from the terminal: `render` a file or a version to PNG, JPEG or TIFF with
 adjustments, `query projects` and `query images` (smart-album rules as JSON),
-`develop` (set and reset adjustments; `--dry-run` only shows the result),
+`develop` (set and reset adjustments; `--dry-run` only shows the result;
+`--set hdr.on=true` or `false` sets a gain-map photo's HDR choice, refused for a
+file without a gain map or an original it can't read),
 `rate`, `flag`, `label`, `export`, `merge` (an HDR merge of `--version`s, as
 **File ▸ Merge to HDR…** makes it, `--format tiff` or `dng`, `--reference` a
 version of the series, `--no-align` and `--no-deghost` to turn those off;

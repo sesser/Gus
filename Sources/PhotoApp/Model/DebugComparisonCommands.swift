@@ -93,16 +93,28 @@ enum DebugComparisonCommands {
         print("debug-script: compare selection \(model.selection.map(String.init).joined(separator: ","))"
               + " focus \(model.focusIndex.map(String.init) ?? "-") title '\(model.windowTitle)' subtitle '\(model.windowSubtitle)'"
               + " zoom \(model.loupeZoom) review \(model.isReviewing) adjust \(model.editor.state)")
+        print("debug-script: compare inspector histogram \(model.showsHDRHistogram ? (model.hdrHistogramCounts == nil ? "hdr empty" : "hdr") : "sdr")")
         for side in ComparisonSide.allCases {
             guard let item = model.comparisonItem(side), let index = model.indexOfVersion(item.versionID) else { continue }
             var badges: [String] = []
             if side == .right, model.isFiltered { badges.append("Filtered") }
-            if model.comparisonHDRHeadroom[side] != nil { badges.append("HDR") }
+            if let status = model.comparisonHDRStatus[side], status != .none {
+                // Issue #282: the pane's version badge, its words and help tag.
+                badges.append("version '\(HDRText.badge(status) ?? "")' (\(status.name)): \(HDRText.help(status) ?? "")")
+            } else if model.comparisonHDRHeadroom[side] != nil {
+                badges.append("HDR")
+            }
             if item.isCopy { badges.append("copy") }
             if model.isOffline(item) { badges.append("Offline") }
             print("debug-script: compare caption \(side) '\(PhotoName.inFull(item))' \(state.active == side ? "active" : "inactive")"
                   + " position '\(PhotoAccessibility.position(index, of: model.items.count))'"
-                  + " marks '\(PhotoAccessibility.value(for: item, offline: false))' badges [\(badges.joined(separator: ", "))]")
+                  + " marks '\(PhotoAccessibility.value(for: item, offline: false))' badges [\(badges.joined(separator: ", "))]"
+                  + " histogram \(model.comparisonHDRHistogram.map { String(format: "hdr %.3f", $0.shareAboveWhite) } ?? "none")"
+                  + " spinner \(model.comparisonHDRSpinner.contains(side))")
+            // Issue #282: the pane's VoiceOver value, with its version phrase (design §12).
+            if let controller = controller(in: window) {
+                print("debug-script: compare value \(side) '\(controller.accessibilityValue(of: controller.panes[side.rawValue]) ?? "")'")
+            }
         }
     }
 

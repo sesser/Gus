@@ -528,6 +528,10 @@ final class LibraryModel {
     @ObservationIgnored var comparisonMemory: [Int64: ComparisonState] = [:]
     /// Headroom of the HDR image each pane shows, for its caption's badge.
     var comparisonHDRHeadroom: [ComparisonSide: Float] = [:]
+    /// Each comparison pane's version badge for a gain-map photo (issue #282, design §9).
+    var comparisonHDRStatus: [ComparisonSide: HDRVersionBadge] = [:]
+    /// Panes whose HDR version has been loading for more than 0.5 s: their caption's spinner (design §4, review F4).
+    var comparisonHDRSpinner: Set<ComparisonSide> = []
     /// The inspector's tab, remembered separately for the grid and the loupe.
     var inspectorTab: InspectorTab {
         get { mode == .loupe ? loupeInspectorTab : gridInspectorTab }
@@ -573,6 +577,57 @@ final class LibraryModel {
     /// Headroom of the HDR image the loupe is showing (brightest value relative to
     /// SDR white), or nil while it shows an SDR image.
     var loupeHDRHeadroom: Float?
+    /// Files known to have a gain map or not (issue #282), by content hash,
+    /// learned when the editor reads a file's header: an offline photo with
+    /// the HDR choice off shows the SDR badge only when its file is known to
+    /// have one (RI-3).
+    @ObservationIgnored private var gainMapFiles: [String: Bool] = [:]
+
+    /// Whether `item`'s file has a gain map, nil while its header hasn't been read.
+    func gainMapKnown(_ item: CatalogItem) -> Bool? {
+        item.hdr ? true : gainMapFiles[item.contentHash]
+    }
+
+    func noteGainMap(_ hasGainMap: Bool, for item: CatalogItem) {
+        if gainMapFiles.count > 50_000 { gainMapFiles.removeAll(keepingCapacity: true) }
+        gainMapFiles[item.contentHash] = hasGainMap
+    }
+
+    /// Whether `item`'s file is known to have a gain map: its HDR choice is
+    /// on (only such a file can have it), or its header was read.
+    func knowsGainMap(_ item: CatalogItem) -> Bool {
+        item.hdr || gainMapFiles[item.contentHash] == true
+    }
+
+    /// The version badge of the photo in the single loupe and review (issue
+    /// #282, design §4): which version of a gain-map photo is on screen, and why.
+    var loupeHDRStatus = HDRVersionBadge.none
+    /// The HDR version has been loading for more than 0.5 s: the caption's spinner (design §4).
+    var loupeHDRSpinner = false
+    /// The loupe's visit shows a gain-map photo's HDR version, a map over it
+    /// included: the inspector's histogram is the HDR one (design §7.2).
+    var loupeHistogramIsHDR = false
+    /// The HDR histogram of the active comparison pane's photo while it shows
+    /// its HDR version (issue #282, design §7.2); nil otherwise.
+    var comparisonHDRHistogram: HDRHistogram?
+    /// What each screen allows (issue #282, design §18.1): kept here, outside
+    /// the loupe, for as long as the app runs.
+    @ObservationIgnored var displayHeadrooms = DisplayHeadroomMemory()
+    /// The debug script's `hdr display`: the display headroom the loupe
+    /// takes in place of the screen's reading, nil for the screen's.
+    var debugDisplayHeadroom: Float?
+    /// The debug script's `hdr display sdr`: the display reports no extended range.
+    var debugNoExtendedRange = false
+    /// The debug script's `hdr display flat`: the screen stops reporting
+    /// extended range in place, with no screen change or View setting
+    /// change to reload the loupe (review F6); read only where the screen's
+    /// potential is (`@ObservationIgnored`, as the screen's own is).
+    @ObservationIgnored var debugFlatScreen = false
+    /// The debug script's `hdr fail on`: the next HDR versions of gain-map photos fail.
+    @ObservationIgnored var debugFailsGainMapHDR = false
+    /// What the loupe shows of a gain-map photo in HDR, for the debug
+    /// script's `print hdr` (issue #282).
+    @ObservationIgnored var loupeGainMapReport = LoupeGainMapReport()
     /// One item per RAW+JPEG pair instead of both files.
     var groupPairs: Bool {
         didSet {
@@ -971,6 +1026,8 @@ final class LibraryModel {
         case .ended(let remaining):
             comparison = nil
             comparisonHDRHeadroom = [:]
+            comparisonHDRStatus = [:]
+            comparisonHDRSpinner = []
             return .ended(remaining: remaining)
         }
     }
@@ -1496,11 +1553,16 @@ final class LibraryModel {
 
     // MARK: Edits
 
-    /// Shows a version's new edit hash: the grid and loupe load renditions for it.
-    /// Edits are per file; unlike culling they do not reach a pair's partner.
-    func setEditStackHash(_ hash: String, forVersion versionID: Int64) {
-        guard let index = indexByVersionID[versionID], items[index].editStackHash != hash else { return }
+    /// Shows a version's newly saved stack: its render hash (the grid and
+    /// loupe load renditions for it) and its HDR choice (issue #282), which
+    /// the hash leaves out. Edits are per file; unlike culling they do not
+    /// reach a pair's partner.
+    func showSavedEditStack(_ stack: EditStack, forVersion versionID: Int64) {
+        let hash = stack.renderHash
+        guard let index = indexByVersionID[versionID],
+              items[index].editStackHash != hash || items[index].hdr != stack.hdrChoice else { return }
         items[index].editStackHash = hash
+        items[index].hdr = stack.hdrChoice
         itemsRevision += 1
         notifyObservers { $0.libraryItemsChanged(at: IndexSet(integer: index)) }
     }

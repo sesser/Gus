@@ -139,6 +139,17 @@ struct AdjustHeader: View {
                          isEnabled: editor.cropSession == nil) {
                 editor.toggleOriginal()
             }
+            // The photo's HDR choice (issue #282, design §2.1): only for a gain-map photo, 12 pt after Original;
+            // dimmed while cropping and once the original has gone offline (§5 reason 1, QA Q2).
+            if editor.hasGainMap {
+                AppKitCheckbox(state: editor.adjustments.hdrIsOn ? .on : .off, label: HDRText.checkboxTitle,
+                               help: HDRText.checkboxHelp, title: HDRText.checkboxTitle,
+                               isEnabled: editor.canSetHDR) {
+                    editor.setHDR(!editor.adjustments.hdrIsOn)
+                }
+                .fixedSize()
+                .padding(.leading, 4)
+            }
             Spacer()
             AppKitMenuButton(title: "", symbol: "ellipsis.circle", entries: [
                 .item(CopyAdjustmentsText.menuItem, isEnabled: model.focusedItem != nil && model.canCopyAdjustments) {
