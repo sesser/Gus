@@ -1971,31 +1971,14 @@ struct LoupeCaption: View {
     var body: some View {
         ZStack {
             if let item = model.focusedItem, let index = model.focusIndex {
-                // The first arrangement that fits (issue #282, design §5, QA Q3): the marks centered
-                // with the badges beside them, in full, then with the version badge's short form; where
-                // even that can't keep clear of the centered marks (the narrowest windows), the marks
-                // give way, after the position, then without it. The badges never run into the marks.
+                // The first level that fits whole (issue #282, design §19.6, §20.1): the marks
+                // centered with the badges in full, then with the version badge's short form; then
+                // the marks after the position, and from there the order of `LoupeCaptionLevel.all`
+                // leaves things out or shortens them. The badges never run into the marks.
                 ViewThatFits(in: .horizontal) {
-                    CenteredCaptionRow {
-                        position(index)
-                        CullingMarks(item: item)
-                        badges(item, compact: false)
-                    }
-                    CenteredCaptionRow {
-                        position(index)
-                        CullingMarks(item: item)
-                        badges(item, compact: true)
-                    }
-                    HStack(spacing: LoupeCaptionMetrics.packedSpacing) {
-                        position(index)
-                        CullingMarks(item: item)
-                        Spacer(minLength: 0)
-                        badges(item, compact: true)
-                    }
-                    HStack(spacing: LoupeCaptionMetrics.packedSpacing) {
-                        CullingMarks(item: item)
-                        Spacer(minLength: 0)
-                        badges(item, compact: true)
+                    ForEach(LoupeCaptionLevel.all) { level in
+                        row(item, index, level)
+                            .onAppear { LoupeCaptionReport.level = level.number }
                     }
                 }
             }
@@ -2003,7 +1986,40 @@ struct LoupeCaption: View {
         .font(.subheadline)
         .foregroundStyle(.secondary)
         .padding(.horizontal, 12)
+        // The guarantee (design §20.1): the caption takes exactly the width it is offered, down to
+        // zero, and never makes its content's width the loupe column's minimum. `ViewThatFits`
+        // uses its last level whether or not it fits; what still doesn't fit is clipped at the
+        // leading edge, so the trailing badges (the version badge, Offline) stay.
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
         .frame(height: Self.height)
+        .clipped()
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { LoupeCaptionReport.width = $0 }
+    }
+
+    @ViewBuilder
+    private func row(_ item: CatalogItem, _ index: Int, _ level: LoupeCaptionLevel) -> some View {
+        if level.centersMarks {
+            CenteredCaptionRow {
+                position(index)
+                CullingMarks(item: item, level: level)
+                badges(item, level)
+            }
+        } else {
+            // 8 pt between the position and the marks, and 8 pt at least between the marks and the
+            // badges (design §20.1). The marks and the badges take the room first, for a label name
+            // or a map badge that truncates; the spacer gets what is left.
+            HStack(spacing: 0) {
+                if level.shows(.position) {
+                    position(index)
+                        .padding(.trailing, LoupeCaptionMetrics.positionGap)
+                }
+                CullingMarks(item: item, level: level)
+                    .layoutPriority(1)
+                Spacer(minLength: LoupeCaptionMetrics.packedGap)
+                badges(item, level)
+                    .layoutPriority(1)
+            }
+        }
     }
 
     private func position(_ index: Int) -> some View {
@@ -2013,72 +2029,123 @@ struct LoupeCaption: View {
             .fixedSize()
     }
 
+    /// The badges at the level: each whole and never squeezed, but a map's
+    /// badge from level 11, which takes the room left down to its minimum.
     @ViewBuilder
-    private func badges(_ item: CatalogItem, compact: Bool) -> some View {
+    private func badges(_ item: CatalogItem, _ level: LoupeCaptionLevel) -> some View {
         HStack(spacing: 6) {
-            if model.isFiltered {
+            if model.isFiltered, level.shows(.filtered) {
                 CaptionBadge(title: String(localized: "Filtered"),
                              help: String(localized: "A filter hides some of this source's photos"))
+                    .fixedSize()
             }
             // The map takes Original's place; the two are never on screen together.
             if let map = model.editor.shownSharpeningMap {
-                CaptionBadge(title: SharpeningMapText.badge(map), help: SharpeningMapText.badgeHelp(map))
+                mapBadge(CaptionBadge(title: SharpeningMapText.badge(map), help: SharpeningMapText.badgeHelp(map),
+                                      truncationMode: .middle), level)
             } else if let map = model.editor.shownFringeMap {
-                CaptionBadge(title: LensText.badge(map), help: LensText.badgeHelp(map))
-            } else if model.editor.showsOriginal {
+                mapBadge(CaptionBadge(title: LensText.badge(map), help: LensText.badgeHelp(map), truncationMode: .middle), level)
+            } else if model.editor.showsOriginal, level.shows(.original) {
                 CaptionBadge(title: String(localized: "Original"),
                              help: String(localized: "Showing the photo without adjustments. Press \\ to show them again."))
+                    .fixedSize()
             }
             // Where the eyes are while adding spots (healing design §7).
-            if model.editor.isEditingSpots, model.editor.spotsAtLimit {
+            if model.editor.isEditingSpots, model.editor.spotsAtLimit, level.shows(.spotLimit) {
                 CaptionBadge(title: String(localized: "Spot Limit", comment: "Loupe caption badge: the photo has the most spots it can have"),
                              help: SpotText.notice(.atLimit))
+                    .fixedSize()
             }
             // One spinner in one slot; the map's label wins when both wait (ml-denoise design §6).
-            if let label = spinnerLabel {
+            if let label = spinnerLabel, level.shows(.spinner) {
                 ProgressView()
                     .controlSize(.mini)
                     .help(label)
                     .accessibilityLabel(label)
+                    .fixedSize()
             }
             if model.loupeHDRStatus != .none {
-                // A gain-map photo's one version badge (issue #282, design §4).
-                HDRVersionBadgeView(status: model.loupeHDRStatus, compact: compact)
+                // A gain-map photo's one version badge (issue #282, design §4): never dropped.
+                HDRVersionBadgeView(status: model.loupeHDRStatus, compact: level.form(of: .versionBadge) == .short)
             } else if let headroom = model.loupeHDRHeadroom {
                 CaptionBadge(title: String(localized: "HDR"),
                              help: String(localized: "Highlights up to \(headroom.formatted(.number.precision(.fractionLength(1))))× SDR white are shown with the display's extended range"))
+                    .fixedSize()
             }
-            if let reason = model.editor.machineLearningNotApplied {
+            if let reason = model.editor.machineLearningNotApplied, level.shows(.machineLearning) {
                 CaptionBadge(title: MachineLearningText.badge,
                              help: MachineLearningText.badgeHelp(reason, fallbackDecoder: model.editor.usesFallbackDecoder))
+                    .fixedSize()
             }
             // Identity badges last, where the transient ones before them
             // come and go without moving them (virtual-copies design §6.3).
-            if item.isCopy {
+            if item.isCopy, level.shows(.copy) {
                 CaptionBadge(title: DuplicateText.badge, help: DuplicateText.badgeHelp(item.fileName))
+                    .fixedSize()
             }
             if model.isOffline(item) {
                 CaptionBadge(title: String(localized: "Offline"),
                              help: String(localized: "The volume \(model.volumeName(for: item) ?? "") is not connected. Showing the cached preview."))
+                    .fixedSize()
             }
             // The strip's toggle, 8 pt after the last badge; review hides both.
-            if !model.isReviewing {
+            if !model.isReviewing, level.shows(.filmStripToggle) {
                 FilmStripToggle(model: model)
                     .padding(.leading, 2)
+                    .fixedSize()
             }
         }
-        // Whole, or not chosen (`ViewThatFits` above): never squeezed into a badge too narrow to read.
-        .fixedSize()
+    }
+
+    /// A map's badge: whole, or from level 11 cut in the middle down to its minimum.
+    @ViewBuilder
+    private func mapBadge(_ badge: CaptionBadge, _ level: LoupeCaptionLevel) -> some View {
+        if case .truncating(let minimum) = level.form(of: .mapBadge) {
+            TruncatingSlot(minimumWidth: minimum) { badge }
+                .layoutPriority(1)
+        } else {
+            badge.fixedSize()
+        }
     }
 }
 
-/// The loupe caption's spacing (issue #282, QA Q3): the badges and the
-/// position keep at least this far from the culling marks, centered or not
-/// (a row's default spacing).
+/// The loupe caption's spacing (issue #282, QA Q3, design §20.1): the badges
+/// and the position keep at least this far from the culling marks, centered
+/// or not.
 enum LoupeCaptionMetrics {
-    static let centeredGap: CGFloat = 8
-    static let positionGap: CGFloat = 8
-    static let packedSpacing: CGFloat = 8
+    static let centeredGap = CGFloat(LoupeCaptionLevel.gap)
+    static let positionGap = CGFloat(LoupeCaptionLevel.gap)
+    static let packedGap = CGFloat(LoupeCaptionLevel.gap)
+}
+
+/// What the loupe caption last laid out, for the debug script's `print
+/// loupe`: the level shown (design §20.1) and the caption's width.
+@MainActor
+enum LoupeCaptionReport {
+    static var level = 0
+    static var width: CGFloat = 0
+}
+
+/// One part that gives way by truncating (design §20.1, level 11 on): its
+/// ideal width is its minimum, so `ViewThatFits` tests a level at its
+/// narrowest; laid out, it takes the width offered up to its whole width,
+/// never below the minimum (or its whole width, if that is smaller). The
+/// content is offered the slot's width and clipped to it.
+struct TruncatingSlot: Layout {
+    let minimumWidth: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let content = subviews.first else { return .zero }
+        let whole = content.sizeThatFits(.unspecified)
+        let floor = min(minimumWidth, whole.width)
+        guard let offered = proposal.width else { return CGSize(width: floor, height: whole.height) }
+        return CGSize(width: min(whole.width, max(floor, offered)), height: whole.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading,
+                              proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
+    }
 }
 
 /// The loupe caption with its culling marks centered: the position at the
@@ -2149,13 +2216,17 @@ struct HDRVersionBadgeView: View {
     }
 }
 
-/// A small outlined text badge.
+/// A small outlined text badge, on one line. Cut only where a caption
+/// offers it less than its width (a map's badge, design §20.1: in the middle).
 struct CaptionBadge: View {
     let title: String
     let help: String
+    var truncationMode: Text.TruncationMode = .tail
 
     var body: some View {
         Text(title)
+            .lineLimit(1)
+            .truncationMode(truncationMode)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
             .overlay(RoundedRectangle(cornerRadius: 3).stroke(.secondary.opacity(0.6)))
@@ -2164,22 +2235,44 @@ struct CaptionBadge: View {
 }
 
 /// Stars (SF Symbols), the flag, and the color label's dot with its name.
+/// `compact`: the rating as one star and its digit (issue #282, design
+/// §20.1 level 6, §20.2), nothing for an unrated photo. `nameMinimumWidth`:
+/// the label name takes the room offered down to this width (level 11 on);
+/// nil keeps it whole. Either way it is one line.
 struct CullingMarks: View {
     let item: CatalogItem
+    var compact = false
+    var spacing = CGFloat(LoupeCaptionLevel.markSpacing)
+    var nameMinimumWidth: CGFloat?
 
     var body: some View {
-        HStack(spacing: 10) {
-            // Five slots, the unused ones invisible: the flag and label stay put.
-            HStack(spacing: 1) {
-                ForEach(0..<5, id: \.self) { index in
-                    Image(systemName: "star.fill")
-                        .opacity(index < item.rating.rawValue ? 1 : 0)
+        HStack(spacing: spacing) {
+            if compact {
+                if item.rating != .unrated {
+                    HStack(spacing: CGFloat(LoupeCaptionLevel.compactRatingSpacing)) {
+                        Image(systemName: "star.fill")
+                            .foregroundStyle(Color(nsColor: Palette.rating))
+                        Text(item.rating.rawValue, format: .number)
+                            .monospacedDigit()
+                    }
+                    .fixedSize()
+                    .help(PhotoAccessibility.text(.rating(item.rating)))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(PhotoAccessibility.text(.rating(item.rating)))
                 }
+            } else {
+                // Five slots, the unused ones invisible: the flag and label stay put.
+                HStack(spacing: 1) {
+                    ForEach(0..<5, id: \.self) { index in
+                        Image(systemName: "star.fill")
+                            .opacity(index < item.rating.rawValue ? 1 : 0)
+                    }
+                }
+                .foregroundStyle(Color(nsColor: Palette.rating))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(PhotoAccessibility.text(.rating(item.rating)))
+                .accessibilityHidden(item.rating == .unrated)
             }
-            .foregroundStyle(Color(nsColor: Palette.rating))
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(PhotoAccessibility.text(.rating(item.rating)))
-            .accessibilityHidden(item.rating == .unrated)
             switch item.flag {
             case .picked:
                 Image(systemName: "flag.fill").foregroundStyle(Color(nsColor: Palette.pick))
@@ -2195,11 +2288,35 @@ struct CullingMarks: View {
             if let color = Palette.color(for: item.colorLabel) {
                 HStack(spacing: 4) {
                     Circle().fill(Color(nsColor: color)).frame(width: 9, height: 9)
-                    Text(ColorLabelText.name(item.colorLabel))
+                    labelName
                 }
+                // Names the color wherever the name is cut (design §20.1).
+                .help(PhotoAccessibility.text(.colorLabel(item.colorLabel)))
                 .accessibilityElement(children: .combine)
             }
         }
+    }
+
+    @ViewBuilder
+    private var labelName: some View {
+        let name = Text(ColorLabelText.name(item.colorLabel)).lineLimit(1)
+        if let nameMinimumWidth {
+            TruncatingSlot(minimumWidth: nameMinimumWidth) { name.truncationMode(.tail) }
+                .clipped()
+                .layoutPriority(1)
+        } else {
+            name.fixedSize()
+        }
+    }
+}
+
+extension CullingMarks {
+    /// The marks as the single loupe's caption shows them at `level`.
+    init(item: CatalogItem, level: LoupeCaptionLevel) {
+        self.item = item
+        compact = level.form(of: .rating) == .compact
+        spacing = CGFloat(level.markSpacing)
+        if case .truncating(let minimum) = level.form(of: .colorName) { nameMinimumWidth = CGFloat(minimum) }
     }
 }
 

@@ -720,6 +720,12 @@ enum DebugScript {
         case "sidebarpane":
             model.showsSidebar = rest.first != "off"
             try? await Task.sleep(for: .milliseconds(500))
+        case "panes":
+            // `panes`: the window's split views and their panes' widths; `panes <split> <divider> <x>`
+            // moves a divider as a drag would, within the panes' limits (issue #282, design §20.1:
+            // the side panes dragged wider than their defaults).
+            splitViews(rest)
+            try? await Task.sleep(for: .milliseconds(500))
         case "menuitems":
             printMenuItems(containing: rest.joined(separator: " "))
         case "helpmenu":
@@ -1078,8 +1084,11 @@ enum DebugScript {
             return
         }
         let visible = scrollView.documentVisibleRect
-        var line = String(format: "debug-script: loupe mode %@ magnification %.3f visible %.0f,%.0f %.0fx%.0f",
-                          "\(model.mode)", scrollView.magnification, visible.minX, visible.minY, visible.width, visible.height)
+        // Issue #282, design §20.1: the loupe column's width (the scroll view's frame) and the
+        // caption's level and width, so a check can see that the caption never widens the column.
+        var line = String(format: "debug-script: loupe mode %@ magnification %.3f visible %.0f,%.0f %.0fx%.0f column %.2f caption level %d width %.2f",
+                          "\(model.mode)", scrollView.magnification, visible.minX, visible.minY, visible.width, visible.height,
+                          scrollView.frame.width, LoupeCaptionReport.level, LoupeCaptionReport.width)
         if let point = windowPoint(words, in: window), let document = scrollView.documentView {
             let imagePoint = document.convert(point, from: nil)
             line += String(format: " point %.1f,%.1f", imagePoint.x, imagePoint.y)
@@ -1111,6 +1120,28 @@ enum DebugScript {
                      editor.loupeViewport == nil ? "no" : "yes", scroll.magnification, image?.bounds.width ?? 0, image?.bounds.height ?? 0, editor.showsLive ? "yes" : "no", tile ? "shown" : "none", frame,
                      editor.isAwaitingSharpFrame ? "yes" : "no", editor.histogram.map { String(format: "%x", abs($0.hashValue) % 0xffffff) } ?? "none",
                      editor.loupeViewport.map { String(format: "%.4f,%.4f %.4fx%.4f", $0.minX, $0.minY, $0.width, $0.height) } ?? "-"))
+    }
+
+    /// `panes [<split> <divider> <x>]`: lists every split view in the window
+    /// (index, orientation, each pane's width), after moving the given
+    /// divider to `x` in its split view's coordinates if one is given.
+    private static func splitViews(_ words: [String]) {
+        guard let window else { return }
+        var splits: [NSSplitView] = []
+        func collect(_ view: NSView) {
+            if let split = view as? NSSplitView { splits.append(split) }
+            view.subviews.forEach(collect)
+        }
+        if let root = window.contentView?.superview { collect(root) }
+        if words.count == 3, let index = Int(words[0]), let divider = Int(words[1]), let x = Double(words[2]),
+           splits.indices.contains(index) {
+            splits[index].setPosition(x, ofDividerAt: divider)
+            splits[index].layoutSubtreeIfNeeded()
+        }
+        for (index, split) in splits.enumerated() {
+            let widths = split.arrangedSubviews.map { String(format: "%.1f%@", $0.frame.width, $0.isHidden ? " hidden" : "") }
+            print("debug-script: panes split \(index) \(split.isVertical ? "vertical" : "horizontal") widths [\(widths.joined(separator: ", "))]")
+        }
     }
 
     private static func descendant<V: NSView>(of type: V.Type, in view: NSView?) -> V? {
