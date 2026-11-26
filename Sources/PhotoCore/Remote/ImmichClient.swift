@@ -105,6 +105,20 @@ public final class ImmichClient: RemotePhotoSource {
     /// requires `asset.upload` and `asset.read` and reads no account). A pass
     /// that did not read the account has an empty `ownerID`.
     public func check(requiring needed: [String], readsAccount: Bool) async -> ConnectionCheckResult {
+        await checkWithPermissions(requiring: needed, readsAccount: readsAccount).result
+    }
+
+    /// The check, and the key's permissions when the server listed them (the
+    /// Server sheet says more when a key refused for importing could publish).
+    public func checkWithPermissions(requiring needed: [String], readsAccount: Bool) async
+        -> (result: ConnectionCheckResult, permissions: [String]?) {
+        var listed: [String]?
+        let result = await runCheck(requiring: needed, readsAccount: readsAccount) { listed = $0 }
+        return (result, listed)
+    }
+
+    private func runCheck(requiring needed: [String], readsAccount: Bool, listed: ([String]) -> Void) async
+        -> ConnectionCheckResult {
         let isLocal = connection.address.isLocalNetworkHost
         func failure(_ error: RemoteError) -> ConnectionCheckResult {
             switch error {
@@ -134,6 +148,7 @@ public final class ImmichClient: RemotePhotoSource {
             let data = try await http.data(.apiKeyMe)
             guard let key = try? JSONDecoder().decode(ImmichDTO.APIKey.self, from: data) else { return .notImmich }
             permissions = key.permissions
+            listed(permissions)
         } catch .status(let code) where code == 401 || code == 403 {
             return .keyRejected
         } catch {

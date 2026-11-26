@@ -3,6 +3,42 @@ import Observation
 import PhotoCore
 import SwiftUI
 
+/// Where the Server sheet was opened: it decides which permissions the check
+/// requires, the wording, and whether Remove Server… is offered (issue #28,
+/// R1, design §4).
+public enum ServerSheetPurpose: Sendable, Equatable {
+    case importing
+    case publishing
+
+    /// Import's five; from Publish only `asset.upload` and `asset.read`.
+    public var requiredPermissions: [String] {
+        switch self {
+        case .importing: ImmichClient.neededPermissions
+        case .publishing: ImmichClient.publishingPermissions
+        }
+    }
+
+    /// Import reads the key's account; Publish's sheet doesn't.
+    public var readsAccount: Bool { self == .importing }
+}
+
+/// A window that hosts the Server sheet: the import window, or the library
+/// window for Publish (design §4).
+@MainActor
+public protocol ServerSheetHost: AnyObject {
+    /// The saved servers, for the name check.
+    var savedServers: [RemoteServiceRecord] { get }
+    var serverCatalog: Catalog? { get }
+    /// The window the sheet is on (its height bounds the sheet's).
+    var serverSheetWindow: NSWindow? { get }
+    /// A server was saved: the sheet closes.
+    func serverSheetSaved(_ service: RemoteServiceRecord) async
+    /// Cancel or Esc: the sheet closes, nothing saved.
+    func serverSheetCancelled()
+    /// Remove Server… (Import only).
+    func serverSheetRemove(_ service: RemoteServiceRecord)
+}
+
 /// The Server sheet's state (issue #271, design §3): the form, the check and
 /// the certificate page. The key typed here goes to the key store and
 /// nowhere else; it is never shown, read back or printed.
@@ -22,7 +58,8 @@ public final class ServerSheetModel: Identifiable {
 
     public let id = UUID()
     public let mode: Mode
-    @ObservationIgnored weak var model: CardImportModel?
+    public let purpose: ServerSheetPurpose
+    @ObservationIgnored weak var host: (any ServerSheetHost)?
     @ObservationIgnored let keys: any RemoteKeyStore
     public var name: String
     public var address: String {
@@ -40,14 +77,21 @@ public final class ServerSheetModel: Identifiable {
     public private(set) var result: ConnectionCheckResult?
     /// The person pressed Add or Save once: errors show from then on.
     public private(set) var submitted = false
+    /// A key the import check refused holds `asset.upload` and `asset.read`
+    /// (design §4.1: the result then says it can be saved from Publish).
+    public private(set) var keyCanPublish = false
+    /// The library holds publish records or import links for the saved
+    /// address (R26).
+    public private(set) var savedAddressHasRecords = false
     /// A certificate trusted on page 2, for this sheet's checks, with the
     /// address it was trusted for.
     private var trusted: ServerFormRules.TrustedCertificate?
     @ObservationIgnored private var checkTask: Task<Void, Never>?
 
-    init(mode: Mode, model: CardImportModel, keys: any RemoteKeyStore) {
+    public init(mode: Mode, host: any ServerSheetHost, purpose: ServerSheetPurpose, keys: any RemoteKeyStore) {
         self.mode = mode
-        self.model = model
+        self.host = host
+        self.purpose = purpose
         self.keys = keys
         switch mode {
         case .add:
@@ -57,7 +101,22 @@ public final class ServerSheetModel: Identifiable {
             name = service.name
             address = service.address
             unencryptedConfirmed = service.allowsUnencrypted
+            if let catalog = host.serverCatalog {
+                let saved = service.address
+                Task {
+                    savedAddressHasRecords = (try? await catalog.hasRecordsOrLinks(provider: service.provider,
+                                                                                    address: saved)) ?? false
+                }
+            }
         }
+    }
+
+    /// Edit Server's warning under the address (R26, design §4.2): the typed
+    /// address, normalized, is not the saved one, and the library has records
+    /// or links for the saved one.
+    public var showsAddressWarning: Bool {
+        guard let existing, savedAddressHasRecords, let parsed = parsedAddress else { return false }
+        return parsed.normalized != existing.address
     }
 
     public var isEdit: Bool { if case .edit = mode { true } else { false } }
@@ -90,7 +149,7 @@ public final class ServerSheetModel: Identifiable {
     public var effectiveName: String { ServerFormRules.effectiveName(name, address: parsedAddress) }
 
     public var nameTaken: Bool {
-        let others = (model?.servers ?? []).filter { $0.id != existing?.id }.map(\.name)
+        let others = (host?.savedServers ?? []).filter { $0.id != existing?.id }.map(\.name)
         return ServerFormRules.nameTaken(effectiveName, among: others)
     }
 
@@ -125,14 +184,14 @@ public final class ServerSheetModel: Identifiable {
     /// changed, then saves the row and the key together.
     public func submit() {
         submitted = true
-        guard canSubmit, let address = parsedAddress, let model, let catalog = model.library?.catalog else { return }
+        guard canSubmit, let address = parsedAddress, let host, let catalog = host.serverCatalog else { return }
         let name = effectiveName
         if let existing, !ServerFormRules.needsCheck(isEdit: true, addressChanged: addressChanged, keyEntered: keyEntered,
                                                      trustedPending: trustedPending) {
             var record = existing
             record.name = name
             Task {
-                if let saved = try? await catalog.saveRemoteService(record) { await model.serverSaved(saved) }
+                if let saved = try? await catalog.saveRemoteService(record) { await host.serverSheetSaved(saved) }
             }
             return
         }
@@ -147,6 +206,8 @@ public final class ServerSheetModel: Identifiable {
         result = nil
         let keys = self.keys
         let enteredKey = keyEntered ? key : nil
+        let purpose = self.purpose
+        keyCanPublish = false
         checkTask = Task {
             defer { isChecking = false }
             // The Keychain is asked off the main thread: its access prompt
@@ -166,12 +227,17 @@ public final class ServerSheetModel: Identifiable {
             let connection = RemoteConnection(address: address, key: key, pinned: pin,
                                               unencryptedConfirmed: unencryptedConfirmed)
             let outcome: ConnectionCheckResult
+            var permissions: [String]?
             do {
-                outcome = await (try ImmichClient(connection: connection)).check()
+                (outcome, permissions) = await (try ImmichClient(connection: connection))
+                    .checkWithPermissions(requiring: purpose.requiredPermissions, readsAccount: purpose.readsAccount)
             } catch {
                 outcome = .unreachable(reason: "", isLocalHost: address.isLocalNetworkHost)
             }
             guard !Task.isCancelled else { return }
+            if case .missingPermissions = outcome, let permissions {
+                keyCanPublish = ImmichClient.missing(from: permissions, needed: ImmichClient.publishingPermissions).isEmpty
+            }
             switch outcome {
             case .passed:
                 var record = existing ?? RemoteServiceRecord(name: name, address: address.normalized)
@@ -185,7 +251,7 @@ public final class ServerSheetModel: Identifiable {
                 // stays beside the old one (security review F2).
                 switch await catalog.saveRemoteService(record, key: enteredKey, keys: keys) {
                 case .saved(let saved):
-                    await model.serverSaved(saved)
+                    await host.serverSheetSaved(saved)
                 case .keychainRefused(let error):
                     result = .keychain(error.message)
                 case .catalogFailed(let message):
@@ -217,7 +283,7 @@ public final class ServerSheetModel: Identifiable {
         }
         checkTask?.cancel()
         isChecking = false
-        model?.serverSheet = nil
+        host?.serverSheetCancelled()
     }
 
     /// Back (⌘[) on the certificate page: the form as it was.
@@ -245,10 +311,13 @@ public final class ServerSheetModel: Identifiable {
     /// gone (design review S3: a dialog asked for while a sheet closes can be
     /// dropped).
     public func remove() {
-        guard let existing, let model else { return }
-        model.removalAfterSheet = existing
-        model.serverSheet = nil
+        guard let existing, purpose == .importing, let host else { return }
+        host.serverSheetRemove(existing)
     }
+
+    /// Remove Server… is offered only from Import: one path to deleting a
+    /// credential (design §4).
+    public var offersRemove: Bool { isEdit && purpose == .importing }
 
     /// The ideal height for the page shown (S2).
     public var idealHeight: Double {
@@ -256,7 +325,8 @@ public final class ServerSheetModel: Identifiable {
         let certificate: (shown: Bool, changed: Bool) = if case .certificate(_, let changed) = page { (true, changed) }
             else { (false, false) }
         return ServerSheetHeight.ideal(certificatePage: certificate.shown, changed: certificate.changed, notice: notice,
-                                       result: result != nil, windowHeight: model?.window.map { Double($0.frame.height) })
+                                       result: result != nil || showsAddressWarning,
+                                       windowHeight: host?.serverSheetWindow.map { Double($0.frame.height) })
     }
 }
 
@@ -319,6 +389,10 @@ private struct ServerFormPage: View {
                         SheetCaption(text: String(localized: "Will connect to \(echo)",
                                                   comment: "Server sheet: the normalized address"))
                     }
+                    if sheet.showsAddressWarning {
+                        IssueLine(text: ServerText.addressChangeWarning)
+                            .onAppear { AccessibilityText.announce(ServerText.addressChangeWarning, priority: .medium) }
+                    }
                     addressIssue
                     if case .unencryptedLocal = sheet.addressState {
                         UnencryptedNotice(confirmed: $sheet.unencryptedConfirmed)
@@ -330,7 +404,7 @@ private struct ServerFormPage: View {
                                                           : String(localized: "Paste the key here")))
                         .focused($focus, equals: .key)
                         .accessibilityHint(Text(resultHint(concernsAddress: false)))
-                    SheetCaption(text: String(localized: "Create the key in Immich, in your account settings. It needs only these permissions: asset.read, asset.view, asset.download, album.read and user.read."))
+                    ForEach(ServerText.keyCaptions(sheet.purpose), id: \.self) { SheetCaption(text: $0) }
                     SheetCaption(text: String(localized: "This Mac keeps its copy of the key in the Keychain."))
                     resultView(concernsAddress: false)
                 }
@@ -339,7 +413,7 @@ private struct ServerFormPage: View {
             .disabled(sheet.isChecking)
             Divider()
             HStack(spacing: 12) {
-                if sheet.isEdit {
+                if sheet.offersRemove {
                     Button("Remove Server…", role: .destructive) { sheet.remove() }
                         .disabled(sheet.isChecking)
                 }
@@ -364,7 +438,8 @@ private struct ServerFormPage: View {
         }
         .onChange(of: sheet.result) { _, result in
             guard let result, let text = ServerText.result(result, host: sheet.parsedAddress?.host ?? "",
-                                                           name: sheet.effectiveName) else { return }
+                                                           name: sheet.effectiveName, purpose: sheet.purpose,
+                                                           keyCanPublish: sheet.keyCanPublish) else { return }
             AccessibilityText.announce(text.title + ". " + text.detail, priority: .medium)
         }
     }
@@ -386,7 +461,8 @@ private struct ServerFormPage: View {
 
     @ViewBuilder private func resultView(concernsAddress: Bool) -> some View {
         if let result = sheet.result,
-           let text = ServerText.result(result, host: sheet.parsedAddress?.host ?? "", name: sheet.effectiveName),
+           let text = ServerText.result(result, host: sheet.parsedAddress?.host ?? "", name: sheet.effectiveName,
+                                        purpose: sheet.purpose, keyCanPublish: sheet.keyCanPublish),
            text.concernsAddress == concernsAddress {
             VStack(alignment: .leading, spacing: 4) {
                 Label {
@@ -410,7 +486,8 @@ private struct ServerFormPage: View {
     /// The result under a field is also that field's hint (design §8, N1).
     private func resultHint(concernsAddress: Bool) -> String {
         guard let result = sheet.result,
-              let text = ServerText.result(result, host: sheet.parsedAddress?.host ?? "", name: sheet.effectiveName),
+              let text = ServerText.result(result, host: sheet.parsedAddress?.host ?? "", name: sheet.effectiveName,
+                                           purpose: sheet.purpose, keyCanPublish: sheet.keyCanPublish),
               text.concernsAddress == concernsAddress else { return "" }
         return text.title + ". " + text.detail
     }
@@ -428,7 +505,7 @@ private struct UnencryptedNotice: View {
             } icon: {
                 Image(systemName: "exclamationmark.triangle")
             }
-            Text("The address starts with http://. Your API key and every photo you import cross your network without encryption, so anyone on it could read them. Use https:// if your server offers it.")
+            Text("The address starts with http://. Your API key and every photo you import or publish cross your network without encryption, so anyone on it could read them. Use https:// if your server offers it.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

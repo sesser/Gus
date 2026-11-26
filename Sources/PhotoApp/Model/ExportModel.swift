@@ -18,13 +18,13 @@ final class ExportModel {
         static let revealsInFinder = "export.revealsInFinder"
     }
 
+    /// The settings and what the form shows beside them (shared with the
+    /// Publish sheet's File Settings page, issue #28 design §3.6).
+    let editor: ExportSettingsEditor
+
     var settings: ExportSettings {
-        didSet {
-            guard settings != oldValue else { return }
-            if let json = try? settings.jsonString() { defaults.set(json, forKey: Keys.settings) }
-            if settings.watermark?.identifier != oldValue.watermark?.identifier { loadWatermark() }
-            updateExample()
-        }
+        get { editor.settings }
+        set { editor.settings = newValue }
     }
 
     var destination: URL {
@@ -40,14 +40,10 @@ final class ExportModel {
     private(set) var skippedVideos = 0
     /// Photos being exported whose HDR choice is on (issue #282, R13), known when the sheet opens.
     private(set) var hdrPhotos = 0
-    /// A rendition of the first photo, for placing the watermark.
-    private(set) var previewImage: CGImage?
-    private(set) var watermarkImage: CGImage?
-    /// The first photo's file name with the current settings.
-    private(set) var example: String?
-    /// The first photo, as the file name template sees it.
-    private(set) var exampleContext: TemplateContext?
-    @ObservationIgnored private var exampleTask: Task<Void, Never>?
+    var previewImage: CGImage? { editor.previewImage }
+    var watermarkImage: CGImage? { editor.watermarkImage }
+    var example: String? { editor.example }
+    var exampleContext: TemplateContext? { editor.exampleContext }
 
     private(set) var presets: [ExportPreset] = []
     /// The preset the settings were last loaded from or saved as.
@@ -82,7 +78,6 @@ final class ExportModel {
     var isExporting: Bool { progress != nil }
     private(set) var lastSummary: ExportSummary?
     @ObservationIgnored private var task: Task<Void, Never>?
-    @ObservationIgnored private var previewTask: Task<Void, Never>?
     /// Export pressed: the photos being read and the files in the way counted.
     @ObservationIgnored private var requests = ExportRequestGate()
     @ObservationIgnored private var requestTask: Task<Bool, Never>?
@@ -93,18 +88,19 @@ final class ExportModel {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        settings = defaults.string(forKey: Keys.settings).flatMap { try? ExportSettings.decode(from: $0) }
-            ?? ExportSettings()
+        editor = ExportSettingsEditor(settings: defaults.string(forKey: Keys.settings)
+            .flatMap { try? ExportSettings.decode(from: $0) } ?? ExportSettings())
         let pictures = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser
         destination = defaults.string(forKey: Keys.destination).map { URL(fileURLWithPath: $0, isDirectory: true) }
             ?? pictures.appending(path: String(localized: "Exports"), directoryHint: .isDirectory)
         revealsInFinder = defaults.object(forKey: Keys.revealsInFinder) as? Bool ?? true
+        editor.onChange = { settings in
+            if let json = try? settings.jsonString() { defaults.set(json, forKey: Keys.settings) }
+        }
     }
 
-    var watermarks: WatermarkStore? {
-        library.map { WatermarkStore(locations: $0.locations) }
-    }
+    var watermarks: WatermarkStore? { editor.watermarks }
 
     private var job: ExportJob? {
         guard let library else { return nil }
@@ -126,50 +122,13 @@ final class ExportModel {
         hdrPhotos = ExportTargets.hdrCount(targets)
         issue = nil
         conflict = nil
-        loadPreview(targets.first { !$0.isVideo })
-        loadWatermark()
+        editor.library = library
+        editor.show(first: targets.first { !$0.isVideo }, versionID: versionIDs.first)
         Task {
             await refreshPresets()
-            updateExample()
+            editor.updateExample()
         }
         library.showsExportSheet = true
-    }
-
-    private func loadPreview(_ item: CatalogItem?) {
-        previewTask?.cancel()
-        previewImage = nil
-        guard let library, let item, let request = library.previewRequest(for: item, tier: .preview) else { return }
-        let previews = library.previews
-        previewTask = Task {
-            let image = try? await previews.image(for: request, maxPixelSize: 900)
-            guard !Task.isCancelled else { return }
-            previewImage = image
-        }
-    }
-
-    private func loadWatermark() {
-        watermarkImage = nil
-        guard let watermark = settings.watermark, let store = watermarks, store.contains(watermark.identifier),
-              let source = CGImageSourceCreateWithURL(store.fileURL(for: watermark.identifier) as CFURL, nil)
-        else { return }
-        watermarkImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
-    }
-
-    private func updateExample() {
-        guard let job, let first = versionIDs.first else {
-            example = nil
-            exampleContext = nil
-            return
-        }
-        let settings = self.settings
-        // The newest settings win: an older lookup finishing late is dropped.
-        exampleTask?.cancel()
-        exampleTask = Task {
-            guard let item = try? await job.items(for: [first]).first, !Task.isCancelled else { return }
-            let context = item.templateContext(sequence: 1, exportDate: Date())
-            exampleContext = context
-            example = ExportNaming.fileName(for: context, settings: settings)
-        }
     }
 
     // MARK: Choosing files
@@ -188,17 +147,11 @@ final class ExportModel {
 
     /// Choose Image… for the watermark.
     func chooseWatermark(in window: NSWindow?) {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.png]
-        panel.prompt = String(localized: "Use Image", comment: "Open panel button: the watermark")
-        panel.message = String(localized: "Choose a PNG image. Transparent areas stay see-through.")
-        Self.run(panel, in: window) { [weak self] url in self?.useWatermark(at: url) }
+        editor.chooseWatermark(in: window)
     }
 
     /// Attached to `window` when there is one (window-modal), else app-modal.
-    private static func run(_ panel: NSOpenPanel, in window: NSWindow?, then pick: @escaping @MainActor (URL) -> Void) {
+    static func run(_ panel: NSOpenPanel, in window: NSWindow?, then pick: @escaping @MainActor (URL) -> Void) {
         guard let window else {
             if panel.runModal() == .OK, let url = panel.url { pick(url) }
             return
@@ -211,20 +164,11 @@ final class ExportModel {
 
     /// Copies the PNG into the library and draws it with the current placement.
     func useWatermark(at url: URL) {
-        guard let store = watermarks else { return }
-        do {
-            var watermark = try store.importFile(at: url)
-            if let current = settings.watermark {
-                watermark.anchor = current.anchor
-                watermark.margin = current.margin
-                watermark.size = current.size
-                watermark.opacity = current.opacity
-            }
-            settings.watermark = watermark
-            settings.watermarkEnabled = true
+        if editor.useWatermark(at: url) {
             issue = nil
-        } catch {
-            issue = Issue(place: .watermark, text: String(localized: "“\(url.lastPathComponent)” is not a PNG image."))
+        } else if let text = editor.watermarkIssue {
+            editor.watermarkIssue = nil
+            issue = Issue(place: .watermark, text: text)
         }
     }
 
@@ -335,8 +279,8 @@ final class ExportModel {
         guard !versionIDs.isEmpty else {
             return .issue(Issue(place: .general, text: String(localized: "There is nothing to export.")))
         }
-        if let watermark = settings.activeWatermark, watermarks?.contains(watermark.identifier) != true {
-            return .issue(Issue(place: .watermark, text: String(localized: "The watermark image is missing. Choose it again.")))
+        if let text = editor.settingsIssue {
+            return .issue(Issue(place: .watermark, text: text))
         }
         let items: [ExportItem]
         let clashes: ExportClashes

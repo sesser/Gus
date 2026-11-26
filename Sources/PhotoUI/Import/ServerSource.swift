@@ -75,7 +75,7 @@ public final class ServerBrowse {
     }
 }
 
-extension CardImportModel {
+extension CardImportModel: ServerSheetHost {
     private static let serverLog = Logger(subsystem: AppBranding.bundleIdentifier, category: "server-import")
 
     // MARK: Connections
@@ -444,12 +444,12 @@ extension CardImportModel {
 
     public func showAddServer() {
         guard let library, !isImporting else { return }
-        serverSheet = ServerSheetModel(mode: .add, model: self, keys: library.remoteKeyStore)
+        serverSheet = ServerSheetModel(mode: .add, host: self, purpose: .importing, keys: library.remoteKeyStore)
     }
 
     public func showEditServer(reviewingCertificate: Bool = false) {
         guard let library, let service = browse?.service, !isImporting else { return }
-        let sheet = ServerSheetModel(mode: .edit(service), model: self, keys: library.remoteKeyStore)
+        let sheet = ServerSheetModel(mode: .edit(service), host: self, purpose: .importing, keys: library.remoteKeyStore)
         if reviewingCertificate, case .certificateChanged(let summary)? = browse?.failure {
             sheet.page = .certificate(summary, changed: true)
         }
@@ -483,7 +483,7 @@ extension CardImportModel {
     }
 
     /// The sheet saved a server: it becomes the source.
-    func serverSaved(_ service: RemoteServiceRecord) async {
+    public func serverSheetSaved(_ service: RemoteServiceRecord) async {
         await loadServers()
         serverSheet = nil
         chooseServer(service)
@@ -497,6 +497,22 @@ extension CardImportModel {
         guard let service = removalAfterSheet else { return }
         removalAfterSheet = nil
         askToRemoveServer(service)
+    }
+
+    // MARK: Hosting the Server sheet (publishing design §4)
+
+    public var savedServers: [RemoteServiceRecord] { servers }
+    public var serverCatalog: Catalog? { library?.catalog }
+    public var serverSheetWindow: NSWindow? { window }
+
+    public func serverSheetCancelled() {
+        serverSheet = nil
+    }
+
+    /// Remove Server… asked from the sheet: asked once the sheet has gone (S3).
+    public func serverSheetRemove(_ service: RemoteServiceRecord) {
+        removalAfterSheet = service
+        serverSheet = nil
     }
 
     /// Stop and Quit: waits for the stopped import to remove its partial file
