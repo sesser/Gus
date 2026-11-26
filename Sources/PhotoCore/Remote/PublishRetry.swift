@@ -19,7 +19,8 @@ public enum PublishConnection: Sendable {
     /// `service`'s address and trusted certificate is contacted, so a key
     /// saved for a new address never goes to the previous one: not from a
     /// record held since before a Save, nor between a Save's key write and
-    /// its row write (security review N7).
+    /// its row write (security review N7). That holds within this process
+    /// and its catalog only (`RemoteKeyGate`, security review N9).
     public static func connect(_ service: RemoteServiceRecord, catalog: Catalog, keys: any RemoteKeyStore,
                                readsAccount: Bool) async -> PublishConnection {
         guard service.serverAddress != nil else { return .failed(.notImmich) }

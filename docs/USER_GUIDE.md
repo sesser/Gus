@@ -84,9 +84,10 @@ the old and new fingerprints for you to trust the new one; an import never
 asks in the middle. There is no setting that turns certificate checking off.
 macOS may ask once whether the app may reach devices on your local network.
 
-Choosing a server checks it again (**Connecting to ‹name›…**); the app
-contacts a server only when you choose it, or press **Add**, **Save**, **Try
-Again** or **Rescan**. The grid lists your own photos, newest first: images
+Choosing a server checks it again (**Connecting to ‹name›…**). The import
+window contacts a server only when you choose it, press **Add**, **Save**,
+**Try Again** or **Rescan**, save it from **File ▸ Publish…**, or finish an
+import from it. The grid lists your own photos, newest first: images
 only, never videos, archived, hidden, locked or trashed photos, and never a
 partner's photos or other people's photos in an album you share. More load as
 you scroll near the end (**Loading more photos…**). The **Album** pop-up
@@ -145,16 +146,21 @@ server's address or certificate was changed in another sheet meanwhile. If the
 server you are editing was removed while its sheet was open (from the other
 window), **Save** and **Trust Certificate** save nothing and keep no key for it:
 the sheet closes, and the server stays removed. When the server the window
-shows is saved again from **File ▸ Publish…** (its **Edit Server…**), the
-window follows it, whether it is in front, behind or closed: a new name shows
+shows is saved again from **File ▸ Publish…** (**Edit “‹name›”…**, **Edit
+Server…** or **Review Certificate…**), the window follows it, whether it is in front, behind or closed: a new name shows
 in place, and a new address or certificate reloads the server as if you had
 chosen it again (the selection, album, date range and a typed project name
 go); a key saved for a new address is never sent to the old one. An import
 running from that server finishes on the address it started with, and the
-window follows when it ends. With two sheets of one server open, one in each
-window, **Save** and **Trust Certificate** with the key field empty send and
-save nothing once the other sheet has saved a new address or certificate: the
-sheet closes and the window shows the server as saved. **Remove Server…** asks first, then deletes the key from the Keychain
+window follows when it ends. If a server's sheet is open in each window and
+one saves a new address or certificate, **Save** or **Trust Certificate** in
+the other, with its key field empty, sends and saves nothing: the sheet closes
+and the server shows as saved (from **Publish…**, the publish sheet comes back
+with it chosen and checks it again). If the other save arrives while this
+sheet is already checking, the check finishes against the address it started
+with, using the key saved for that address, and nothing is saved. A new key
+saved elsewhere during a check also stops this sheet from saving.
+**Remove Server…** asks first, then deletes the key from the Keychain
 (it still works on the server until you delete it in Immich), along with the
 server's folder map and publishing choices; every photo already imported
 stays, and so does the record of what was published. If the

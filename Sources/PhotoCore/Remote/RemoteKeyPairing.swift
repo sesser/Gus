@@ -6,11 +6,17 @@ import Synchronization
 ///
 /// Saving writes the key, then the row (security review F2: a failed row
 /// write puts the previous key back). Between the two the Keychain holds the
-/// new key beside the previous address. Every write of a key with its row,
-/// and every read of a key for publishing, holds this gate for the account,
-/// so a reader never sees a key without the row saved with it. The gate is
-/// per account and per process: only the library app saves or reads server
-/// keys, and the library lock keeps a second copy off the same catalog.
+/// new key beside the previous address. Every save of a key with its row,
+/// and every read of a saved key, holds this gate for the account, so a
+/// reader in this process never sees a key without the row saved with it.
+/// (Remove Server… deletes without it: a reader that races a removal finds
+/// no key or no row, never a key beside another address.) The gate is per
+/// account and per process, and pairs the key only with this process's
+/// catalog. Nothing keeps a second copy of the app off the same library (the
+/// library lock only keeps `photocli`'s writes off a library the app has
+/// open; `LibraryModel.open` opens a library whose lock another process
+/// holds), and copies of a library name the same Keychain item, so neither
+/// case is covered (security review N9).
 ///
 /// It is held only around the Keychain and catalog calls, never across a
 /// request. A Keychain access prompt holds it until answered; another Save of

@@ -6,20 +6,59 @@ Owner: swift-macos-engineer. Branch `feature/publishing-engine` (off `develop`).
 Spec: the PRD (issue #28, **revision 7**, 2026-11-26) and [design.md](design.md)
 (rulings in its §16 and §17: D-1 to D-19 and the correction to §3.6).
 
-**State: Done** (2026-11-26, D-17 to D-19 after the fix round). The designer
-ruled DQ-F1 to DQ-F3 (design §10.3, §11.1, §11.2, §17); security N7 is now
-closed on the import side too: **D-17 to D-19** below, each with tests that
-failed without their fix and scripted checks. `swift test`,
-`Scripts/build-app.sh all` and the CI toolchain build are recorded under
-**Build and test**. Open for others: the checks **For a person** (review.md's M1
-to M7), the owner's approval of the proposed `CLAUDE.md` Network rule (its key
-sentence widened this round to every key read), and **Follow-ups proposed**. N8,
-#301, #302 and the designer's proposed follow-up on the Keychain error's title
-are not touched. Next: code-reviewer's second pass on this round (it changes
-#271's import check and Server sheet, shared state across tasks and the key
-store's surroundings: opus), the security reviewer's on N7's import side, the
-designer's for what a person sees in the import window and the Server sheet
-(§11.1, §11.2), then qa-tester.
+**State: Done** (2026-11-26, the F30 to F33, C14 and N9-wording round after
+D-17 to D-19). The design review's sixth pass (F30 to F33), the code review's
+sixth pass (C14 and two wording points on the proposed Network rule) and the
+security review's fourth pass (the library lock sentence, N9) are answered
+below under **F30 to F33, C14 and the lock sentence**, with tests that failed
+without their fix and scripted checks. `swift test`, `Scripts/build-app.sh all`
+and the CI toolchain build are recorded under **Build and test**. Open for
+others: N9 itself (the saved-for address in the Keychain item: the owner's
+decision; only the wrong sentence is corrected here), N8 and N10 (left as the
+security review asks), the checks **For a person** (review.md's M1 to M8), the
+owner's approval of the proposed `CLAUDE.md` Network rule, and **Follow-ups
+proposed**. Next: code-reviewer's second pass on this round (it changes #271's
+import window and the publish sheet's check: opus), the designer's for F30 to
+F33, then qa-tester.
+
+## F30 to F33, C14 and the lock sentence (2026-11-26)
+
+Started from this file at 586cfd2. The reviewers' sixth-pass `code-review.md`
+and `review.md` and the fourth-pass `security-review.md` were committed as
+they were (6587d3f).
+
+| # | Fix | Test or check |
+|---|---|---|
+| F30 | A check's row is read as the check begins, so a rename taken in place while the check is out (Publish's Save, `loadServersAfterPublish`) is newer than it. The window's record is now PhotoCore's `RemoteSourceRecord` (`Remote/RemoteServerChecks.swift`): the record plus a revision bumped by every rename taken (`take`). `connectServer` notes the revision when the check begins, and a passing check's row is taken only through `afterCheck(began:saved:importing:)`: nothing when a rename was taken since, or while an import runs; otherwise the row's name in place, as before. `ServerBrowse.service` is now read from it | `ServerKeyPairingTests.checkKeepsARenameTakenMeanwhile`: a real check reads "Home"; "Cellar" is saved and taken; the check's row leaves "Cellar"; renamed back to "Home" meanwhile, a row read as "Cellar" leaves "Home"; with no rename since, a renamed row is taken, the same name and a running import give nothing. Against the old rule (the row taken whenever no import runs): 2 issues; restored, passing. Scripted F30 below |
+| F31 | `ImportGridView` is given the server's name (`model.browse?.service.name`, read in the parent's body), and the grid controller refreshes the cells on screen when it changes, so a marked cell's tooltip ("Already imported from …", "Published to … from this library") follows a rename at once. No reload, no request | Scripted F30 below (`import grid` now prints each cell's tooltip). UI glue in PhotoUI with no test target; the old behaviour was shown by the script on a bundle built with the name withheld |
+| F32, F33 | `docs/USER_GUIDE.md`, import section: the design review's replacement text for the two-sheets passage (a check already out finishes against its own address with that address's key and saves nothing; from Publish the publish sheet comes back and checks again; a new key saved elsewhere also stops the save), "saved again from **File ▸ Publish…** (**Edit “‹name›”…**, **Edit Server…** or **Review Certificate…**)", and "The import window contacts a server only when you choose it, press **Add**, **Save**, **Try Again** or **Rescan**, save it from **File ▸ Publish…**, or finish an import from it." | Read in place, word for word against review.md |
+| C14 | The publish sheet's check that ends on a change (`.changed(.connectionChanged)`) no longer only waits for the reload, which rechecks only while the sheet shows. PhotoCore's `PublishCheckRecovery` (`Remote/PublishCheckRecovery.swift`) records a check left waiting: if the sheet shows and its server list already has the change (the reload has come and gone), the server is checked again at once; otherwise it waits, and the sheet checks again when it comes back from its Server sheet (`sheetDidClose`), unless choosing a server (the reload's own recheck included) came first. The recheck reads the servers and chooses the server as saved, keeping every choice and D-15's line (`recheckSavedServer`, run in its own task so the cancelled check task's cancellation doesn't reach its reads). Nothing is contacted while the sheet is hidden, as before. A removal is still the reload's (D-13) | `PublishKeyPairingTests.checkLeftWaitingIsRechecked`: C14's sequence (hidden, reload first, then the check's end; back from the Server sheet: checks again), the check's end before the reload, hidden at the reload and shown before the check's end (checks at once), shown with the reload still to come (left to it; its choose clears the wait), a rename alone, a removal. Against the old `break` (nothing recorded, never rechecked): 4 issues; restored, passing. Not scripted: holding the gate across a Keychain prompt has no debug word |
+| N9 (sentence only) | The claim that the library lock keeps a second copy of the app off the catalog is corrected in `RemoteKeyGate`'s doc comment, this file's N7 row and the proposed Network rule: the gate is per process and pairs the key with that process's catalog only; the library lock only keeps `photocli`'s writes off a library the app has open, and `LibraryModel.open` opens a library whose lock another process holds; copies of a library name the same Keychain item. The "never reaches the previous one" doc comments (`PublishConnection.connect`, `RemoteImportConnection`, `RemoteServerSheetCheck`) now say within this process and its catalog. N9's fix (the saved-for address in the Keychain item) is not done: the owner is deciding it. N8 and N10 are left | `grep` finds no other such claim in `Sources/`, this file or the user guide (whose "never sent to the old one" is about the two windows of one app) |
+| Rule wording | The proposed Network rule says "every save of a key with its row" (Remove Server… deletes outside the gate, on purpose), and that a key is given only while the row still has the address and trusted certificate the caller holds (publishing, the import window) or opened on (the Server sheet, whose check then goes to the address its form shows). `RemoteKeyGate`'s comment says the same and that Remove deletes without it. `CLAUDE.md` not edited | Reading |
+
+**Scripted F30 and F31** (2026-11-26). The debug bundle (`CONFIGURATION=debug
+Scripts/build-app.sh library`) copied with identifier
+`me.sesser.gus.debugtest.round7` and signed ad hoc, and a second copy
+(`…round7old`) built with the old check (`takeSaved(saved)` whenever no import
+runs) and the grid given no name; a fresh copy of the `photobench` scratch
+library each run; the fake server; every launch with `--library-root`, never
+activated, each quit by itself (exit 0). Script: Home added, one photo
+imported (so cell 0 is marked), Publish's Edit renames it Cellar, then a
+Rescan whose first answer is held 5 s (`fault slowcheck 5000`, the new `import
+server rescan`, which doesn't wait), and during it Publish's Edit renames it
+Attic.
+
+| | This build | Old behaviour |
+|---|---|---|
+| Cell 0's tooltip after Cellar (no reload) | `Already imported from “Cellar”` | `Already imported from “Home”` |
+| During the held check | Attic, connecting, project `Attic - All Photos` | the same |
+| After the check | Attic, photos, project `Attic - All Photos`; cell 0 `… “Attic”` | **Cellar**, project `Cellar - All Photos`, while the saved list says Attic |
+
+Round 6's scripts A, D and E run again on this build: their prints match round
+6's except for the made-up certificate's fingerprint (random per run).
+
+New debug-script words: `import server rescan` (as Rescan, without waiting);
+`import grid` adds each cell's `tip '…'`.
 
 ## D-17 to D-19 (2026-11-26)
 
@@ -107,7 +146,7 @@ activated.
 
 | # | Fix | Test or check |
 |---|---|---|
-| N7 | Two halves, both closed for publishing. (1) A record held since before a Save: `PublishConnection.connect` (now with `catalog:`) reads the key and the row as saved now and contacts only a row with the address and trusted certificate it was given (`PublishServerChange.after`); otherwise it returns the new `.changed(PublishServerChange)` and sends nothing. (2) A Save between its key write and its row write: a re-read alone can't see it (the row is still the previous one while the Keychain already has the new key), so every key read for publishing and every key-and-row write share a per-account gate, `RemoteKeyGate` (PhotoCore `Remote/RemoteKeyPairing.swift`, a `Mutex` of held accounts and waiting continuations, FIFO). `Catalog.saveRemoteService(_:key:keys:)` holds it from reading the previous key through the row write and, on a failed row, the key's restore; `RemoteSavedKey.read` holds it around the key read and the row read. F2's write order is unchanged. The gate is per process: only the library app saves or reads server keys, and the library lock keeps a second app off the catalog. It is never held across a request; a Keychain access prompt holds it until answered, and another Save of the same server waits meanwhile. In the app: the sheet's check ignores `.changed` (the reload the Save posts checks the server again as saved, F28, or clears it, D-13); Publish gives up with D-15's line on a changed address or certificate, or leaves D-13's reload to say a removal; Retry Failed's check is called off (no ending, the run as it was), and reopened, the results sheet shows the run unchanged: a removal or an address change shows the existing refusal with Retry Failed off, and after a certificate change alone the next Retry Failed runs and checks the server as saved (D-17); a catalog that can't be read shows its error as the start issue (sheet and Publish) or calls the retry off. Nothing new is shown, no string added | `PublishKeyPairingTests`: `staleRecordNeverPaired` (a rename still connects; a new address and key, a certificate alone, a removal: `.changed`, the previous address's fake server gets no request), `waitsForTheRow` (the test holds the gate as a Save does, with the new key written and the row not: the check waits, contacts nothing, and sees the new row), `checkDuringSave` (a check started from the key store's write hook inside a real Save sees the Save whole), `saveHoldsTheGate`. Against the old connect (key only, no gate, no row): 3 tests failed, 5 issues. Against the re-read with no gate (the review's suggestion alone): `waitsForTheRow` 3 issues and `saveHoldsTheGate` 1; `checkDuringSave` passed then, as expected (without the gate its order is the scheduler's). Restored, passing |
+| N7 | Two halves, both closed for publishing. (1) A record held since before a Save: `PublishConnection.connect` (now with `catalog:`) reads the key and the row as saved now and contacts only a row with the address and trusted certificate it was given (`PublishServerChange.after`); otherwise it returns the new `.changed(PublishServerChange)` and sends nothing. (2) A Save between its key write and its row write: a re-read alone can't see it (the row is still the previous one while the Keychain already has the new key), so every key read for publishing and every key-and-row write share a per-account gate, `RemoteKeyGate` (PhotoCore `Remote/RemoteKeyPairing.swift`, a `Mutex` of held accounts and waiting continuations, FIFO). `Catalog.saveRemoteService(_:key:keys:)` holds it from reading the previous key through the row write and, on a failed row, the key's restore; `RemoteSavedKey.read` holds it around the key read and the row read. F2's write order is unchanged. The gate is per process and pairs the key with that process's catalog only. (Corrected 2026-11-26, security review N9: this said the library lock keeps a second copy of the app off the catalog. It does not: the lock only keeps `photocli`'s writes off a library the app has open, and `LibraryModel.open` opens a library whose lock another process holds. A second copy of the app on one library, or a copy of a library naming the same Keychain item, is not covered; N9 is the owner's to decide.) It is never held across a request; a Keychain access prompt holds it until answered, and another Save of the same server waits meanwhile. In the app: the sheet's check ignores `.changed` (the reload the Save posts checks the server again as saved, F28, or clears it, D-13); Publish gives up with D-15's line on a changed address or certificate, or leaves D-13's reload to say a removal; Retry Failed's check is called off (no ending, the run as it was), and reopened, the results sheet shows the run unchanged: a removal or an address change shows the existing refusal with Retry Failed off, and after a certificate change alone the next Retry Failed runs and checks the server as saved (D-17); a catalog that can't be read shows its error as the start issue (sheet and Publish) or calls the retry off. Nothing new is shown, no string added | `PublishKeyPairingTests`: `staleRecordNeverPaired` (a rename still connects; a new address and key, a certificate alone, a removal: `.changed`, the previous address's fake server gets no request), `waitsForTheRow` (the test holds the gate as a Save does, with the new key written and the row not: the check waits, contacts nothing, and sees the new row), `checkDuringSave` (a check started from the key store's write hook inside a real Save sees the Save whole), `saveHoldsTheGate`. Against the old connect (key only, no gate, no row): 3 tests failed, 5 issues. Against the re-read with no gate (the review's suggestion alone): `waitsForTheRow` 3 issues and `saveHoldsTheGate` 1; `checkDuringSave` passed then, as expected (without the gate its order is the scheduler's). Restored, passing |
 | Q1 | Test only (AC20, R21) | `PublishJobTests.stepsFollowEachUpload`: an existing album, stacking with a linked original, concurrency 1; every upload answer held; a's released, b's held and the run stopped there: a is `.done` in the album, stacked on its original, and the only asset filed; b got no further. Against a mutation that defers every album and stack step to the end of a run not stopped (a second pass over the photos after the group): 4 issues; `linkAndCopy`, a run that completes, still passed under it, so the mutation is the one asked about. Restored, passing |
 | Q2 | Check Originals' tally moved to PhotoCore: `OriginalsTally` (`Remote/PublishOriginals.swift`: `add(_:name:)` and `check(_:offline:sources:names:find:progress:)`, run on the caller's actor through `#isolation`). `PublishModel.OriginalsResult` is now a type alias for it; the sheet and the debug print are unchanged. Behaviour as before (offline counted and not looked for, a photo with no source checked and in no group, the first failed request stops it, a cancel gives nothing), except that progress also counts a photo with no source | `PublishJobTests.originalsTallyMatchesRun` (four photos: an original found, no mapped folder, two linked to assets the server no longer has; the tally's found, groups and names equal the run's stacked photos and `noOriginal` reasons, built into a tally with the same `add`; no write; progress 1 to 4; two offline photos counted and not looked for) and `originalsTallyFailureAndCancel`. New code, so "fails without" is a mutation: `found` not counted gave 3 issues; restored, passing |
 | Q3 | The debug script's `quit` calls the new `PublishModel.closeSheetsForQuit()`: the waiting Server sheet and the return to the publish sheet are dropped, the Skip or New Copy question, the publish Server sheet, the publish sheet and the results close | Scripted, a fresh copy of the library each, killed at 90 s: the publish sheet up after a run; its Add Server sheet up; its Edit Server sheet up with a name typed; the results sheet with the import window open: each quit by itself in 11 to 12 s (exit 0). The same first three against a bundle built without the change: each killed at 60 s (exit 142) |
@@ -628,7 +667,10 @@ Type names checked against the code on this branch (review round: the
 temporary files, the whole-path allowlist match and the id rule added; fourth
 round: the temporary folders' mode, links and age, security N5 and N6; fix
 round after QA: the key read with its row, security N7; D-17 to D-19: every
-key read, the import window and the Server sheet included).
+key read, the import window and the Server sheet included; C14 round: "every
+save of a key with its row" and how the Server sheet's key is given, code review
+sixth pass, and the gate's reach stated as one process and its catalog, security
+review N9, whose fix is the owner's to decide).
 
 > - **Network.** The app contacts one kind of host: an Immich server the user
 >   adds, and only the library app does it (the standalone importer, About and
@@ -665,13 +707,19 @@ key read, the import window and the Server sheet included).
 >   all unless the base is the user's own real folder. A launch that can't lock
 >   a folder there works in one of its own beside the base. The key goes
 >   only as `x-api-key` and only to the connection's host. Every read of a
->   saved key and every write of a key with its row go through the account's
+>   saved key and every save of a key with its row go through the account's
 >   `RemoteKeyGate`, so the key is always read with the row saved with it
 >   (`RemoteSavedKey`: publishing's check, the import window's check and the
->   Server sheet's with its key field empty), and only a row with the address
->   and trusted certificate the caller holds is contacted, so a key saved for a
->   new address never reaches the previous one. A Server sheet behind the saved
->   server writes nothing (`Catalog.saveRemoteService(_:checkedWith:opened:keys:)`).
+>   Server sheet's with its key field empty), and a key is given only while
+>   the row still has the address and trusted certificate the caller holds
+>   (publishing, the import window) or opened on (the Server sheet, whose check
+>   then goes to the address its form shows), so a key saved for a new address
+>   never reaches the previous one. The gate is per process and pairs the key
+>   with that process's catalog only: nothing keeps a second copy of the app
+>   off a library (the library lock only keeps `photocli`'s writes off a
+>   library the app has open), and copies of a library name the same Keychain
+>   item. A Server sheet behind the saved server writes nothing
+>   (`Catalog.saveRemoteService(_:checkedWith:opened:keys:)`).
 >   Response bodies and downloads are capped (an error's body at 64 KiB, read only for the
 >   server's message). Redirects are never followed, and there are no cookies,
 >   cache or credential storage. Transport policy: `https://` by default;
@@ -1267,6 +1315,12 @@ None open.
 | 2026-11-26, D-17 to D-19 | `ServerKeyPairingTests`, `PublishKeyPairingTests`, `RemoteConnectionTests`, `RemoteSecurityTests` (33 tests), `--skip-build`, 30 runs | 30 of 30 passed |
 | 2026-11-26, D-17 to D-19 | `Scripts/build-app.sh all` | Exit 0, both bundles built and signed (release; the library app's executable records SDK 27.2, minimum 15.0) |
 | 2026-11-26, D-17 to D-19 | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, exit 0, no error or warning in the changed files (Swift 6.2.4; `/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`) |
+| 2026-11-26, F30-C14 round, baseline at 6587d3f | `swift build` | Built clean |
+| 2026-11-26, F30-C14 round | the new tests against their fixes undone (F30: the row taken whenever no import runs; C14: `checkFoundChange` records nothing and returns false) | `checkKeepsARenameTakenMeanwhile` 2 issues; `checkLeftWaitingIsRechecked` 4; restored and passing |
+| 2026-11-26, F30-C14 round | `swift test --skip-build --filter "ServerKeyPairingTests\|PublishKeyPairingTests"`, 30 runs | 30 of 30 passed (15 tests). The two new tests are also deterministic by structure: one task, steps in a fixed order, no timing; the F30 test's one check runs to its end before the rename |
+| 2026-11-26, F30-C14 round | `swift test` | 1669 tests in 228 suites passed (105.1 s), on the final sources |
+| 2026-11-26, F30-C14 round | `Scripts/build-app.sh all` | Both bundles built and signed (release) |
+| 2026-11-26, F30-C14 round | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, exit 0; warnings only in `SmartAlbumTests.swift` and `VirtualCopiesTests.swift` (older, not this branch's), none in the changed files (`/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`) |
 
 Determinism of the new tests: none sleeps to synchronize. The stop tests
 (`personsStop`, `endingWaitsForFullySent`) stop at the client's own "fully
