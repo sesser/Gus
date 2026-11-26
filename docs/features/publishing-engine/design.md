@@ -185,6 +185,47 @@ back by the app, so the destination changes only when the person changes it.
 - When no saved server is left, the **No saved server** state shows instead, with
   no removal line.
 
+Some changes made in the import window are accepted as not followed (D-14).
+Publish connects afresh with the key as saved then.
+
+- A new key for the chosen server, address and certificate unchanged: the sheet's
+  check and album list stand until **Check Again**, **Try Again**, another choice
+  or **Publish**.
+- A removal while the publish sheet's own **Server** sheet is up: that sheet stays.
+  **Cancel** returns to the removal line above; a save can bring the server back
+  (follow-up). **No longer deferred:** D-16 (§4) replaces the last clause. The
+  sheet still stays up until the person presses Save or Cancel.
+- An address or certificate change while that **Server** sheet is up and then
+  cancelled, or while **Publish** is being confirmed or its Skip or New Copy
+  question is up: the earlier check or destination may be used (follow-up).
+  **Narrowed by D-15, below:** the confirming and question cases are no longer
+  deferred. What remains is the cancelled **Server** sheet, which may leave the
+  earlier check and album list showing; **Publish** still connects to the saved
+  address.
+
+**The chosen server's address or trusted certificate changes** while **Publish**
+is being confirmed, or while its Skip or New Copy alert is up (D-15). The
+destination the person agreed to is gone, so that Publish is given up, as for a
+removal.
+
+- The confirmation is cancelled (the button bar's **Checking…** goes and the form
+  is enabled), or the alert closes unanswered. Nothing that writes is sent, no
+  run starts, no job or record is made, and nothing is remembered (§3.7).
+- The sheet stays on its main page and checks the server again as saved now,
+  keeping every choice and the description (F28).
+- Under **Server**, below the address and any **Not encrypted** line, an issue
+  line, announced (§13) and given as the pop-up's accessibility hint: **This
+  server's address or certificate changed. Nothing was published.** Without it, a
+  question the person was about to answer would just vanish. It shows only when a
+  confirmation or an alert was given up; a change with neither pending rechecks
+  with no line.
+- It doesn't dim **Publish**, which follows the new check (§3.8). It goes when
+  Publish is pressed again, a server is chosen, added or saved from the sheet,
+  the chosen server is removed, or the sheet is next opened.
+- A run never starts with an address or certificate other than the saved ones,
+  from the confirmation or from the alert's answer.
+- A rename or a new key alone gives nothing up (D-14).
+
 The publish check is II's check (reachable, Immich, 3.2.0 or newer, key
 accepted, certificate) but it asks for **only the permissions the chosen options
 need** (§5), not import's five. In particular it reads the key's account (which
@@ -334,6 +375,27 @@ Edit and Review Certificate alike, including the check that runs again after
   `asset.upload` or `asset.read` is not saved from Publish. Album and stacking
   permissions are never required by the sheet; §5 names them in the publish sheet.
 - A name-only edit still saves without a check, from either host (II §3.6).
+- **Save never recreates a removed server** (D-16), from either host. This covers
+  **Save** with or without a check, and **Trust Certificate**.
+  - If the server being edited is no longer saved when the button is pressed,
+    nothing is read from the Keychain, sent or written. If it is removed while
+    the check runs and the check passes, nothing is written. Either way no row is
+    inserted and no key, typed or earlier, is left in the Keychain for it. A
+    check that fails shows its result as usual, and the next press ends as
+    above.
+  - The Server sheet then closes, with no alert and no new string.
+  - From **Publish**, the publish sheet returns in the removed state of §3.3
+    (D-13): **Server** None with **This server was removed.**, announced, or the
+    **No saved server** state when none is left. No other server is chosen.
+  - From **Import**, the window reads its servers again and, if the removed
+    server was its source, leaves it as after **Remove Server…**.
+  - The sheet isn't closed at the moment of removal (D-14): what was typed stays
+    until the person presses a button.
+  - **Add** is unaffected.
+- A name-only Save changes the name and nothing else on the server **as saved
+  now** (D-16). It never writes back an address or certificate that another
+  window has changed since the sheet opened, which would put a newer key beside
+  an older address. A Save that is checked writes what the form shows, as before.
 - Such a server is a normal saved server. Choosing it as the Import window's
   source names the missing import permissions and imports nothing (§4.1). A new
   address, key or certificate for it is saved from Publish; from Import the check
@@ -631,6 +693,8 @@ An alert on the publish sheet after Publish is pressed, once per run.
   choice the default). Neither button is destructive-styled. **Cancel** (Esc)
   returns to the sheet with nothing sent.
 - The titles are verbs; no "OK" and no Replace.
+- The alert closes unanswered when the chosen server is removed (D-13) or its
+  address or trusted certificate changes (D-15); §3.3.
 
 ## 9. While it runs (R21, R22, R24)
 
@@ -915,8 +979,11 @@ Further:
   button bar shows the caption **A later publish already sent the photos left to
   retry.** With even one photo still to send or finish, the button shows as
   usual. The run's counts, lists, header and Activity message are unchanged: they
-  record that run. The later publications are read when the sheet appears, when
-  the **Run** selection changes and when a publish ends while the sheet is open.
+  record that run. This holds for a run that has just been retried too: a photo
+  the retry left out stays in **Failed** with its earlier reason, beside the
+  caption, although that run now ended after the publish that sent the photo. The
+  later publications are read when the sheet appears, when the **Run** selection
+  changes and when a publish ends while the sheet is open.
 - It starts by reading the saved servers again; a refusal found then leaves the
   results sheet open with its reason. Otherwise the retry is the running publish
   from that moment, its server check included (D-2).
@@ -1136,7 +1203,10 @@ Cited as "review D-‹n›". D-1 to D-5 are from the first pass, D-6 to D-9 from
 second ([`review.md`](review.md)). D-10 and D-11 follow code review Q2, ruled by
 PRD revision 7 ([`code-review.md`](code-review.md)). D-12 and D-13, from the third
 pass, answer the engineer's DQ-R2-1 and DQ-R2-2 ([`status.md`](status.md));
-neither changes a requirement. The sections named carry the full text.
+neither changes a requirement. D-14, from the fourth pass, rules the two items
+`status.md` lists as known and left. D-15 (code review C11, security finding L2)
+and D-16 take two of D-14's deferred cases back into this feature. The sections
+named carry the full text.
 
 | # | Ruling | Where |
 |---|---|---|
@@ -1153,6 +1223,9 @@ neither changes a requirement. The sections named carry the full text.
 | D-11 | While a run is being retried, **Show Results…** on its row is dimmed | §10.1 |
 | D-12 | (DQ-R2-1) No **Retry Failed** when a later run has published every photo it would cover; the caption **A later publish already sent the photos left to retry.** stands in its place. Counts, lists and messages unchanged | §10.3 |
 | D-13 | (DQ-R2-2) The chosen server removed while the sheet is open: **Server** reads None with **This server was removed.**, nothing of that server stays, and no other server is chosen by itself | §3.3 |
+| D-14 | Accepted for this feature: an open publish sheet doesn't notice a key-only change; its own **Server** sheet isn't closed when its server is removed; the related narrow cases in §3.3. The last two cases go to a follow-up. Superseded in part by D-15 and D-16: only a key-only change, the Server sheet staying up on removal, and a cancelled Server sheet's earlier check are still accepted | §3.3 |
+| D-15 | The chosen server's address or trusted certificate changed while Publish is being confirmed or Skip or New Copy is up: both are given up, nothing is sent, the server is rechecked with choices kept, and **This server's address or certificate changed. Nothing was published.** shows under Server | §3.3, §8 |
+| D-16 | Save in the Server sheet never recreates a removed server (no row, no key): the sheet closes, and the publish sheet returns in D-13's removed state. A name-only Save changes only the name | §4 |
 
 Correction to §3.6 (first pass): Export reports no empty template, so the missing
 watermark image is the only settings issue.

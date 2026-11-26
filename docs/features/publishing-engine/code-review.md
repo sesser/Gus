@@ -263,3 +263,149 @@ Run it again, but scoped to the changed parts, not the whole branch.
 library, with `flock`. The allowlist matcher and the id rule are new
 request-building gates, and the id rule also changes import's listing. I
 found nothing wrong in either, but WORKFLOW names both kinds of change.
+
+### Third pass, 2026-11-26: a382a7b..41f6d0f
+
+Commits: cbbbc24 (review files, D-10, D-11), 452db62 (engine), 15d3a92 (app),
+eb34859 (status), b16e129 (design D-12, D-13), e58b8a2 (engine), 5b83b3d (app),
+41f6d0f (status). No merge of `develop`. Build and tests: `swift build
+--build-tests` clean; `swift test` 1642 tests in 226 suites passed (101.5 s);
+the connection and publishing suites (`--filter "PublishJobTests|PublishRulesTests|PublishBoundaryTests|RemoteConnectionTests|RemoteSessionTests"`)
+(77 tests in 6 suites) passed 30 of 30 runs with `--skip-build`. That rules out a per-run
+flake rate of about 1 in 10 or more (at about 95%), not rarer ones. For
+`stopKeepsEndingInEveryReport`, C9's fix now gives a structural argument as well. I did not revert fixes to re-run the
+"fails without" checks; status.md records that the engineer did (F22, F23,
+D-10, D-12, D-13), and each test reads as one that would fail without its fix
+(but see C12).
+
+**Verdict, third pass: ready for qa-tester.** C8, C9 and C10 are fixed, and Q2
+is ruled (PRD revision 7) and built. The new code (`PublishRetry` and
+`PublishConnection` in PhotoCore, delivery inside locks, the shared retry rule
+and its catalog read, the sheet's reaction to a removed or changed server, the
+observation changes) is correct; I found no deadlock or re-entrancy. Two new
+nits (C11, C12); neither blocks QA.
+
+#### Second-pass findings
+
+| # | Result | Commit | Checked |
+|---|---|---|---|
+| C8 | Fixed | 452db62 | `beganAwaiting()` runs inside the cancellation handler's `wait.withLock`, and `endedAwaiting()` inside the returning path's, so for one upload the raise is always before the lower. `onAwaitingChange` is told inside the count's lock, and `endedAwaiting` no longer clamps (it ignores a lower at 0, which can't happen now). My trace (answer lands as Stop is pressed) now ends with the count at 0 and "waiting" false. |
+| C9 | Fixed | 452db62 | `ProgressCounter.change` calls `reportTo` inside `state.withLock`, so reports reach the listener in the order of their states. The listeners are the app's `report(for:)` (creates a main-actor `Task`, takes no lock) and the tests' appends under a separate `Mutex`. With this, `stopKeepsEndingInEveryReport` has a structural argument (status.md), not only run counts. |
+| C10 | Fixed | 15d3a92, 5b83b3d | `canPublish` and `canCheckOriginals` require `service != nil` (PublishModel.swift:417, :574). D-13 then goes further: `chosenServerWasRemoved()` clears the server, check, client, albums, map and links, gives up sheet work and the Skip or New Copy question, and leaves the folder map page. My trace now ends with Publish dimmed and the line **This server was removed.** |
+| Q2 | Ruled and built | PRD revision 7, design D-10, D-11; 452db62, 15d3a92 | See **Retry stopped during its check** below. |
+
+#### Lock order and re-entrancy (C8, C9)
+
+The locks are taken only in this order: an upload's `wait`, then
+`RemoteUploadEnding.awaiting`, then `ProgressCounter.state`, then the listener
+(which takes no publishing lock). Nothing holding a later lock takes an earlier
+one:
+
+- `counter.stopping()` (the job's `onCancel` and the fault path) takes only the
+  counter's lock.
+- `group.cancelAll()` runs the children's handlers after `stopping()` has
+  returned.
+- `task.cancel()` comes from the main actor, holding nothing.
+- `RemoteUploadEnding.end(task, by: ending.deadline())` runs before the
+  `wait` lock.
+
+These are non-recursive `Mutex`es. A cancellation handler would deadlock only
+if it ran on a thread that already held the counter's lock, which requires a
+listener that cancels the task. Neither listener does. `ProgressCounter`'s
+doc comment states that rule. `RemoteUploadEnding`'s public `onAwaitingChange`
+is now called inside its lock and doesn't say so; its only caller is the
+job's `counter.awaiting`, so that is not a finding.
+
+#### Retry stopped during its check (R23 revision 7, AC21, D-10, D-11)
+
+- `PublishRetry.perform` checks `Task.isCancelled` after the check, after
+  `makeJob`, and (through `PublishJob.retry`, which returns nil) after the
+  job's own reads, until the first photo is started. Each of these is
+  `calledOff`. `PublishRetryOutcome.ended(stopAsked:)` lets a Stop asked on
+  the main actor before `retryRun` resumes win over a `checkStopped`.
+- `retryRun` then only calls `release`: no `finish`, no message, and `runs`,
+  `endedAt` and the ending are untouched. A late progress hop is dropped by
+  `slot.holder == id`. `cancel()` sets `slot.stop()` and `.ending` first, so
+  the job shows **Stopping…** with Stop dimmed until the check returns.
+- `job(...) == nil` can no longer reach the old "person's Stop" path for a
+  retry.
+- `isBeingRetried` dims Show Results… on that run's row, and `showResults(id)`
+  no longer falls back to another run.
+- `stopDuringRetryCheck` covers a Stop during a real held check, during a
+  check that then fails, and during `makeJob`. `retryCheckFailsOrRuns` and
+  `retryOutcomeRule` cover the outcome rule.
+
+#### Retry rule and its catalog read (D-12)
+
+- `PublishRun.retryVersionIDs(laterPublished:)` is the one rule. The job uses
+  it (PublishJob.swift:97-98), and the results sheet's `offersRetry` and
+  `retrySentByLaterRuns` use it through `PublishModel`.
+- `Catalog.laterPublications(of:)` asks only about `notUploadedVersionIDs`, so
+  the run's own records (made after `startedAt` too) never count. The SQL
+  filters by provider, address and `publishedAt > startedAt`.
+- The model reads it on appear, on a change of `resultsRunID` (`didSet`), and
+  after `finish` while the sheet is open. `laterReads` drops all but the
+  newest read, and `retry()` bumps it so an older read never lands over its
+  own.
+- `retry()` reads it again after `loadServers()` and claims the slot in the
+  same main-actor turn as `isRetryPending = false`, so the C2 property holds.
+  The claimed total equals the job's own count.
+- A read that fails leaves nothing out, in the app and in the job alike.
+- `retryNothingLeftAfterLaterRun` checks the catalog read against a real
+  sequence of runs.
+
+#### The sheet after its server is removed or changed (D-13, F28)
+
+- `PublishServerChange.after` compares the record held before the reload
+  with the one after it, by id. A person choosing another server during the
+  reload gives `before.id != chosenID`, which is `.unchanged`. A rename alone
+  is `.unchanged`.
+- `.connectionChanged` re-runs `choose(_, keepingChoices: true)` only while
+  the sheet shows. `begin` resets `chosenServerRemoved` for a sheet that was
+  closed. The folder-map row, the "no original" line and
+  `showFolderMapPage` all require a server. See C11 for the one thing
+  `.connectionChanged` leaves.
+
+#### Observation
+
+- `client` and `session` are observed now. `canPublish` and
+  `canCheckOriginals` read only observed state (and the watermark's presence,
+  as before).
+- `laterPublished` is observed and `laterReads` is not, so the results
+  sheet's button and caption follow each read.
+- `chosenServerRemoved` is observed.
+- `debugChecksStarted` is ignored (debug only).
+
+#### Other changes read
+
+- D-6, D-7: the new strings are in the catalog, and the old keys are gone
+  (`LocalizationTests` passes).
+- D-8: the first report is the first photo's own step, and an accepted photo
+  reports Uploading.
+- D-9: `byEnding` is a stable sort by end time.
+- The Failed list now has one id per photo and failure. The old nested
+  `ForEach` with offset ids drew the first photo's row for each photo.
+- F26: `ReasonGroup` alignment.
+- F27: File Settings shows the editor's issue first.
+- `ExportSettingsEditor.useWatermark` now calls `loadWatermark()`, so Export's
+  preview shows an image chosen again under the same identifier. This is the
+  only Export change, and it brings the preview in line with what Export
+  writes.
+
+#### New findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C11 | Nit | `Sources/PhotoApp/Model/PublishModel.swift:261-263` (`serversChanged`, `.connectionChanged`), `:677-719` (`requestPublish`), `:723-731` (`answer`) | F28 re-runs `choose(_, keepingChoices: true)`, which cancels the sheet's check but not `confirmTask`, and leaves `question` as it was. `requestPublish` captured the old record and connected with it. Its guard (`serviceID == service.id`) passes because the id is unchanged, and the Skip or New Copy `Question` carries the old record and client. D-13's removal path gives both up (`cancelSheetWork()`, `question = nil`). | Publish pressed on Home with some photos already published, so the Skip or New Copy alert is up. In the import window, Edit Server sets Home's address to its new one (the R26 warning accepted). Answer New Copy: the run starts with the old record and the old address's client. Edit Server is dimmed only for a running publish, not a pending confirm, so nothing stopped this. The records go under the old address, so the next Publish to the new address doesn't ask Skip or New Copy for them. That run's Retry Failed reads "This server's address has changed since this run." straight away. The same happens if the address changes during `requestPublish`'s own connect or records read. Rare: the person has to edit the server in the other window during those seconds or while the alert is up. Fix: on `.connectionChanged`, call `cancelSheetWork()` and set `question = nil` before `choose`, as the removal path does. Whether the alert should go is the designer's to confirm (design §3.3 says so only for removal). | Design §3.3 (D-13, F28); R26 |
+| C12 | Nit | `Sources/PhotoCore/Remote/PublishJob.swift:163`; `Tests/PhotoCoreTests/PublishJobTests.swift` (`stopDuringRetryCheck`) | `PublishJob.retry`'s own "called off" (`stop == nil && Task.isCancelled && sequence == 0`) has no test. `stopDuringRetryCheck`'s "before any photo" case cancels inside `makeJob`, so `PublishRetry.perform` returns at its `guard … !Task.isCancelled` before the job runs. | By reading: no test calls `PublishJob.retry`, and every other test that cancels does so outside it. So if line 163 were `let calledOff = false`, every test would still pass. With that change, a Stop pressed while the job does its own reads (`laterPublications`, `exportJob.items` and `publishSources`, which take a while for a large run) would end the run as the person's Stop and drop its unreached photos from the next retry (AC21). The code is right; only the test is missing. Fix: hold the job before its first photo (a test-only hook, or a catalog read the test can block) and cancel there, expecting `job.retry` to return nil and no write request. | Tests: AC21 |
+
+`/security-review`: this round adds no parser, subprocess or new network
+path. The request gates, the allowlist and the temporary folders are
+unchanged. `PublishConnection` moved into PhotoCore `Remote/` unchanged, and
+the new catalog read is local. A security re-review is already running in
+parallel; nothing here needs more than that.
+
+`CLAUDE.md` Network rule (status.md): both of my second-pass wording points
+are taken, and nothing this round changes what the rule describes.
+`PublishConnection` and `PublishRetry` are now PhotoCore `Remote/`, which
+matches "All of it is PhotoCore `Remote/`".
