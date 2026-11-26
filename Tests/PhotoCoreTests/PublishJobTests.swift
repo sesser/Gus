@@ -1000,6 +1000,45 @@ struct PublishJobTests {
         }
     }
 
+    @Test("A Stop once the retry's job has started, before its first photo, is called off by the job itself (AC21, D-10, code review C12)")
+    func stopInsideRetryJobBeforeFirstPhoto() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await Self.fixture(root, files: ["a.jpg", "b.jpg", "c.jpg"])
+            let ids = [try await f.version("a.jpg"), try await f.version("b.jpg"), try await f.version("c.jpg")]
+            // A fault stop with photos not reached (as `stopDuringRetryCheck`).
+            f.server.onUploadReceived { _ in f.server.add(.drop) }
+            let run = await f.job(stacking: false).run(try await f.makeRun(ids, stacking: false))
+            f.server.onUploadReceived(nil)
+            f.server.clearFaults()
+            f.server.remove(.drop)
+            #expect(run.ending == .stopped(.unreachable))
+            #expect(run.retryCandidates == [ids[1], ids[2]])
+            let writesBefore = f.writes
+
+            // The job's own reads are done; it waits there until the Stop.
+            let reached = AsyncStream<Void>.makeStream()
+            var job = f.job(stacking: false)
+            job.beforeFirstPhoto = {
+                reached.continuation.yield()
+                await Self.untilCancelled()
+            }
+            let retrying = Task { [job] in await job.retry(run) }
+            for await _ in reached.stream { break }
+            retrying.cancel()
+            let stopped = await retrying.value
+            #expect(stopped == nil, "\(String(describing: stopped))")
+            #expect(f.writes == writesBefore)
+            #expect(f.server.uploads.count == 1)
+
+            // The same job, not stopped, retries both.
+            job.beforeFirstPhoto = nil
+            let retried = try #require(await job.retry(run))
+            #expect(retried.ending == .completed)
+            #expect(f.server.uploads.count == 3)
+            f.expectOnlyAllowedRequests()
+        }
+    }
+
     @Test("A retry whose check fails ends with what it found, unless a Stop came before the app acted on it (D-5, D-10)")
     func retryCheckFailsOrRuns() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in

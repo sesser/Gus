@@ -330,6 +330,33 @@ struct PublishRulesTests {
         #expect(PublishServerChange.after(reload: [moved, other], chosenID: 1, before: other) == .unchanged)
     }
 
+    @Test("A Publish starts only with the address and certificate it was checked or asked with, as saved now (review D-15)")
+    func destinationSinceConfirmed() async throws {
+        let catalog = try Catalog.makeInMemory()
+        let home = try await catalog.saveRemoteService(RemoteServiceRecord(name: "Home", address: "https://home.example"))
+        let id = try #require(home.id)
+        #expect(try await PublishServerChange.since(home, in: catalog) == .unchanged)
+        // A rename alone gives nothing up (D-14).
+        let renamed = try #require(try await catalog.renameRemoteService(id: id, to: "Cellar"))
+        #expect(try await PublishServerChange.since(home, in: catalog) == .unchanged)
+        // A new address saved in the import window while the question is up: given up.
+        var moved = renamed
+        moved.address = "https://new.example"
+        moved = try await catalog.saveRemoteService(moved)
+        #expect(try await PublishServerChange.since(home, in: catalog) == .connectionChanged(moved))
+        #expect(try await PublishServerChange.since(moved, in: catalog) == .unchanged)
+        // A certificate trusted, or a plain-http address confirmed to https: given up too.
+        var trusted = moved
+        trusted.certificateFingerprint = String(repeating: "b", count: 64)
+        trusted = try await catalog.saveRemoteService(trusted)
+        #expect(try await PublishServerChange.since(moved, in: catalog) == .connectionChanged(trusted))
+        // Removed: nothing starts (D-13 says so).
+        try await catalog.deleteRemoteService(id: id)
+        #expect(try await PublishServerChange.since(trusted, in: catalog) == .removed)
+        #expect(try await PublishServerChange.since(RemoteServiceRecord(name: "New", address: "https://n.example"),
+                                                    in: catalog) == .removed)
+    }
+
     // MARK: Review fixes
 
     @Test("A server path is matched and saved without its trailing slash, but kept as typed while it is typed (review F6)")
@@ -365,6 +392,30 @@ struct PublishRulesTests {
             #expect(!RemoteRequestAllowlist.permits(method: path.hasPrefix("/albums/") ? "PUT" : (path.hasPrefix("/stacks") ? "POST" : "GET"),
                                                     path: path), "\(path.unicodeScalars.map(\.value))")
         }
+    }
+
+    @Test("A bulk add's per-photo error is cut at 200 characters like any server text (security review N2 addendum)")
+    func albumAddErrorCut() throws {
+        let long = String(repeating: "x", count: 5_000)
+        let json = """
+            [{"id": "a", "success": false, "error": "\(long)"},
+             {"id": "b", "success": false, "error": "  no_permission\\n"},
+             {"id": "c", "success": false, "error": "   "},
+             {"id": "d", "success": false},
+             {"id": "e", "success": false, "error": "duplicate"},
+             {"id": "f", "success": true}]
+            """
+        let results = try JSONDecoder().decode([ImmichDTO.BulkResult].self, from: Data(json.utf8))
+        let refused = ImmichClient.refusals(results)
+        #expect(refused.keys.sorted() == ["a", "b", "c", "d"])
+        #expect(refused["a"] == String(repeating: "x", count: RemoteAnswer.shownTextLimit))
+        #expect(refused["a"]?.count == 200)
+        #expect(refused["b"] == "no_permission")
+        #expect(refused["c"] == "")
+        #expect(refused["d"] == "")
+        // The same cut as a top-level message.
+        let answer = RemoteAnswer(status: 400, body: Data("{\"message\": \"\(long)\"}".utf8))
+        #expect(answer.serverMessage == refused["a"])
     }
 
     @Test("Progress: ending once stopped, whatever comes after; waiting only while a request is tried again (review F2, F15, D-1)")
@@ -477,9 +528,10 @@ struct PublishRulesTests {
             let ended = PublishTemporaryFolders.makeLaunch(in: base)
             try Data([2]).write(to: ended.folder.appending(path: "body.multipart"))
             close(ended.descriptor)
-            // A run folder of the earlier layout, with no lock file.
+            // A run folder of the earlier layout, with no lock file, a day old.
             let stray = base.appending(path: UUID().uuidString)
             try manager.createDirectory(at: stray, withIntermediateDirectories: true)
+            try manager.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -25 * 3600)], ofItemAtPath: stray.path)
             PublishTemporaryFolders.removeLeftovers(in: base)
             #expect(manager.fileExists(atPath: running.folder.appending(path: "body.multipart").path))
             #expect(!manager.fileExists(atPath: ended.folder.path))
@@ -490,6 +542,100 @@ struct PublishRulesTests {
             PublishTemporaryFolders.removeLeftovers(in: base)
             #expect(!manager.fileExists(atPath: running.folder.path))
             #expect(try manager.contentsOfDirectory(atPath: base.path).isEmpty)
+        }
+    }
+
+    @Test("A folder with no lock file goes only once it is a day old: a running launch whose lock file was removed keeps its folder (security review N6)")
+    func temporaryFoldersLockLessOnlyWhenOld() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let manager = FileManager.default
+            let base = root.appending(path: "base")
+            let running = PublishTemporaryFolders.makeLaunch(in: base)
+            defer { close(running.descriptor) }
+            try Data([1]).write(to: running.folder.appending(path: "body.multipart"))
+            // Something else removed its lock file; the launch still runs.
+            try manager.removeItem(atPath: running.folder.path + PublishTemporaryFolders.lockSuffix)
+            PublishTemporaryFolders.removeLeftovers(in: base)
+            #expect(manager.fileExists(atPath: running.folder.appending(path: "body.multipart").path))
+            // A day later with no change it counts as left over.
+            PublishTemporaryFolders.removeLeftovers(in: base, now: Date(timeIntervalSinceNow: 25 * 3600))
+            #expect(!manager.fileExists(atPath: running.folder.path))
+        }
+    }
+
+    @Test("A launch whose first name's lock can't be taken tries a new name; it never works from an unlocked folder in the base (security review N6)")
+    func temporaryFoldersLockRetry() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let manager = FileManager.default
+            let base = root.appending(path: "base")
+            try manager.createDirectory(at: base, withIntermediateDirectories: true)
+            // Another copy's cleanup holds the lock of the first name.
+            let names = ["first", "second", "third"]
+            let held = open(base.appending(path: names[0] + PublishTemporaryFolders.lockSuffix).path,
+                            O_CREAT | O_RDWR | O_EXLOCK | O_NONBLOCK | O_CLOEXEC, 0o600)
+            #expect(held >= 0)
+            defer { close(held) }
+            var next = names.makeIterator()
+            let launch = PublishTemporaryFolders.makeLaunch(in: base, names: { next.next() ?? UUID().uuidString })
+            defer { close(launch.descriptor) }
+            #expect(launch.descriptor >= 0)
+            #expect(launch.folder.lastPathComponent == "second")
+            #expect(!manager.fileExists(atPath: base.appending(path: "first").path))
+            #expect(manager.fileExists(atPath: base.appending(path: "second" + PublishTemporaryFolders.lockSuffix).path))
+
+            // No name can be locked: a folder of its own outside the base, never an unlocked one inside it.
+            let blocked = root.appending(path: "blocked")
+            try manager.createDirectory(at: blocked, withIntermediateDirectories: true)
+            let lock = open(blocked.appending(path: "same" + PublishTemporaryFolders.lockSuffix).path,
+                            O_CREAT | O_RDWR | O_EXLOCK | O_NONBLOCK | O_CLOEXEC, 0o600)
+            defer { close(lock) }
+            let outside = PublishTemporaryFolders.makeLaunch(in: blocked, names: { "same" })
+            #expect(outside.descriptor == -1)
+            #expect(outside.folder.deletingLastPathComponent().standardizedFileURL.path == root.standardizedFileURL.path)
+            #expect(outside.folder.lastPathComponent.hasPrefix("blocked-"))
+            #expect(try manager.contentsOfDirectory(atPath: blocked.path) == ["same" + PublishTemporaryFolders.lockSuffix])
+        }
+    }
+
+    @Test("The base folder is the user's alone; a symbolic link at the base or at a lock name is never followed (security review N5)")
+    func temporaryFoldersNoLinks() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let manager = FileManager.default
+            let old = Date(timeIntervalSinceNow: 25 * 3600)
+            // Made with mode 0700, and an existing base set to it.
+            let base = root.appending(path: "base")
+            let launch = PublishTemporaryFolders.makeLaunch(in: base)
+            close(launch.descriptor)
+            #expect((try manager.attributesOfItem(atPath: base.path)[.posixPermissions] as? Int) == 0o700)
+            let wide = root.appending(path: "wide")
+            try manager.createDirectory(at: wide, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o755])
+            let other = PublishTemporaryFolders.makeLaunch(in: wide)
+            close(other.descriptor)
+            #expect((try manager.attributesOfItem(atPath: wide.path)[.posixPermissions] as? Int) == 0o700)
+
+            // A base that is a symbolic link: nothing in its target is removed.
+            let target = root.appending(path: "target")
+            try manager.createDirectory(at: target, withIntermediateDirectories: true)
+            let keep = target.appending(path: "keep.txt")
+            try Data([1]).write(to: keep)
+            let linkedBase = root.appending(path: "linked")
+            try manager.createSymbolicLink(at: linkedBase, withDestinationURL: target)
+            PublishTemporaryFolders.removeLeftovers(in: linkedBase, now: old)
+            #expect(manager.fileExists(atPath: keep.path))
+
+            // A lock name that is a symbolic link: its target is not locked, and its folder stays.
+            let real = root.appending(path: "real")
+            try manager.createDirectory(at: real, withIntermediateDirectories: true)
+            let elsewhere = root.appending(path: "elsewhere.lock")
+            try Data().write(to: elsewhere)
+            let folder = real.appending(path: "X")
+            try manager.createDirectory(at: folder, withIntermediateDirectories: true)
+            try Data([2]).write(to: folder.appending(path: "body.multipart"))
+            try manager.createSymbolicLink(at: real.appending(path: "X" + PublishTemporaryFolders.lockSuffix),
+                                           withDestinationURL: elsewhere)
+            PublishTemporaryFolders.removeLeftovers(in: real)
+            #expect(manager.fileExists(atPath: folder.appending(path: "body.multipart").path))
+            #expect(manager.fileExists(atPath: elsewhere.path))
         }
     }
 }

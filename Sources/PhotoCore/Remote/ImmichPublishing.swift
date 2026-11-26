@@ -353,9 +353,16 @@ extension ImmichClient: RemotePublishDestination {
             throw .remote(.malformed)
         }
         let results = try Self.decode([ImmichDTO.BulkResult].self, try await answer(.addToAlbum(albumID: albumID, body)))
+        return Self.refusals(results)
+    }
+
+    /// The ids a bulk add refused, each with the server's error as shown
+    /// (cut as any server text, `RemoteAnswer.shownText`; empty when it gave
+    /// none). `duplicate` counts as added (R22).
+    static func refusals(_ results: [ImmichDTO.BulkResult]) -> [String: String] {
         var refused: [String: String] = [:]
         for result in results where !result.success && result.error != "duplicate" {
-            refused[result.id] = result.error ?? ""
+            refused[result.id] = RemoteAnswer.shownText(result.error) ?? ""
         }
         return refused
     }

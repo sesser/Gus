@@ -253,4 +253,14 @@ public enum PublishServerChange: Equatable, Sendable {
         let connects = now.address != before.address || now.certificateFingerprint != before.certificateFingerprint
         return connects ? .connectionChanged(now) : .unchanged
     }
+
+    /// The server as saved now against `confirmed`, the record a Publish was
+    /// checked or its Skip or New Copy question asked with (review D-15):
+    /// a run starts only on `.unchanged`. A rename or a new key alone is
+    /// `.unchanged` (D-14).
+    public static func since(_ confirmed: RemoteServiceRecord, in catalog: Catalog) async throws -> PublishServerChange {
+        guard let id = confirmed.id else { return .removed }
+        let now = try await catalog.remoteService(id: id)
+        return after(reload: now.map { [$0] } ?? [], chosenID: id, before: confirmed)
+    }
 }

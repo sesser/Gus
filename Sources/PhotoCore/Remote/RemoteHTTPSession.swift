@@ -544,8 +544,19 @@ public struct RemoteAnswer: Sendable, Hashable {
         } else {
             nil
         }
+        return Self.shownText(text)
+    }
+
+    /// The most of a server's own words shown (design §10.2).
+    public static let shownTextLimit = 200
+
+    /// A server's own words as shown: trimmed, cut at `shownTextLimit`
+    /// characters, nil when empty. Every server text shown goes through it
+    /// (the top-level `message`, and each photo's error in a bulk answer;
+    /// security review N2 addendum).
+    public static func shownText(_ text: String?) -> String? {
         guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
-        return trimmed.count > 200 ? String(trimmed.prefix(200)) : trimmed
+        return trimmed.count > shownTextLimit ? String(trimmed.prefix(shownTextLimit)) : trimmed
     }
 }
 

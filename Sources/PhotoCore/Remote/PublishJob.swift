@@ -36,6 +36,9 @@ public struct PublishJob: Sendable {
     /// Told, with the photo's version, as each accepted upload is recorded
     /// (the import window marks it In Library at once, design §11).
     public var onRecorded: (@Sendable (Int64) -> Void)?
+    /// Tests: awaited once the job's own reads are done and before its first
+    /// photo starts, so a Stop can land there (code review C12).
+    var beforeFirstPhoto: (@Sendable () async -> Void)?
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "publish")
 
@@ -113,6 +116,8 @@ public struct PublishJob: Sendable {
         let counter = ProgressCounter(total: total, report: progress)
         let ending = RemoteUploadEnding(bound: endingBound, onFullySent: onFullySent,
                                         onAwaitingChange: { counter.awaiting($0) })
+
+        if let beforeFirstPhoto { await beforeFirstPhoto() }
 
         let indexes = Dictionary(run.items.enumerated().map { ($1.versionID, $0) }, uniquingKeysWith: { first, _ in first })
         let work = versionIDs.compactMap { id in indexes[id].map { (order: $0, id: id) } }
