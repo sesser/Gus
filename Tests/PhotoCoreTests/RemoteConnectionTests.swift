@@ -212,9 +212,14 @@ struct RemoteCheckTests {
         }
         // Anything off the list fails before a byte is sent.
         let http = try RemoteHTTPSession(connection: client.connection)
+        // No update or delete of anything (issue #28, R9): only publishing's
+        // four writes are on the list (`RemoteRequestAllowlist.writes`).
         for (method, path) in [("DELETE", "/assets"), ("PUT", "/assets/abc"), ("PATCH", "/albums/abc"),
-                               ("POST", "/assets"), ("GET", "/server/about"), ("GET", "/assets/abc/original/../x"),
-                               ("POST", "/albums")] {
+                               ("PUT", "/assets"), ("GET", "/server/about"), ("GET", "/assets/abc/original/../x"),
+                               ("DELETE", "/albums/abc"), ("PATCH", "/albums/abc"), ("DELETE", "/albums/abc/assets"),
+                               ("PUT", "/stacks/abc"), ("DELETE", "/stacks/abc"), ("DELETE", "/stacks"),
+                               ("POST", "/albums/abc/assets"), ("PUT", "/albums"), ("POST", "/assets/abc"),
+                               ("POST", "/trash/restore"), ("PUT", "/albums/abc/users")] {
             await #expect(throws: RemoteError.notAllowed(method: method, path: path)) {
                 _ = try await http.send(method: method, path: path)
             }
@@ -230,6 +235,8 @@ struct RemoteCheckTests {
             #expect(request.sentKey == (path != "/server/version"))
         }
         #expect(requests.count == 7)
+        let writes = RemoteRequestAllowlist.writes.map { "\($0.method) \($0.pattern)" }
+        #expect(writes == ["POST ^/assets$", "POST ^/albums$", "PUT ^/albums/[0-9A-Za-z-]{1,64}/assets$", "POST ^/stacks$"])
     }
 
     @Test("A redirect is not followed, so another host never gets the key (AC5, R7)")

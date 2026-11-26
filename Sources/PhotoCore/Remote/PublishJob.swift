@@ -30,6 +30,9 @@ public struct PublishJob: Sendable {
     /// run ends, however it ends (R24).
     public var temporaryRoot: URL
     public var timeZone: TimeZone
+    /// Told when an upload's whole body went to the system (tests and the
+    /// debug script stop a run at that point, R17, AC23).
+    public var onFullySent: (@Sendable () -> Void)?
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "publish")
 
@@ -89,7 +92,7 @@ public struct PublishJob: Sendable {
         let state = RunState(run: run)
         let albums = AlbumCoordinator(state: state, destination: destination, retry: retry)
         let sequencer = StackSequencer()
-        let ending = RemoteUploadEnding(bound: endingBound)
+        let ending = RemoteUploadEnding(bound: endingBound, onFullySent: onFullySent)
         let total = versionIDs.count
         let counter = ProgressCounter(total: total, report: progress)
         counter.report(.rendering)
@@ -513,7 +516,7 @@ struct ItemContext: Sendable {
 
         // A record that failed is written again first (R17).
         if let record = item.unrecorded {
-            if (try? await job.catalog.recordPublication(record)) != nil {
+            if await Self.record(record, in: job.catalog) == nil {
                 await state.update(order) {
                     $0.unrecorded = nil
                     $0.recordFailure = nil
@@ -643,13 +646,9 @@ struct ItemContext: Sendable {
             pictureDigest: PublishJob.pictureDigest(exportItem, settings: settings),
             metadataDigest: PublishJob.metadataDigest(values: values, settings: settings, fields: fields),
             fileDigest: fileDigest)
-        let recordError: String?
-        do {
-            try await job.catalog.recordPublication(record)
-            recordError = nil
-        } catch {
-            recordError = error.localizedDescription
-        }
+        // Recorded even when the run is ending (R17): the catalog refuses a
+        // write from a cancelled task, so it is made outside the run's task.
+        let recordError = await Self.record(record, in: job.catalog)
         await state.update(order) { item in
             item.upload = .accepted(outcome)
             if case .duplicate = outcome { item.check = .pending }
@@ -721,6 +720,19 @@ struct ItemContext: Sendable {
             await state.update(order) { $0.stacking = .failed(failure) }
             return error.stop
         }
+    }
+
+    /// Writes `record` whatever the run's cancellation; nil when written,
+    /// else the reason.
+    static func record(_ record: RemotePublicationRecord, in catalog: Catalog) async -> String? {
+        await Task.detached {
+            do {
+                try await catalog.recordPublication(record)
+                return nil
+            } catch {
+                return error.localizedDescription
+            }
+        }.value
     }
 
     /// A name for the temporary file: the template's, with no separator.

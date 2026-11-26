@@ -228,7 +228,9 @@ public final class RemoteHTTPSession: Sendable {
                        ending: RemoteUploadEnding) async throws(RemoteError) -> RemoteAnswer {
         let request = try makeRequest(method: endpoint.method, path: endpoint.path, query: endpoint.queryItems,
                                       body: nil, sendsKey: endpoint.sendsKey, contentType: contentType)
-        let sink = MemorySink(limit: endpoint.maximumResponseSize, anyStatus: true)
+        let sink = MemorySink(limit: endpoint.maximumResponseSize, anyStatus: true) { sent, expected in
+            if RemoteUploadEnding.isFullySent(sent: sent, expected: expected) { ending.didSendAll() }
+        }
         let task = session.uploadTask(with: request, fromFile: file)
         delegate.register(sink, for: task.taskIdentifier)
         let outcome: Result<RemoteAnswer, TaskFailure> = await withTaskCancellationHandler {
@@ -337,6 +339,12 @@ protocol TaskSink: AnyObject, Sendable {
     /// asked only by a task that failed before any answer came: one that had
     /// an answer got past its handshake, so a refusal is another task's.
     func finished(_ error: (any Error)?, takeRefused: () -> TrustDecision?)
+    /// An upload's body went to the system.
+    func sent(_ total: Int64, of expected: Int64)
+}
+
+extension TaskSink {
+    func sent(_ total: Int64, of expected: Int64) {}
 }
 
 /// Hands a task's result to its caller once, whichever comes first: the
@@ -405,10 +413,17 @@ final class MemorySink: TaskSink {
     private let anyStatus: Bool
     private let state: Mutex<State>
     private let handoff = ResultHandoff<Result<RemoteAnswer, TaskFailure>>()
+    /// An upload's body went to the system: (sent, expected).
+    private let onSent: (@Sendable (Int64, Int64) -> Void)?
 
-    init(limit: Int, anyStatus: Bool = false) {
+    init(limit: Int, anyStatus: Bool = false, onSent: (@Sendable (Int64, Int64) -> Void)? = nil) {
         self.anyStatus = anyStatus
+        self.onSent = onSent
         state = Mutex(State(limit: limit))
+    }
+
+    func sent(_ total: Int64, of expected: Int64) {
+        onSent?(total, expected)
     }
 
     func start(_ continuation: CheckedContinuation<Result<RemoteAnswer, TaskFailure>, Never>) {
@@ -523,9 +538,17 @@ public struct RemoteAnswer: Sendable, Hashable {
 public final class RemoteUploadEnding: Sendable {
     public let bound: Duration
     private let started = Mutex<ContinuousClock.Instant?>(nil)
+    /// Told on the session's delegate queue when an upload's whole body went
+    /// to the system (tests and the debug script stop a run there).
+    private let onFullySent: (@Sendable () -> Void)?
 
-    public init(bound: Duration = .seconds(10)) {
+    public init(bound: Duration = .seconds(10), onFullySent: (@Sendable () -> Void)? = nil) {
         self.bound = bound
+        self.onFullySent = onFullySent
+    }
+
+    func didSendAll() {
+        onFullySent?()
     }
 
     /// The deadline, set by the first call.
@@ -735,6 +758,13 @@ final class SessionDelegate: NSObject, URLSessionDataDelegate, Sendable {
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void) {
         completionHandler(nil)
+    }
+
+    // MARK: Uploads
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64,
+                    totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
+        sink(task)?.sent(totalBytesSent, of: totalBytesExpectedToSend)
     }
 
     // MARK: Answers and downloads
