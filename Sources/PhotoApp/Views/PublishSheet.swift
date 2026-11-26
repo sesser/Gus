@@ -212,6 +212,10 @@ private struct PublishForm: View {
                 .fixedSize()
                 .accessibilityHint(Text(serverHint))
             }
+            // The chosen server was removed in the import window (review D-13).
+            if publish.chosenServerRemoved {
+                AnnouncedIssue(text: PublishText.chosenServerRemoved)
+            }
             if let service = publish.service {
                 Caption(text: service.address)
                     .lineLimit(1)
@@ -239,6 +243,7 @@ private struct PublishForm: View {
 
     /// The Server section's issue: a failed check, else a missing permission.
     private var serverHint: String {
+        if publish.chosenServerRemoved { return PublishText.chosenServerRemoved }
         if case .failed(let result) = publish.check { return PublishText.checkTitle(result, service: publish.service) }
         return publish.missing.server.isEmpty ? "" : PublishText.cantPublish(publish.missing.server)
     }
@@ -409,14 +414,17 @@ private struct PublishForm: View {
                 .accessibilityHint(Text(publish.missing.stacking.isEmpty ? "" : PublishText.stackingNeeds(publish.missing.stacking)))
             Caption(text: PublishText.stackingCaption)
             if publish.stacking {
-                LabeledContent("Folder map") {
-                    HStack {
-                        Text(PublishText.folderCount(publish.folderMap.count)).foregroundStyle(.secondary)
-                        Button("Edit Folder Map…") { publish.showFolderMapPage() }
+                // The folder map is the chosen server's: none without one (review D-13).
+                if publish.service != nil {
+                    LabeledContent("Folder map") {
+                        HStack {
+                            Text(PublishText.folderCount(publish.folderMap.count)).foregroundStyle(.secondary)
+                            Button("Edit Folder Map…") { publish.showFolderMapPage() }
+                        }
                     }
-                }
-                if publish.folderMap.isEmpty, publish.noneLinked {
-                    InfoLine(text: PublishText.noOriginalYet)
+                    if publish.folderMap.isEmpty, publish.noneLinked {
+                        InfoLine(text: PublishText.noOriginalYet)
+                    }
                 }
                 if !publish.missing.stacking.isEmpty {
                     AnnouncedIssue(text: PublishText.stackingNeeds(publish.missing.stacking))
@@ -513,7 +521,9 @@ private struct PublishSettingsPage: View {
             Divider()
             Form {
                 // The missing watermark the main page reports shows here too.
-                ExportSettingsSections(editor: publish.editor, watermarkIssue: publish.settingsIssue)
+                // A file just picked that isn't a PNG says so first (review F27).
+                ExportSettingsSections(editor: publish.editor,
+                                       watermarkIssue: publish.editor.watermarkIssue ?? publish.settingsIssue)
             }
             .formStyle(.grouped)
             Divider()
@@ -634,15 +644,19 @@ private struct ReasonGroup: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            ForEach(Array(photos.prefix(10).enumerated()), id: \.offset) { _, photo in
-                Text("\(photo.name): \(PublishText.reason(photo.reason))")
-                    .font(.system(size: 11))
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
+            // One leading edge whatever the lines' lengths (design §7, review F26).
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(photos.prefix(10).enumerated()), id: \.offset) { _, photo in
+                    Text("\(photo.name): \(PublishText.reason(photo.reason))")
+                        .font(.system(size: 11))
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if photos.count > 10 {
+                    Text(PublishText.andMore(photos.count - 10)).font(.system(size: 11))
+                }
             }
-            if photos.count > 10 {
-                Text(PublishText.andMore(photos.count - 10)).font(.system(size: 11))
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         } label: {
             Text("\(photos.count): \(PublishText.groupTitle(group))")
         }

@@ -15,6 +15,7 @@ import PhotoUI
 ///                  | fault permissions <a,b,…>
 ///     import server add <name> <address>|fake [<key>]   (Add Server… with the notice confirmed; waits for the check)
 ///     import server sheet add|edit|close|print|remove | field name|address|key <text> | confirm on|off | submit | trust | back
+///                        (address `fake`, or `fakehost`: the fake server named localhost)
 ///                        | review [<seed>]   (the Edit sheet's changed-certificate page, a made-up certificate)
 ///     import server list | select <name> (waits) | check | edit | remove [<name>] | confirm yes|no | print
 ///     import server keychain fail|ok   (the in-memory key store refuses, or works again)
@@ -251,7 +252,14 @@ enum DebugServerCommands {
             let text = rest.dropFirst().joined(separator: " ")
             switch field {
             case "name": sheet.name = text
-            case "address": sheet.address = text == "fake" ? fake?.address ?? "" : text
+            // `fakehost`: the fake server under the name localhost, another
+            // address for the same server (publishing review F28).
+            case "address":
+                sheet.address = switch text {
+                case "fake": fake?.address ?? ""
+                case "fakehost": fake?.address.replacingOccurrences(of: "127.0.0.1", with: "localhost") ?? ""
+                default: text
+                }
             case "key": sheet.setKey(text == "fake" ? FakeImmichServer.validKey : text)
             default: print("debug-script: import server sheet field: unknown")
             }

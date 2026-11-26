@@ -20727,6 +20727,17 @@
         }
       }
     },
+    "A later publish already sent the photos left to retry." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A later publish already sent the photos left to retry."
+          }
+        }
+      }
+    },
     "Retry Failed" : {
       "comment" : "Publishing (issue #28)",
       "localizations" : {

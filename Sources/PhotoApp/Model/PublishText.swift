@@ -537,5 +537,18 @@ enum PublishText {
         String(localized: "Photos not yet uploaded when you stopped aren't included.", comment: "Publish results: beside Retry Failed")
     }
 
+    /// In Retry Failed's place when a later publish sent every photo it
+    /// would cover (review D-12).
+    static var retryAlreadySent: String {
+        String(localized: "A later publish already sent the photos left to retry.",
+               comment: "Publish results: in place of Retry Failed")
+    }
+
     static var retryFailed: String { String(localized: "Retry Failed", comment: "Publish results button") }
+
+    /// Under the publish sheet's Server pop-up when its server was removed
+    /// in the import window (review D-13); the results sheet's words.
+    static var chosenServerRemoved: String {
+        String(localized: "This server was removed.", comment: "Publish sheet: under Server")
+    }
 }

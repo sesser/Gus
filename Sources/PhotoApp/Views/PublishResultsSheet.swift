@@ -95,10 +95,14 @@ struct PublishResultsSheet: View {
         let failed = run.items.filter(\.hasFailed)
         if !failed.isEmpty {
             Section(String(localized: "Failed", comment: "Publish results section")) {
-                ForEach(failed) { item in
-                    ForEach(Array(item.failures.enumerated()), id: \.offset) { _, failure in
-                        line(item.name, PublishText.failure(failure, already: item.isDuplicate))
-                    }
+                // One flat list with an id per photo and failure: nested
+                // ForEach's offsets drew the first photo's row for each.
+                let lines = failed.flatMap { item in
+                    item.failures.enumerated().map { (id: "\(item.versionID)-\($0.offset)", name: item.name,
+                                                      text: PublishText.failure($0.element, already: item.isDuplicate)) }
+                }
+                ForEach(lines, id: \.id) { entry in
+                    line(entry.name, entry.text)
                 }
             }
         }
@@ -141,7 +145,10 @@ struct PublishResultsSheet: View {
 
     private func buttons(_ run: PublishRun) -> some View {
         HStack(spacing: 12) {
-            if run.offersRetry {
+            if publish.retrySentByLaterRuns(run) {
+                // Nothing left to send: no button (review D-12).
+                Caption(text: PublishText.retryAlreadySent)
+            } else if publish.offersRetry(run) {
                 let refusal = publish.retryRefusal(run)
                 Button(PublishText.retryFailed) { publish.retry(run.id) }
                     .disabled(refusal != nil || publish.isRetryPending)

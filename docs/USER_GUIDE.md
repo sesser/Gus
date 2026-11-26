@@ -1218,7 +1218,13 @@ press **Publish**. The sheet:
   Opening the sheet checks the chosen server, and choosing another checks that
   one; nothing else contacts a server. A server added for importing over
   `http://` is publishable too, with no second question, and the sheet always
-  says **Not encrypted (http)** for it.
+  says **Not encrypted (http)** for it. If the chosen server's address or
+  certificate is changed in the import window while the sheet is open, the
+  sheet checks it again and keeps your choices. If the chosen server is
+  removed there, the sheet chooses no other: **Server** reads **None** with
+  **This server was removed.**, its albums, folder map and checks are gone,
+  and **Publish** and **Check Originals** are dimmed until you choose or add a
+  server; **Show in**, stacking, the file settings and the description stay.
 - **Album**: **None**, **New Album…** (a name; an album of that name may already
   exist, and the sheet says a second one will be made), or one of your albums.
   **Show in**: **Timeline** or **Archive**, set when the photo is uploaded. With
@@ -1328,7 +1334,10 @@ retry runs). After a stop caused by the server, it also publishes the photos not
 reached; after your own Stop it doesn't, and stopping a retry once it has started
 on its photos counts as your own Stop. It is offered until you quit, and not
 while another publish runs, after the server was removed, or after its address
-changed (the results say which, and stay open). Unfinished steps are not kept after you quit. Stack the photo in
+changed (the results say which, and stay open). It is not offered when a later
+publish to that server has already sent every photo it would cover: the results
+say **A later publish already sent the photos left to retry.** in its place, and
+the run's counts and lists stay as that run recorded them. Unfinished steps are not kept after you quit. Stack the photo in
 Immich, or publish it again as a New Copy. That stacks the existing photo if
 the server finds the file identical; otherwise the first upload stays loose
 beside the new one. The rendered files are temporary and are removed when the

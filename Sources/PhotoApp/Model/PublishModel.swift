@@ -78,6 +78,10 @@ final class PublishModel: ServerSheetHost {
     private var confirmingSession: Int?
     @ObservationIgnored private var confirmTask: Task<Bool, Never>?
     private(set) var serviceID: Int64?
+    /// The chosen server was removed in the import window while the sheet
+    /// was open: the Server pop-up reads None with a line saying so, until
+    /// another server is chosen or added (design §3.3, review D-13).
+    private(set) var chosenServerRemoved = false
     private(set) var check: CheckState = .idle
     /// Observed: `canPublish` reads it, and Publish N Photos must redraw when
     /// the check sets it (review F19).
@@ -155,9 +159,20 @@ final class PublishModel: ServerSheetHost {
     private(set) var runningServerUUID: String?
     /// Every run since launch, newest last (R23: Retry Failed until quit).
     private(set) var runs: [PublishRun] = []
-    var resultsRunID: UUID?
+    /// The run the results sheet shows; a change reads its later
+    /// publications (design §10.3, review D-12).
+    var resultsRunID: UUID? {
+        didSet { if resultsRunID != oldValue { readLaterPublications() } }
+    }
+    /// Per run, its photos not uploaded that a later run has published
+    /// (R23): read when the results sheet appears, when its run changes and
+    /// when a publish ends while it is open (design §10.3, review D-12).
+    private(set) var laterPublished: [UUID: Set<Int64>] = [:]
+    @ObservationIgnored private var laterReads = 0
     /// Debug script: the client whose server holds the next upload; tests stop there.
     @ObservationIgnored var debugOnFullySent: (@Sendable () -> Void)?
+    /// Debug script: how many server checks the sheet has started (review F28).
+    @ObservationIgnored private(set) var debugChecksStarted = 0
     /// Debug script and tests: the ending bound (the quit wait's 10 s otherwise).
     @ObservationIgnored var endingBound: Duration = .seconds(10)
 
@@ -197,6 +212,7 @@ final class PublishModel: ServerSheetHost {
         description = ""
         question = nil
         startIssue = nil
+        chosenServerRemoved = false
         // Nothing from the last opening counts until this one has checked
         // its server (review F9).
         check = .checking
@@ -229,9 +245,54 @@ final class PublishModel: ServerSheetHost {
     }
 
     /// The saved servers changed in either window (review F4): Retry
-    /// Failed's reasons and the sheet's menu follow at once.
+    /// Failed's reasons and the sheet's menu follow at once. The chosen
+    /// server removed clears what the sheet holds of it (review D-13); its
+    /// address or trusted certificate changed checks it again, keeping the
+    /// person's choices (review F28).
     func serversChanged() {
-        Task { await loadServers() }
+        Task {
+            let before = service
+            await loadServers()
+            switch PublishServerChange.after(reload: servers, chosenID: serviceID, before: before) {
+            case .unchanged:
+                break
+            case .removed:
+                chosenServerWasRemoved()
+            case .connectionChanged(let now):
+                // Only while the sheet shows it: nothing is contacted otherwise.
+                if library?.showsPublishSheet == true { await choose(now, keepingChoices: true) }
+            }
+        }
+    }
+
+    /// The chosen server is gone (design §3.3, review D-13): no other is
+    /// chosen by itself, since what is published can't be taken back by the
+    /// app. Nothing of the removed server stays: its check, albums, folder
+    /// map and links, Check Originals, a Publish being confirmed and the
+    /// Skip or New Copy question are given up, and the folder map page
+    /// closes without saving. Show in, stacking, the file settings and the
+    /// description stay.
+    private func chosenServerWasRemoved() {
+        cancelSheetWork()
+        serviceID = nil
+        check = .idle
+        client = nil
+        albums = []
+        albumsState = .notLoaded
+        album = .none
+        newAlbumName = ""
+        folderMap = []
+        sources = [:]
+        noneLinked = true
+        question = nil
+        startIssue = nil
+        if page == .folderMap {
+            editingMap = []
+            focusedMapping = nil
+            page = .main
+        }
+        // With no saved server left, the No saved server state says it all.
+        chosenServerRemoved = !servers.isEmpty
     }
 
     /// Chooses a server and runs the check. Its remembered choices are
@@ -242,6 +303,7 @@ final class PublishModel: ServerSheetHost {
         guard let library, let id = service.id else { return }
         let opened = session
         serviceID = id
+        chosenServerRemoved = false
         // Dimmed until this server's check passes (review F9).
         checkTask?.cancel()
         albumsTask?.cancel()
@@ -285,6 +347,7 @@ final class PublishModel: ServerSheetHost {
         let keys = library.remoteKeyStore
         let readsAccount = stacking
         let opened = session
+        debugChecksStarted += 1
         checkTask = Task {
             let outcome = await PublishConnection.connect(service, keys: keys, readsAccount: readsAccount)
             guard !Task.isCancelled, session == opened, self.serviceID == service.id else { return }
@@ -377,6 +440,8 @@ final class PublishModel: ServerSheetHost {
     }
 
     func showFolderMapPage() {
+        // The map is the chosen server's (review D-13).
+        guard service != nil else { return }
         editingMap = folderMap
         page = .folderMap
     }
@@ -766,6 +831,8 @@ final class PublishModel: ServerSheetHost {
                         warning: counts.isWarning(ending: run.ending), announcing: lines.first ?? "",
                         actionID: PublishText.resultsActionID(run.id))
         library?.cardImport.publishedRecordsChanged()
+        // A publish ended: the results sheet's Retry Failed follows (review D-12).
+        if library?.showsPublishResults == true { readLaterPublications() }
     }
 
     /// The slot goes, with the Activity job; nothing is reported.
@@ -824,6 +891,36 @@ final class PublishModel: ServerSheetHost {
     /// Failed's reason is current (review F4).
     func resultsAppeared() {
         serversChanged()
+        readLaterPublications()
+    }
+
+    /// Reads which of the shown run's photos a later run has published
+    /// (review D-12). Until it returns, the run's own coverage decides; a
+    /// retry pressed meanwhile reads again before it starts.
+    func readLaterPublications() {
+        guard let library, let run = resultsRun else { return }
+        let catalog = library.catalog
+        laterReads += 1
+        let read = laterReads
+        Task {
+            // A catalog that can't be read leaves nothing out, as the job does.
+            let later = (try? await catalog.laterPublications(of: run)) ?? []
+            // Only the newest read lands, so an older one never shows less.
+            guard read == laterReads else { return }
+            laterPublished[run.id] = later
+        }
+    }
+
+    /// Retry Failed is offered for `run`: it covers a photo still to send or
+    /// finish (design §10.3, review D-12).
+    func offersRetry(_ run: PublishRun) -> Bool {
+        run.offersRetry(laterPublished: laterPublished[run.id] ?? [])
+    }
+
+    /// Every photo `run`'s retry would cover was published by a later run:
+    /// the caption stands in Retry Failed's place (review D-12).
+    func retrySentByLaterRuns(_ run: PublishRun) -> Bool {
+        run.retrySentByLaterRuns(laterPublished: laterPublished[run.id] ?? [])
     }
 
     enum RetryRefusal: Equatable { case running, serverRemoved, addressChanged }
@@ -841,13 +938,20 @@ final class PublishModel: ServerSheetHost {
     /// Stop (review D-2), so nothing else can start meanwhile (code review C2).
     func retry(_ id: UUID) {
         guard let library, !isRetryPending, !isPublishing, let run = runs.first(where: { $0.id == id }),
-              run.offersRetry else { return }
+              offersRetry(run) else { return }
         isRetryPending = true
+        // A sheet read still on its way never lands over this one.
+        laterReads += 1
         Task {
             await loadServers()
+            // Nothing left to send once later runs are read: no run starts,
+            // and the sheet shows the caption (review D-12).
+            let later = (try? await library.catalog.laterPublications(of: run)) ?? []
+            laterPublished[run.id] = later
             isRetryPending = false
-            guard retryRefusal(run) == nil, let service = servers.first(where: { $0.uuid == run.service.uuid }),
-                  claim(run, phase: .checking, total: run.retryCandidates.count) else { return }
+            guard run.offersRetry(laterPublished: later), retryRefusal(run) == nil,
+                  let service = servers.first(where: { $0.uuid == run.service.uuid }),
+                  claim(run, phase: .checking, total: run.retryVersionIDs(laterPublished: later).count) else { return }
             library.showsPublishResults = false
             task = Task { await retryRun(run, service: service) }
         }

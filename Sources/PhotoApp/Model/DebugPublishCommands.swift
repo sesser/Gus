@@ -14,6 +14,7 @@ import PhotoUI
 ///     publish album none|new <name>|existing <name> | show timeline|archive | stacking on|off
 ///     publish description <text>          typed for this run
 ///     publish settings open|cancel|done | settings metadata all|nolocation|copyright|none
+///                                         | settings watermark <file>   (as Choose Image… picking it)
 ///     publish map open|cancel|done|print | map add <folder> <server path>
 ///     publish originals                   Check Originals; waits and prints the result
 ///     publish start                       Publish N Photos; prints whether it asked or started
@@ -101,6 +102,11 @@ enum DebugPublishCommands {
                 default: .all
                 }
                 publish.editor.settings.metadata = level
+            case "watermark":
+                // As Choose Image… picking that file (review F27).
+                let path = rest.dropFirst().joined(separator: " ")
+                publish.editor.watermarkPicked(URL(fileURLWithPath: (path as NSString).expandingTildeInPath))
+                try? await Task.sleep(for: .milliseconds(200))
             default: break
             }
         case "map":
@@ -174,6 +180,11 @@ enum DebugPublishCommands {
                 for _ in 0..<200 {
                     try? await Task.sleep(for: .milliseconds(25))
                     if publish.isPublishing || publish.runs.first(where: { $0.id == run.id })?.endedAt != before { break }
+                    // Refused after reading the servers and later runs (review F4, D-12).
+                    if !publish.isRetryPending {
+                        print("debug-script: publish results retry refused")
+                        break
+                    }
                 }
             case "close":
                 model.showsPublishResults = false
@@ -224,11 +235,14 @@ enum DebugPublishCommands {
                      + "offline \(publish.offlinePhotos) hdr \(publish.hdrPhotos)")
         let service = publish.service
         lines.append("server '\(service?.name ?? "-")' address '\(service?.address ?? "-")' "
-                     + "notEncrypted \(service?.serverAddress?.scheme == .http) servers \(publish.servers.map(\.name))")
+                     + "notEncrypted \(service?.serverAddress?.scheme == .http) servers \(publish.servers.map(\.name)) "
+                     + "removedLine '\(publish.chosenServerRemoved ? PublishText.chosenServerRemoved : "-")'")
         switch publish.check {
-        case .idle: lines.append("check idle")
-        case .checking: lines.append("check checking")
-        case .passed(let info): lines.append("check passed version \(info.version) account \(info.ownerID == nil ? "-" : "read")")
+        case .idle: lines.append("check idle checks \(publish.debugChecksStarted)")
+        case .checking: lines.append("check checking checks \(publish.debugChecksStarted)")
+        case .passed(let info):
+            lines.append("check passed version \(info.version) account \(info.ownerID == nil ? "-" : "read") "
+                         + "checks \(publish.debugChecksStarted)")
         case .failed(let result):
             let text = ServerText.result(result, host: service?.serverAddress?.host ?? "", name: service?.name ?? "",
                                          purpose: .publishing)
@@ -253,9 +267,13 @@ enum DebugPublishCommands {
                      + "nameTaken \(publish.newAlbumNameTaken != nil)")
         let archive = publish.visibility == .archive ? (publish.stacking ? PublishText.archiveStacked : PublishText.archivePlain) : "-"
         lines.append("show \(publish.visibility.rawValue) caption '\(archive)'")
-        lines.append("stacking \(publish.stacking) folders \(publish.folderMap.count) "
-                     + "noOriginalYet \(publish.folderMap.isEmpty && publish.noneLinked) checkOriginals \(publish.canCheckOriginals ? "enabled" : "dimmed")")
+        // As the Stacking section draws them: no folder map row without a server (review D-13).
+        let mapRow = publish.stacking && service != nil
+        lines.append("stacking \(publish.stacking) mapRow \(mapRow ? "shown" : "hidden") folders \(publish.folderMap.count) "
+                     + "noOriginalYet \(mapRow && publish.folderMap.isEmpty && publish.noneLinked) "
+                     + "checkOriginals \(publish.canCheckOriginals ? "enabled" : "dimmed")")
         lines.append("settings '\(PublishText.settingsSummary(publish.editor.settings))' issue '\(publish.settingsIssue ?? "-")' "
+                     + "page issue '\(publish.editor.watermarkIssue ?? publish.settingsIssue ?? "-")' "
                      + "description '\(publish.description)' sent \(publish.descriptionIsSent) "
                      + "caption '\(PublishText.filesCaption(publish.editor.settings.metadata))'")
         lines.append("publish \(publish.canPublish ? "enabled" : "dimmed") confirming \(publish.isConfirming) "
@@ -317,7 +335,9 @@ enum DebugPublishCommands {
             print("debug-script: publish results \(item.name): \(upload); \(notes.joined(separator: " "))")
         }
         let refusal = publish.retryRefusal(run).map(PublishText.retryRefusal)
-        print("debug-script: publish results retry \(run.offersRetry ? (refusal == nil ? "enabled" : "dimmed '\(refusal!)'") : "absent") "
+        let retry = if publish.retrySentByLaterRuns(run) { "absent caption '\(PublishText.retryAlreadySent)'" }
+            else if publish.offersRetry(run) { refusal == nil ? "enabled" : "dimmed '\(refusal!)'" } else { "absent" }
+        print("debug-script: publish results retry \(retry) "
               + "leavesOut \(run.retryLeavesOutUnreached) album \(run.album)")
     }
 
