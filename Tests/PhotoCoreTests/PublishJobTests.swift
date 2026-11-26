@@ -1194,6 +1194,95 @@ struct PublishJobTests {
         }
     }
 
+    /// The case a check came out as, for a message (`PublishConnection` is not `Equatable`).
+    static func label(_ connection: PublishConnection) -> String {
+        switch connection {
+        case .ready: "ready"
+        case .failed(let result): "failed(\(result))"
+        case .changed(.removed): "removed"
+        case .changed(.connectionChanged): "connectionChanged"
+        case .changed(.unchanged): "unchanged"
+        case .unreadable: "unreadable"
+        }
+    }
+
+    @Test("A retry whose server was changed or removed as its check started, or whose catalog can't be read, is called off: nothing sent, the run as it was (D-17, security review N7, QA Q7)")
+    func retryCalledOffWhenServerChanged() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await Self.fixture(root, files: ["a.jpg", "b.jpg"])
+            let ids = [try await f.version("a.jpg"), try await f.version("b.jpg")]
+            // A fault stop with a photo not reached (as `stopDuringRetryCheck`).
+            f.server.onUploadReceived { _ in f.server.add(.drop) }
+            let run = await f.job(stacking: false).run(try await f.makeRun(ids, stacking: false))
+            f.server.onUploadReceived(nil)
+            f.server.clearFaults()
+            f.server.remove(.drop)
+            #expect(run.ending == .stopped(.unreachable))
+            #expect(run.retryCandidates == [ids[1]])
+            let keys = InMemoryKeyStore()
+            try keys.setKey(FakeImmichServer.validKey, account: f.service.uuid)
+            // What Retry Failed read before it started (the run's server).
+            let held = run.service
+            let catalog = f.catalog
+            // The control: as saved, this record and key pass the check.
+            let control = await PublishConnection.connect(held, catalog: catalog, keys: keys, readsAccount: false)
+            guard case .ready = control else {
+                Issue.record("the unchanged server did not pass its check: \(Self.label(control))")
+                return
+            }
+
+            let jobsMade = Mutex(0)
+            let writesBefore = f.writes
+            let requestsBefore = f.server.requests.count
+            /// Retry Failed with the real check; `expected` is the case that check must come out as.
+            func retry(expecting expected: String) async {
+                let seen = Mutex<String?>(nil)
+                let outcome = await PublishRetry.perform(run, check: {
+                    let connection = await PublishConnection.connect(held, catalog: catalog, keys: keys,
+                                                                     readsAccount: false)
+                    seen.withLock { $0 = Self.label(connection) }
+                    return connection
+                }, makeJob: { _, _ in
+                    jobsMade.withLock { $0 += 1 }
+                    return nil
+                })
+                #expect(seen.withLock { $0 } == expected)
+                if case .calledOff = outcome {} else { Issue.record("\(expected): not called off: \(outcome)") }
+                #expect(outcome.ended(stopAsked: false) == nil, "\(expected): the run was replaced")
+                #expect(f.server.requests.count == requestsBefore, "\(expected): the server was contacted")
+                #expect(f.writes == writesBefore)
+            }
+
+            // Another window saves a new address for the server.
+            let heldID = try #require(held.id)
+            let saved = try #require(try await catalog.remoteService(id: heldID))
+            var moved = saved
+            moved.address = "https://photos.example.com"
+            moved.allowsUnencrypted = false
+            guard case .saved = await catalog.saveRemoteService(moved, key: PublishKeyPairingTests.newKey, keys: keys) else {
+                Issue.record("not saved")
+                return
+            }
+            await retry(expecting: "connectionChanged")
+
+            // It removes the server.
+            #expect(try await catalog.removeRemoteService(moved, keys: keys) == nil)
+            await retry(expecting: "removed")
+
+            // The catalog can't be read when the check reads the row.
+            try await catalog.database.write { db in
+                try db.execute(sql: "ALTER TABLE remoteService RENAME TO remoteServiceUnreadable")
+            }
+            await retry(expecting: "unreadable")
+
+            #expect(jobsMade.withLock { $0 } == 0, "a job was built")
+            #expect(run.ending == .stopped(.unreachable))
+            #expect(run.retryCandidates == [ids[1]])
+            #expect(f.server.uploads.count == 1)
+            f.expectOnlyAllowedRequests()
+        }
+    }
+
     @Test("An id the server gives that isn't plain ASCII is never put in a path (security review N1)")
     func strangeIDsNeverRequested() async throws {
         let server = try await FakeImmichServer()
