@@ -21,9 +21,15 @@ import PhotoUI
 ///     import server project <text>   (as typing in the Project name field; `print` shows the DQ-13 note)
 ///     import album <name>|all (waits) | import dates <yyyy-mm-dd|-> <yyyy-mm-dd|->|clear (waits)
 /// (`import scroll <index>|end` is `ImportDebugCommands`'.)
+///     import server fake … | fault stack refuse|ok | fault lose <METHOD> <path> <times>
+///                  | fault answer <METHOD> <path> <status> <times> | fault hold on|off|release | uploads
+///     (publishing, issue #28: the fake server's refused stack, lost answers, canned statuses, held upload answers)
 @MainActor
 enum DebugServerCommands {
     private static var fake: FakeImmichServer?
+
+    /// The fake server the script started (publishing's commands use it too).
+    static var fakeServer: FakeImmichServer? { fake }
 
     /// Returns false for words it does not handle.
     static func run(_ words: [String], model: CardImportModel, window: NSWindow?) async -> Bool {
@@ -154,6 +160,12 @@ enum DebugServerCommands {
         case "stop":
             fake?.stop()
             fake = nil
+        case "uploads":
+            for upload in fake?.uploads ?? [] {
+                print("debug-script: import server upload \(upload.duplicate ? "duplicate" : "created") "
+                      + "name \(upload.fields["filename"] ?? "-") date \(upload.fields["fileCreatedAt"] ?? "-") "
+                      + "visibility \(upload.fields["visibility"] ?? "-") bytes \(upload.data.count)")
+            }
         case "requests":
             for request in fake?.requests ?? [] {
                 print("debug-script: import server request \(request.method) \(request.path) "
@@ -180,6 +192,25 @@ enum DebugServerCommands {
                 }
             case "slow": fake.add(.slow(.milliseconds(rest.dropFirst().first.flatMap(Int.init) ?? 500)))
             case "permissions": fake.setPermissions(rest.dropFirst().first?.split(separator: ",").map(String.init) ?? [])
+            case "stack":
+                if rest.dropFirst().first == "refuse" { fake.add(.refuseStack) } else { fake.remove(.refuseStack) }
+            case "lose":
+                let parts = Array(rest.dropFirst())
+                guard parts.count >= 2 else { return }
+                fake.add(.loseAnswer(method: parts[0], path: parts[1], times: parts.dropFirst(2).first.flatMap(Int.init) ?? 1))
+            case "answer":
+                let parts = Array(rest.dropFirst())
+                guard parts.count >= 3, let status = Int(parts[2]) else { return }
+                fake.add(.answer(method: parts[0], path: parts[1], status: status,
+                                 times: parts.dropFirst(3).first.flatMap(Int.init) ?? 1))
+            case "hold":
+                switch rest.dropFirst().first {
+                case "on": fake.add(.holdUploadAnswer)
+                case "release": fake.releaseHeldAnswers()
+                default:
+                    fake.remove(.holdUploadAnswer)
+                    fake.releaseHeldAnswers()
+                }
             case "external":
                 // The asset at <index> is an external library's, its checksum the path's (RI-E2).
                 guard let id = asset(rest.dropFirst().first) else { return }
@@ -284,9 +315,14 @@ enum DebugServerCommands {
         default: break
         }
         if let result = sheet.result,
-           let text = ServerText.result(result, host: sheet.parsedAddress?.host ?? "", name: sheet.effectiveName) {
-            parts.append("result \(result.kind) '\(text.title)' under \(text.concernsAddress ? "address" : "key")")
+           let text = ServerText.result(result, host: sheet.parsedAddress?.host ?? "", name: sheet.effectiveName,
+                                        purpose: sheet.purpose, keyCanPublish: sheet.keyCanPublish) {
+            parts.append("result \(result.kind) '\(text.title)' under \(text.concernsAddress ? "address" : "key") "
+                         + "detail '\(text.detail)'")
         }
+        // Publishing (issue #28): the host's captions and the address warning (R26).
+        parts.append("captions '\(ServerText.keyCaptions(sheet.purpose).joined(separator: "' '"))'")
+        if sheet.showsAddressWarning { parts.append("warning '\(ServerText.addressChangeWarning)'") }
         parts.append("checking \(sheet.isChecking) default \(sheet.canSubmit ? "enabled" : "dimmed")")
         // The sheet's size against its ideal (design §11, S2).
         let size = model.window?.attachedSheet?.frame.size

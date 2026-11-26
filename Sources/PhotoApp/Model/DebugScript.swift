@@ -854,6 +854,8 @@ enum DebugScript {
             await DebugCopyCommands.duplicate(rest, model: model)
         case "merge":
             await DebugMergeCommands.run(rest, model: model)
+        case "publish":
+            await DebugPublishCommands.run(rest, model: model)
         case "print" where rest.first == "merge":
             DebugMergeCommands.printState(model)
         case "print" where rest.first == "copysheet":
