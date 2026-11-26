@@ -4,22 +4,94 @@ Issue: #28 · Complexity: Hard
 
 Owner: swift-macos-engineer. Branch `feature/publishing-engine` (off `develop`).
 Spec: the PRD (issue #28, **revision 7**, 2026-11-26) and [design.md](design.md)
-(rulings in its §16 and §17: D-1 to D-16 and the correction to §3.6).
+(rulings in its §16 and §17: D-1 to D-19 and the correction to §3.6).
 
-**State: Done** (2026-11-26, fix round after QA). The owner asked for security
-N7 and QA's Q1 to Q4 to be fixed, and the byte-identical claim (QA Q6, filed as
-#302) corrected, before the hand checks: **Fix round after QA** below, each item
-with a test that failed without its fix or a scripted check against the build
-without it. `swift test`, `Scripts/build-app.sh all` and the CI toolchain build
-are recorded under **Build and test**. Open for others: the checks **For a
-person** (review.md's M1 to M7), the owner's approval of the proposed
-`CLAUDE.md` Network rule (one sentence added this round, on reading a key with
-its row), the **Design questions (fix round)** below, and **Follow-ups
-proposed**. N8 and #301 are not touched. Next: code-reviewer's second pass on
-this round (it touches the key store's write order's surroundings and shared
-state across tasks), the security reviewer's on N7, the designer's only for the
-one behaviour a person can see (a Publish or Retry Failed pressed in the moment a
-Save lands now gives up, see N7 below), then qa-tester.
+**State: Done** (2026-11-26, D-17 to D-19 after the fix round). The designer
+ruled DQ-F1 to DQ-F3 (design §10.3, §11.1, §11.2, §17); security N7 is now
+closed on the import side too: **D-17 to D-19** below, each with tests that
+failed without their fix and scripted checks. `swift test`,
+`Scripts/build-app.sh all` and the CI toolchain build are recorded under
+**Build and test**. Open for others: the checks **For a person** (review.md's M1
+to M7), the owner's approval of the proposed `CLAUDE.md` Network rule (its key
+sentence widened this round to every key read), and **Follow-ups proposed**. N8,
+#301, #302 and the designer's proposed follow-up on the Keychain error's title
+are not touched. Next: code-reviewer's second pass on this round (it changes
+#271's import check and Server sheet, shared state across tasks and the key
+store's surroundings: opus), the security reviewer's on N7's import side, the
+designer's for what a person sees in the import window and the Server sheet
+(§11.1, §11.2), then qa-tester.
+
+## D-17 to D-19 (2026-11-26)
+
+Started from this file at 944982c; the designer's rulings committed as they
+were (aa3216e). #271's import behaviour is otherwise unchanged.
+
+| # | Built | Test or check |
+|---|---|---|
+| D-17 | No code change (the retry was already called off silently, and `retryRefusal` refuses only a removal or an address change). This file's wording corrected: the N7 row below and DQ-F1 now say that, reopened, the results sheet shows the run unchanged; a removal or an address change shows the existing refusal with **Retry Failed** off, and after a certificate change alone the next **Retry Failed** runs and checks the server as saved | Reading (`PublishModel.retryRefusal`: `.serverRemoved`, `.addressChanged`, nothing for a certificate) |
+| D-18 | The import window's check moved to PhotoCore as `RemoteImportConnection.connect` (`Remote/RemoteServerChecks.swift`): the key is read with the row as saved now (`RemoteSavedKey.read`, under the account's gate), and only a row with the window's address and trusted certificate is contacted; otherwise `.changed`, nothing sent. A catalog that can't be read is `.keychain` with the catalog's message, as the Server sheet shows it. Every check the window makes goes through it (choosing the server, Rescan, Try Again, the reconnect after an import). The rule for following is `RemoteSourceFollow.after(held:now:importing:)`: the same address and certificate with another name, `takeSaved` (in place: title, Source pop-up, inspector, Edit Server…'s record; the Project name follows unless typed; nothing contacted); another address or certificate, `chooseAgain` (`chooseServer`, so §11.1's table: selection, pages, album, range and a typed project name go, an earlier "Imported n photos" goes, destination and templates stay); removed, `leave` (as after Remove Server…); any of these during an import from it, `afterImport` (nothing changes). `ServerBrowse.service` is now a `var` the window updates. `loadServersAfterPublish` (run after every Save from Publish, whether the window is in front, behind, minimized or closed) applies the rule at once; a check that finds the change follows it; a check during an import that finds it restores the grid's state and touches nothing; the reconnect after an import (`connectServer(keepingSubtitle: true)`) follows the server as saved then, keeping the ending subtitle. Nothing brings the window forward or moves the keyboard. The old `CardImportModel.check` (key by uuid alone) is deleted | `ServerKeyPairingTests`: `importCheckWithSavedRow` (a rename connects and returns the renamed row; a new address and key, a certificate alone, a removal: `.changed`, the previous address gets no request), `importCheckWaitsForTheRow` (a Save between its key write and its row write: the check waits, contacts nothing, sees the new row), `sourceFollowRule` (every case, importing or not). Scripted checks A, B, B2, C, F below |
+| D-19 | The Server sheet's check and save moved to PhotoCore as `RemoteServerSheetCheck` (`key`, `check`, `save`, `run`), which `ServerSheetModel.submit` calls for Save with a check and Trust Certificate, from either host. At the press: D-16's removal check first, then a typed key as before, or the stored key read with the row (`RemoteSavedKey.read` against the record the sheet opened on); a row with another address or trusted certificate ends it with `.changed`, nothing sent or written. At the save with the key field empty: the new `Catalog.saveRemoteService(_:checkedWith:opened:keys:)` reads the stored key and the row and writes the row under the account's `RemoteKeyGate`, only if the key is still the one the check used and the address and certificate still the opened ones; otherwise `.changed` (or `.removed`, D-16, no key left), nothing written. `ServiceSaveOutcome` gained `.changed`. On `.changed` the sheet calls its host's `serverSheetSaved` with the server as saved now: from Publish the publish sheet returns with that server chosen and checks it again, every choice and the description kept, no D-15 line; from Import the window reads its servers, chooses the server as saved (the grid takes the keyboard when it appears) and tells the publish side. No alert, no new string. A typed key, a name-only Save and Add are unchanged. `ServerSheetModel.storedKey` is deleted | `ServerKeyPairingTests`: `sheetBehindAtPress` (another address and key saved elsewhere, then a certificate alone: `.changed`, no request, the row and key the other window's), `sheetBehindAtSave` (the Save lands after the key read and the passing check: `.changed`, row not written over), `sheetKeyChangedAtSave` (a new key alone saved meanwhile: `.changed`, the row's name not written), `sheetUpToDateAndTypedKey` (not behind: saved as before; a typed key saved with what the form shows over the other window's Save), `sheetRemovedAtSave` (`.removed`, no row, no key), `sheetSaveHoldsTheGate`. Scripted checks D and E below |
+
+**Fails without the fix.** The new tests were run against the old behaviour
+put back in the PhotoCore code (the import check reading the key by uuid alone
+and connecting to the record it was given; the sheet reading the stored key
+without its row; the guarded save replaced by the old row write): 6 of 9 failed
+with 8 issues (`importCheckWithSavedRow` 2, `importCheckWaitsForTheRow` 2,
+`sheetBehindAtPress` 1 (the old check sent the other window's key to the
+sheet's address, which refused it), `sheetBehindAtSave` 1, `sheetKeyChangedAtSave`
+1, `sheetSaveHoldsTheGate` 1). The three that passed are the ones that should:
+`sheetRemovedAtSave` (D-16 was already right), `sheetUpToDateAndTypedKey` (the
+unchanged behaviour) and `sourceFollowRule` (new code: against a mutation that
+ignores the certificate and the running import, 5 issues). Restored, passing.
+
+**Every place that reads a server key** (after this round; `grep -rn
+"\.key(account:" Sources` finds three):
+
+| Where | Reads the key | Paired with its row |
+|---|---|---|
+| `RemoteSavedKey.read` | for a check: publishing (`PublishConnection.connect`: the sheet's check, Publish, Retry Failed), the import window (`RemoteImportConnection.connect`: choosing, Rescan, Try Again, the reconnect after an import), the Server sheet with the key field empty (`RemoteServerSheetCheck.key`, both hosts) | Yes: under the account's gate, with the row as saved now; only a row with the caller's address and certificate is given a key |
+| `Catalog.saveRemoteService(_:key:keys:)` | the previous key, only to put it back if the row write fails (F2) | Not needed: never sent anywhere; read and written under the gate with the row |
+| `Catalog.saveRemoteService(_:checkedWith:opened:keys:)` | the stored key, only to compare it with the one the check used (D-19) | Yes: under the gate with the row it compares and writes; never sent |
+
+A run already under way (an import, a publish job, a retry past its check)
+reads no key: it uses the client made by its check, whose key was read with its
+row. `removeRemoteService` only deletes. The debug script's `import server
+keychain fail|ok` only switches the in-memory store. The standalone importer and
+`photocli` have no key store.
+
+**Scripted checks** (2026-11-26). The debug bundle (`CONFIGURATION=debug
+Scripts/build-app.sh library`) copied with identifier
+`me.sesser.gus.debugtest.round6` and signed ad hoc; a fresh copy of the
+`photobench` scratch library (3 JPEGs and a video) for every script; the fake
+server reached as `127.0.0.1` and as `localhost` (the requests now record their
+`Host`, printed by `import server fake requests [since]` after `import server
+fake mark`); every launch with `--library-root`, never activated, each quit by
+itself (exit 0).
+
+| | What | Seen |
+|---|---|---|
+| A | Import window on Home (127.0.0.1), album Trip, two photos checked, a project name typed; Publish's Edit Server… saves the address as `localhost` | The window: Home at `http://localhost:…`, All Photos, no range, 0 of 30 selected, project `Home - All Photos`; every request after the Save to `localhost` (the Server sheet's check, the publish sheet's, then the window's check, albums, first page and thumbnails), none to 127.0.0.1 |
+| B, B2 | The same, Publish's Edit Server… saves only the name Cellar | The window: Cellar at 127.0.0.1, still Trip, still 2 of 5 selected; a typed project name kept (B), the prefill following to `Cellar - Trip` (B2). After the Save: only the publish sheet's own check and album list (no page or thumbnail request from the window) |
+| C | Six photos importing (each original held 2 s); Publish's Edit Server… saves `localhost` during it | Right after the Save: the list has `localhost`, the window still 127.0.0.1, 6 selected, importing 1/6; originals kept going to 127.0.0.1 while the publish sheet checked `localhost`. After the run: all six originals came from 127.0.0.1, then the window's reconnect went to `localhost` (check, albums, first page); window at `localhost`, 0 selected, subtitle **Imported 6 photos** kept |
+| D | The import window's Edit Server sheet open (key empty) on Home at 127.0.0.1; Publish's Edit Server… saves `localhost`; then the stale sheet's Trust Certificate (a made-up certificate, `import server sheet review`) | The sheet closed, no alert; nothing sent to 127.0.0.1 after the press; the saved server unchanged (`localhost`, no pin); the window shows it and checked it once at `localhost` |
+| E | As D, but the stale sheet's check is held 3 s (`fault slowcheck`) and Publish's Save lands during it (`trust nowait`) | The stale check's requests went to 127.0.0.1 with the key read before the Save, which belongs to that address; the Save landed meanwhile; the sheet then closed with nothing written (still `localhost`, no pin, where the old code wrote 127.0.0.1 and the made-up pin); the window shows the server as saved |
+| F | The in-memory key store refusing, Rescan; then working again | `cantConnect(keychain)` as before (the existing title, untouched), then passed |
+
+The scripts ran against this round's build only; the tests above are the
+evidence against the old behaviour.
+
+**User guide.** The import section now says that the window follows a server
+saved again from **File ▸ Publish…** (a rename in place, a new address or
+certificate reloads as if chosen again, a key saved for a new address never
+goes to the old one, a running import finishes on its address first) and that
+a Server sheet behind the saved server, key field empty, sends and saves
+nothing and closes. No wording for it was found in design.md or review.md, so
+the sentences are the engineer's, for the designer to check at review.
+
+New debug-script words: `import server fake mark`, `import server fake
+requests since` (with each request's host), `import server sheet trust nowait`,
+`publish serversheet field address fakehost`, and `import server print` adds
+`importing <done>/<total>` while an import runs.
 
 ## Fix round after QA (2026-11-26)
 
@@ -35,7 +107,7 @@ activated.
 
 | # | Fix | Test or check |
 |---|---|---|
-| N7 | Two halves, both closed for publishing. (1) A record held since before a Save: `PublishConnection.connect` (now with `catalog:`) reads the key and the row as saved now and contacts only a row with the address and trusted certificate it was given (`PublishServerChange.after`); otherwise it returns the new `.changed(PublishServerChange)` and sends nothing. (2) A Save between its key write and its row write: a re-read alone can't see it (the row is still the previous one while the Keychain already has the new key), so every key read for publishing and every key-and-row write share a per-account gate, `RemoteKeyGate` (PhotoCore `Remote/RemoteKeyPairing.swift`, a `Mutex` of held accounts and waiting continuations, FIFO). `Catalog.saveRemoteService(_:key:keys:)` holds it from reading the previous key through the row write and, on a failed row, the key's restore; `RemoteSavedKey.read` holds it around the key read and the row read. F2's write order is unchanged. The gate is per process: only the library app saves or reads server keys, and the library lock keeps a second app off the catalog. It is never held across a request; a Keychain access prompt holds it until answered, and another Save of the same server waits meanwhile. In the app: the sheet's check ignores `.changed` (the reload the Save posts checks the server again as saved, F28, or clears it, D-13); Publish gives up with D-15's line on a changed address or certificate, or leaves D-13's reload to say a removal; Retry Failed's check is called off (no ending, the run as it was), and the next Retry Failed gets the refusal its reload finds; a catalog that can't be read shows its error as the start issue (sheet and Publish) or calls the retry off. Nothing new is shown, no string added | `PublishKeyPairingTests`: `staleRecordNeverPaired` (a rename still connects; a new address and key, a certificate alone, a removal: `.changed`, the previous address's fake server gets no request), `waitsForTheRow` (the test holds the gate as a Save does, with the new key written and the row not: the check waits, contacts nothing, and sees the new row), `checkDuringSave` (a check started from the key store's write hook inside a real Save sees the Save whole), `saveHoldsTheGate`. Against the old connect (key only, no gate, no row): 3 tests failed, 5 issues. Against the re-read with no gate (the review's suggestion alone): `waitsForTheRow` 3 issues and `saveHoldsTheGate` 1; `checkDuringSave` passed then, as expected (without the gate its order is the scheduler's). Restored, passing |
+| N7 | Two halves, both closed for publishing. (1) A record held since before a Save: `PublishConnection.connect` (now with `catalog:`) reads the key and the row as saved now and contacts only a row with the address and trusted certificate it was given (`PublishServerChange.after`); otherwise it returns the new `.changed(PublishServerChange)` and sends nothing. (2) A Save between its key write and its row write: a re-read alone can't see it (the row is still the previous one while the Keychain already has the new key), so every key read for publishing and every key-and-row write share a per-account gate, `RemoteKeyGate` (PhotoCore `Remote/RemoteKeyPairing.swift`, a `Mutex` of held accounts and waiting continuations, FIFO). `Catalog.saveRemoteService(_:key:keys:)` holds it from reading the previous key through the row write and, on a failed row, the key's restore; `RemoteSavedKey.read` holds it around the key read and the row read. F2's write order is unchanged. The gate is per process: only the library app saves or reads server keys, and the library lock keeps a second app off the catalog. It is never held across a request; a Keychain access prompt holds it until answered, and another Save of the same server waits meanwhile. In the app: the sheet's check ignores `.changed` (the reload the Save posts checks the server again as saved, F28, or clears it, D-13); Publish gives up with D-15's line on a changed address or certificate, or leaves D-13's reload to say a removal; Retry Failed's check is called off (no ending, the run as it was), and reopened, the results sheet shows the run unchanged: a removal or an address change shows the existing refusal with Retry Failed off, and after a certificate change alone the next Retry Failed runs and checks the server as saved (D-17); a catalog that can't be read shows its error as the start issue (sheet and Publish) or calls the retry off. Nothing new is shown, no string added | `PublishKeyPairingTests`: `staleRecordNeverPaired` (a rename still connects; a new address and key, a certificate alone, a removal: `.changed`, the previous address's fake server gets no request), `waitsForTheRow` (the test holds the gate as a Save does, with the new key written and the row not: the check waits, contacts nothing, and sees the new row), `checkDuringSave` (a check started from the key store's write hook inside a real Save sees the Save whole), `saveHoldsTheGate`. Against the old connect (key only, no gate, no row): 3 tests failed, 5 issues. Against the re-read with no gate (the review's suggestion alone): `waitsForTheRow` 3 issues and `saveHoldsTheGate` 1; `checkDuringSave` passed then, as expected (without the gate its order is the scheduler's). Restored, passing |
 | Q1 | Test only (AC20, R21) | `PublishJobTests.stepsFollowEachUpload`: an existing album, stacking with a linked original, concurrency 1; every upload answer held; a's released, b's held and the run stopped there: a is `.done` in the album, stacked on its original, and the only asset filed; b got no further. Against a mutation that defers every album and stack step to the end of a run not stopped (a second pass over the photos after the group): 4 issues; `linkAndCopy`, a run that completes, still passed under it, so the mutation is the one asked about. Restored, passing |
 | Q2 | Check Originals' tally moved to PhotoCore: `OriginalsTally` (`Remote/PublishOriginals.swift`: `add(_:name:)` and `check(_:offline:sources:names:find:progress:)`, run on the caller's actor through `#isolation`). `PublishModel.OriginalsResult` is now a type alias for it; the sheet and the debug print are unchanged. Behaviour as before (offline counted and not looked for, a photo with no source checked and in no group, the first failed request stops it, a cancel gives nothing), except that progress also counts a photo with no source | `PublishJobTests.originalsTallyMatchesRun` (four photos: an original found, no mapped folder, two linked to assets the server no longer has; the tally's found, groups and names equal the run's stacked photos and `noOriginal` reasons, built into a tally with the same `add`; no write; progress 1 to 4; two offline photos counted and not looked for) and `originalsTallyFailureAndCancel`. New code, so "fails without" is a mutation: `found` not counted gave 3 issues; restored, passing |
 | Q3 | The debug script's `quit` calls the new `PublishModel.closeSheetsForQuit()`: the waiting Server sheet and the return to the publish sheet are dropped, the Skip or New Copy question, the publish Server sheet, the publish sheet and the results close | Scripted, a fresh copy of the library each, killed at 90 s: the publish sheet up after a run; its Add Server sheet up; its Edit Server sheet up with a name typed; the results sheet with the import window open: each quit by itself in 11 to 12 s (exit 0). The same first three against a bundle built without the change: each killed at 60 s (exit 142) |
@@ -47,49 +119,31 @@ publish sheet checked against the fake server, the import window's Edit moved
 Home to `localhost`: the sheet showed the new address, checked again (checks
 2), and a Publish then published 1 photo.
 
-### N7 on the import side (not fixed)
+### N7 on the import side (fixed by D-18 and D-19, above)
 
-The import window's check (`ServerSource.check`, #271's code) reads the key by
-uuid with the record its `ServerBrowse` was made with, a `let` never refreshed.
-It has both of N7's windows, and a longer one: the publish sheet's own Server
-sheet saving a new address and key for the server the import window is browsing
-leaves `browse.service` at the previous address until the source is chosen
-again, so Rescan or Try Again sends the new key to the previous address, for as
-long as the window stays open. That longer window came with this branch (Edit
-Server… from the publish sheet). `RemoteSavedKey.read` is the shared code that
-would close it, but the import side would need a reaction to `.changed` that the
-spec doesn't define (DQ-F2 below), so it is left, as the brief allows.
+Found in the fix round: the import window's check read the key by uuid with
+the record its `ServerBrowse` was made with, never refreshed, so after the
+publish sheet's Edit Server… saved a new address and key, Rescan or Try Again
+sent the new key to the previous address for as long as the window stayed
+open; and the Server sheet (both hosts) checked with the stored key read
+without its row. Both are closed above.
 
-A third path with the same pairing: the Server sheet (both hosts) checks with
-the stored key when no key is typed, reading the key without the row. A sheet
-opened before another window's Save of a new address and key, then submitted
-with its address unchanged (Trust Certificate) or changed, sends the new key to
-the sheet's address, and on a passing check saves the row with it. Needs two
-Server sheets of one server open at once, one per window. Not fixed: DQ-F3.
+### Design questions (fix round, ruled)
 
-### Design questions (fix round)
+All three ruled by the designer on 2026-11-26 (design §17) and built above.
+None open.
 
 - **DQ-F1: Retry Failed given up because its server changed in the instant
-  after it was pressed.** Now the Activity job ends with no message and the
-  results sheet stays closed; the next Retry Failed shows the existing refusal.
-  Options: (a) as now, no cost; (b) reopen the results sheet showing the
-  refusal the reload finds (F4's existing words), small. Recommendation: (a);
-  it needs a Save landing within milliseconds of the press.
+  after it was pressed.** The Activity job ends with no message and the results
+  sheet stays closed. Ruled D-17 (option (a)): silent, as under D-10. Reopened,
+  the results sheet shows the run unchanged; a removal or an address change
+  shows the existing refusal with Retry Failed off; after a certificate change
+  alone the next Retry Failed runs and checks the server as saved.
 - **DQ-F2: the import window when its server's saved address or certificate
-  changed in the other window.** Options: (a) as F28 does for publishing:
-  rebuild the source from the record as saved and check it again (the
-  selection and loaded pages go, as when a server is chosen), then use
-  `RemoteSavedKey.read` in `ServerSource.check` and treat `.changed` the same
-  way; small, in `ServerSource`; (b) close the source as after Remove Server…;
-  (c) leave it. Recommendation: (a), since it closes a pairing that lasts as
-  long as the window. A follow-up is proposed below.
+  changed in the other window.** Ruled D-18 (option (a), with a rename taken in
+  place and a running import left alone): §11.1.
 - **DQ-F3: a Server sheet submitted with the stored key after the other window
-  saved that server again.** Options: (a) read the stored key with
-  `RemoteSavedKey.read` against the record the sheet opened on, and on
-  `.changed` close the sheet as D-16 does for a removal (`serverSheetFoundRemoved`
-  or a sibling), the host showing the server as saved; small, no string;
-  (b) say in the sheet that the server changed in the other window, a new
-  string; (c) leave it (as N4's accepted residual). Recommendation: (a).
+  saved that server again.** Ruled D-19 (option (a)): §11.2.
 
 ## Fourth-pass wording fixes (2026-11-26)
 
@@ -573,7 +627,8 @@ afterwards; the images kept.
 Type names checked against the code on this branch (review round: the
 temporary files, the whole-path allowlist match and the id rule added; fourth
 round: the temporary folders' mode, links and age, security N5 and N6; fix
-round after QA: the key read with its row, security N7).
+round after QA: the key read with its row, security N7; D-17 to D-19: every
+key read, the import window and the Server sheet included).
 
 > - **Network.** The app contacts one kind of host: an Immich server the user
 >   adds, and only the library app does it (the standalone importer, About and
@@ -609,12 +664,15 @@ round after QA: the key read with its row, security N7).
 >   folders with no lock file, never following a symbolic link and nothing at
 >   all unless the base is the user's own real folder. A launch that can't lock
 >   a folder there works in one of its own beside the base. The key goes
->   only as `x-api-key` and only to the connection's host. A key and its row
->   are written, and read for publishing, as one pair behind the account's
->   `RemoteKeyGate`, and publishing contacts only a row with the address and
->   trusted certificate it was checked with (`RemoteSavedKey`), so a key saved
->   for a new address never reaches the previous one. Response bodies and
->   downloads are capped (an error's body at 64 KiB, read only for the
+>   only as `x-api-key` and only to the connection's host. Every read of a
+>   saved key and every write of a key with its row go through the account's
+>   `RemoteKeyGate`, so the key is always read with the row saved with it
+>   (`RemoteSavedKey`: publishing's check, the import window's check and the
+>   Server sheet's with its key field empty), and only a row with the address
+>   and trusted certificate the caller holds is contacted, so a key saved for a
+>   new address never reaches the previous one. A Server sheet behind the saved
+>   server writes nothing (`Catalog.saveRemoteService(_:checkedWith:opened:keys:)`).
+>   Response bodies and downloads are capped (an error's body at 64 KiB, read only for the
 >   server's message). Redirects are never followed, and there are no cookies,
 >   cache or credential storage. Transport policy: `https://` by default;
 >   plain `http://` only to a local-network host after the user confirms the
@@ -1203,6 +1261,12 @@ None open.
 | 2026-11-26, fix round | `PublishKeyPairingTests`, `PublishJobTests`, `PublishRulesTests`, `PublishBoundaryTests`, `RemoteConnectionTests` (87 tests), `--skip-build`, 30 runs | 30 of 30 passed (before the CI fix below changed `waitsForTheRow`'s flag from a captured `Mutex` to a `Sendable` class; that form passed in the full run above and alone) |
 | 2026-11-26, fix round | `Scripts/build-app.sh all` | Exit 0, both bundles built and signed (release; the library app's executable records SDK 27.2, minimum 15.0) |
 | 2026-11-26, fix round | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | First run: 1 error in the new `PublishKeyPairingTests` (Swift 6.2.4 refused a `Mutex` captured by a `Task` inside the gate's closure: "passing closure as a 'sending' parameter risks causing data races"); the test now uses a small `Sendable` flag (same logic). Second run: build complete, exit 0, no warning in the changed files (`/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`) |
+| 2026-11-26, D-17 to D-19, baseline at aa3216e | `swift build --build-tests` | Built clean |
+| 2026-11-26, D-17 to D-19 | `ServerKeyPairingTests` against the old behaviour put back (the import check by uuid alone, the sheet's stored key without its row, the old row write) | 6 of 9 failed, 8 issues; `sourceFollowRule` against a mutation (certificate and running import ignored) 5 issues; restored and passing |
+| 2026-11-26, D-17 to D-19 | `swift test` | 1667 tests in 228 suites passed (91.8 s), on the final sources (e840ec9) |
+| 2026-11-26, D-17 to D-19 | `ServerKeyPairingTests`, `PublishKeyPairingTests`, `RemoteConnectionTests`, `RemoteSecurityTests` (33 tests), `--skip-build`, 30 runs | 30 of 30 passed |
+| 2026-11-26, D-17 to D-19 | `Scripts/build-app.sh all` | Exit 0, both bundles built and signed (release; the library app's executable records SDK 27.2, minimum 15.0) |
+| 2026-11-26, D-17 to D-19 | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, exit 0, no error or warning in the changed files (Swift 6.2.4; `/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`) |
 
 Determinism of the new tests: none sleeps to synchronize. The stop tests
 (`personsStop`, `endingWaitsForFullySent`) stop at the client's own "fully
@@ -1280,6 +1344,18 @@ done by then. The tally tests run in one task (the cancel case waits for the
 out a per-run flake rate of about 1 in 10 or more (at about 95%); the structural
 argument is the claim for rarer ones.
 
+Determinism of the D-17 to D-19 tests: none sleeps to synchronize.
+`sourceFollowRule` is a pure function over values. The sheet and import tests
+put the other window's Save at a fixed point in one task: before the press,
+between the key read and the check, or after the passing check, by calling
+`RemoteServerSheetCheck.key`, `check` and `save` in turn, so the order is the
+test's, not the scheduler's. `importCheckWaitsForTheRow` holds the gate itself
+and waits only until the check either waits for it or has finished, as
+`waitsForTheRow` does, so without the gate it fails rather than hangs. Each test
+has its own in-memory catalog, key store and fake server. The 30 clean runs rule
+out a per-run flake rate of about 1 in 10 or more (at about 95%); the structural
+argument is the claim for rarer ones.
+
 ## Design questions (second round, ruled)
 
 Both ruled by the designer on 2026-11-26 (design §17: D-12 for DQ-R2-1, option
@@ -1333,20 +1409,13 @@ Both ruled by the designer on 2026-11-26 (design §17: D-12 for DQ-R2-1, option
 - **A name-only Save whose catalog write fails says nothing** (bug, #271's
   code, seen while building D-16): the Server sheet stays as it was with no
   message; a checked Save shows the catalog's error. Expected: the same message.
-- **The import window sends a server's new key to its previous address after
-  the publish sheet saves the server** (bug, from this branch's Edit Server… in
-  the publish sheet; security N7's import side): `ServerBrowse.service` is never
-  refreshed, so Rescan or Try Again pairs the Keychain's new key with the
-  address the window was opened on. Expected: the key is read with the row as
-  saved (`RemoteSavedKey.read`) and the window follows the saved server (DQ-F2).
-  Slug: `immich-import-stale-server`.
-- **A Server sheet checks with the stored key without its row** (bug, DQ-F3):
-  two Server sheets of one server, one per window; the later Save's key reaches
-  the earlier sheet's address. Expected: as DQ-F3 rules.
 - The first round's "combined script's timeout" is explained: the scripted
   `quit` is ignored while a sheet is up (#276). Closing the sheet first quits.
   The debug script's `quit` now closes publishing's sheets itself (QA Q3).
 - The one-photo Check Originals sentence is fixed (F20); that follow-up is gone.
+- The import window sending a server's new key to its previous address, and the
+  Server sheet checking with the stored key without its row (security N7's
+  import side), are fixed by D-18 and D-19; those two follow-ups are gone.
 
 ## README
 
