@@ -923,3 +923,67 @@ writing or network path. The changes in credential code are comments, and
 the C14 recheck goes through the existing `PublishConnection.connect` (key
 read with its row under the gate). N9's fix, when the owner rules on it,
 changes what is stored in the Keychain item and should get one.
+
+### Eighth pass, 2026-11-26: 206ca8d..21bdca7
+
+Commits: 21bdca7 (QA Q7: one test, status.md). c2ea497 and 1a9bbf5 are docs
+only (the seventh passes, QA's recheck). No merge of `develop`. Nothing under
+`Sources/`, `Scripts/` or `Package.swift` changed (`git diff --stat
+c2ea497 21bdca7`: `PublishJobTests.swift`, `qa.md`, `status.md`). Build and
+tests: `swift build --build-tests` clean; `swift test --filter
+"PublishJobTests|PublishKeyPairingTests"` 41 tests in 2 suites passed;
+`PublishJobTests/retryCalledOffWhenServerChanged` passed 30 of 30 runs with
+`--skip-build` (my own runs, beside the engineer's 30).
+
+**Verdict, eighth pass: ready for qa-tester to confirm Q7.** The test covers
+D-17's three cases through the real check and fails without the behaviour for
+the right reason. No new findings.
+
+| # | Status | Commit | Note |
+|---|---|---|---|
+| Q7 (QA) | Fixed, test only | 21bdca7 | `retryCalledOffWhenServerChanged` drives `PublishRetry.perform` with the real `PublishConnection.connect` on the record the run holds: a new address and key saved (`.changed(.connectionChanged)`), the server removed (`.changed(.removed)`), the `remoteService` table renamed away (`.unreadable`). QA asked for the two `.changed` cases; the unreadable one is extra and matches `perform`'s `case .changed, .unreadable`. |
+
+- **Fails for the right reason.** Under QA's mutation (`perform`'s `.changed,
+  .unreadable` branch sets `ended.ending` and returns `.checkStopped(ended)`),
+  each case gives exactly two issues: `if case .calledOff` records one, and
+  `ended(stopAsked: false)` is the new run rather than nil, which records the
+  other. That makes 6, as status.md records. I traced this rather than ran it,
+  since I don't edit `Sources/`. The mutation can't change the `seen`, request
+  or job-count expectations, because the check runs before the switch. The
+  test also asserts which case each check came out as (`seen == expected`).
+  So it can't pass because some other branch (`.failed`, say) happened to
+  return `.calledOff`, or because the setup went wrong.
+- **The three cases really are the ones named.** The control check first
+  shows `held` with its key gives `.ready`. Then `RemoteSavedKey.read`
+  (`RemoteKeyPairing.swift:102-126`) reads the key, then the row by id. After
+  the Save, the row's address differs, so it returns `.connectionChanged`.
+  After the removal the row is nil, so it returns `.removed`. Once the table
+  is renamed, `remoteService(id:)` throws, which is `.catalog`, mapped to
+  `.unreadable`. That case is distinct from `.removed` even though the row is
+  already gone, because the throw comes before the nil check. The key Remove
+  deleted doesn't matter either: a missing key reads as nil, not a throw, and
+  it is checked only after the row.
+- **Nothing sent.** In `.changed` and `.unreadable`, `connect` returns before
+  a client exists (`PublishRetry.swift:33-38`). So the unchanged request count
+  on the fake server, together with the asserted case, means no request at all.
+  A regression in `connect` that contacted the new address
+  (`photos.example.com`, the same placeholder `PublishKeyPairingTests` uses)
+  would not show in that count, but `connect` is not under test here, and
+  `staleRecordNeverPaired` covers it.
+- **Determinism (structural argument, plus 30 of 30 runs).** One task, every
+  step awaited in a fixed order. There is no cancellation, sleep or polling
+  loop. Each test gets a fresh in-memory catalog, key store and fake server,
+  and `RemoteKeyGate.shared` is keyed by the fixture's fresh uuid, so tests
+  that Swift Testing runs alongside it share no state. The opening fault stop
+  (the `.drop` added on the first upload received, concurrency 1) is the same
+  setup as the reviewed `stopDuringRetryCheck`, and its outcome is asserted
+  before the retries. My 30 runs, like the engineer's, rule out a flake rate
+  of about 1 in 10 at about 95% and nothing rarer. The determinism claim rests
+  on the structure.
+- **status.md.** The Q7 row, the build lines and the N9 to #303 wording match
+  the commit. The claim that the CI-toolchain build is clean is the engineer's;
+  I did not rerun it.
+
+#### `/security-review`
+
+Not needed: the diff is a test and docs only.
