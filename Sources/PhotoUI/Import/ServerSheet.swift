@@ -340,10 +340,14 @@ enum ServerSheetMetrics {
 
 /// Add Server and Edit Server: one sheet on the import window with two pages
 /// (design §3). System controls only.
-struct ServerSheet: View {
+public struct ServerSheet: View {
     @Bindable var sheet: ServerSheetModel
 
-    var body: some View {
+    public init(sheet: ServerSheetModel) {
+        self.sheet = sheet
+    }
+
+    public var body: some View {
         Group {
             switch sheet.page {
             case .form:

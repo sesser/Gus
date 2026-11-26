@@ -208,7 +208,7 @@ enum PhotoContextMenu {
         let showsPair = state.pairDisplay != nil
         // The grid only: the loupe, video loupe and comparison panes act on one photo (hdr-merge design §2.2).
         let merges = state.mode == .grid && state.canMerge
-        if state.canDuplicate || merges || state.canExport || state.canShowTargetsInFinder || showsPair {
+        if state.canDuplicate || merges || state.canExport || state.canPublish || state.canShowTargetsInFinder || showsPair {
             menu.addItem(.separator())
         }
         // Left out for videos, which are not duplicated (virtual-copies design §2.2).
@@ -220,6 +220,9 @@ enum PhotoContextMenu {
         }
         if state.canExport {
             menu.addItem(ActionMenuItem(String(localized: "Export…")) { model.export.begin() })
+        }
+        if state.canPublish {
+            menu.addItem(ActionMenuItem(PublishText.menuTitle) { model.publish.begin() })
         }
         // Left out when no target's original is online (library-ops design §5.1).
         if state.canShowTargetsInFinder {

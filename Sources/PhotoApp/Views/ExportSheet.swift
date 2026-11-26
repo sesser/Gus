@@ -146,16 +146,16 @@ struct Caption: View {
 
 private struct ExportForm: View {
     let model: LibraryModel
-    @State private var savingPreset = false
-    @State private var presetName = ""
-    @State private var deletingPreset = false
 
     private var export: ExportModel { model.export }
 
     var body: some View {
         @Bindable var export = export
         Form {
-            presetRow
+            ExportPresetRow(presets: export.presets, selectedID: export.presetID, modified: export.modifiedPreset,
+                            issue: export.issue?.place == .preset ? export.issue?.text : nil,
+                            apply: { export.applyPreset(id: $0) }, save: { export.savePreset(named: $0) },
+                            update: { export.updateSelectedPreset() }, delete: { export.deleteSelectedPreset() })
             Section("Destination") {
                 LabeledContent("Folder") {
                     HStack {
@@ -174,50 +174,7 @@ private struct ExportForm: View {
                                    watermarkIssue: export.issue?.place == .watermark ? export.issue?.text : nil)
         }
         .formStyle(.grouped)
-        .alert("Save Export Preset", isPresented: $savingPreset) {
-            TextField("Name", text: $presetName)
-            Button("Save") { export.savePreset(named: presetName) }
-            Button("Cancel", role: .cancel) {}
-        }
-        .alert(String(localized: "Delete the export preset “\(selectedPreset?.name ?? "")”?"), isPresented: $deletingPreset) {
-            Button("Delete", role: .destructive) { export.deleteSelectedPreset() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Exports already made are not affected.", comment: "Delete export preset alert")
-        }
     }
-
-    private var selectedPreset: ExportPreset? {
-        export.presets.first { $0.id == export.presetID }
-    }
-
-    /// One pop-up: None, the presets, then Save as Preset…, Update and Delete.
-    private var presetRow: some View {
-        LabeledContent("Preset") {
-            Menu(selectedPreset?.name ?? String(localized: "None")) {
-                Button("None") { export.applyPreset(id: nil) }
-                ForEach(export.presets) { preset in
-                    Button(preset.name) { export.applyPreset(id: preset.id) }
-                }
-                Divider()
-                Button("Save as Preset…") {
-                    presetName = selectedPreset?.name ?? ""
-                    savingPreset = true
-                }
-                if let modified = export.modifiedPreset {
-                    Button("Update “\(modified.name)”") { export.updateSelectedPreset() }
-                }
-                if let preset = selectedPreset {
-                    Button("Delete “\(preset.name)”…") { deletingPreset = true }
-                }
-            }
-            .fixedSize()
-        }
-        .overlay(alignment: .bottomLeading) {
-            if let issue = export.issue, issue.place == .preset { IssueText(text: issue.text).offset(y: 18) }
-        }
-    }
-
 }
 
 enum ExportText {

@@ -11,6 +11,8 @@ public enum StoppableJob: String, Hashable, Sendable, CaseIterable {
     case cardImport
     /// An HDR merge (issue #150).
     case merge
+    /// A publish run (issue #28).
+    case publish
 
     /// The job started last among those running, by start time; nil when
     /// none runs. Equal times go to the order of `allCases`, last first.

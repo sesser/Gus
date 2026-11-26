@@ -14,6 +14,8 @@ struct ActivityJob: Identifiable {
     let progress: Double?
     /// Nil when the job cannot be stopped.
     let stop: (@MainActor () -> Void)?
+    /// Stop shown dimmed (an ending publish waits for answers, design §9).
+    var stopDisabled = false
 }
 
 /// The toolbar's Activity item (section 1 of docs/UI_REDESIGN.md): the
@@ -120,6 +122,16 @@ struct ActivityToolbarItem: View {
                                     progress: Double(progress.done) / Double(max(progress.total, 1)),
                                     stop: { model.export.cancel() }))
         }
+        // A publish run (issue #28, design §9); ending, an indeterminate spinner and Stop dimmed.
+        if let progress = model.publish.progress {
+            let name = model.publish.jobName
+            let ending = progress.phase == .ending
+            jobs.append(ActivityJob(id: "publish", title: PublishText.jobTitle(name),
+                                    toolbarTitle: ToolbarMetrics.statusLine(name: name) { PublishText.jobTitle($0) },
+                                    detail: PublishText.detail(progress, name: name),
+                                    progress: ending ? nil : Double(progress.done) / Double(max(progress.total, 1)),
+                                    stop: { model.publish.cancel() }, stopDisabled: ending))
+        }
         // An HDR merge: its steps, weighted, and Stop (hdr-merge design §7.1).
         if let progress = model.merge.progress {
             let name = model.merge.jobName ?? ""
@@ -176,6 +188,7 @@ private struct ActivityPopover: View {
                         Spacer()
                         if let stop = job.stop {
                             Button("Stop") { stop() }
+                                .disabled(job.stopDisabled)
                         }
                     }
                     if let detail = job.detail {
@@ -206,9 +219,18 @@ private struct ActivityPopover: View {
                         Text(message.date, style: .relative)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        // A publish run's results (issue #28, design §10.1): the
+                        // popover closes, then the sheet opens.
+                        if let id = message.actionID.flatMap(PublishText.runID(fromAction:)) {
+                            Button(PublishText.showResults) {
+                                model.setActivityPopoverShown(false)
+                                model.publish.showResults(id)
+                            }
+                            .disabled(model.otherModalIsUp)
+                        }
                     }
                 }
-                .accessibilityElement(children: .combine)
+                .accessibilityElement(children: message.actionID == nil ? .combine : .contain)
             }
             if jobs.isEmpty, model.activity.messages.isEmpty {
                 Text("Nothing is running.")

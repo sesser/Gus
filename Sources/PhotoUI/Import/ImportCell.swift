@@ -67,6 +67,9 @@ struct ServerMarks: Equatable {
     var isEdited: Bool
     /// The connection's name, for "Already imported from “‹name›”".
     var serverName: String
+    /// Published to this server from this library and not imported from it
+    /// (publishing R20): its own tooltip.
+    var isPublished = false
 }
 
 final class ImportCellView: NSView {
@@ -269,7 +272,9 @@ final class ImportCellView: NSView {
     private func tooltip(_ shot: SourceShot) -> String {
         var lines: [String] = []
         if shot.isDuplicate {
-            lines.append(server.map { Self.alreadyImported(from: $0.serverName) } ?? Self.alreadyInLibrary)
+            lines.append(server.map {
+                $0.isPublished ? Self.publishedFrom(to: $0.serverName) : Self.alreadyImported(from: $0.serverName)
+            } ?? Self.alreadyInLibrary)
         } else {
             lines.append(shot.files.map(\.name).joined(separator: " + "))
         }
@@ -338,6 +343,11 @@ final class ImportCellView: NSView {
 
     static var noPreview: String {
         String(localized: "The server didn't return a preview.", comment: "Import grid tooltip")
+    }
+
+    static func publishedFrom(to name: String) -> String {
+        String(localized: "Published to “\(name)” from this library",
+               comment: "Import grid tooltip: a server photo this library published (publishing R20)")
     }
 
     static func alreadyImported(from name: String) -> String {

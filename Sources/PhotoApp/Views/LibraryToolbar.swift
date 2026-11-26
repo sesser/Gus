@@ -49,6 +49,16 @@ struct LibraryToolbar: CustomizableToolbarContent {
             .help("Export the selected photos")
             .disabled(!LibraryMenuState(model).canExport)
         }
+        // Publishing (issue #28, design §2.2): after Export, shown by default.
+        ToolbarItem(id: "publish") {
+            Button {
+                model.publish.begin()
+            } label: {
+                Label(PublishText.toolbarLabel, systemImage: "paperplane")
+            }
+            .help(PublishText.toolbarHelp)
+            .disabled(!LibraryMenuState(model).canPublish)
+        }
         groupSpacer()
         ToolbarItem(id: "mode") {
             // Through openLoupe / closeLoupe: showing the grid ends review.

@@ -184,6 +184,62 @@ struct ExportSettingsSections: View {
     }
 }
 
+/// The export preset pop-up: None, the presets, then Save as Preset…, Update
+/// and Delete. The Export sheet's and the Publish sheet's (publishing design
+/// §3.6): the same stored presets.
+struct ExportPresetRow: View {
+    let presets: [ExportPreset]
+    let selectedID: Int64?
+    let modified: ExportPreset?
+    var issue: String?
+    let apply: (Int64?) -> Void
+    let save: (String) -> Void
+    let update: () -> Void
+    let delete: () -> Void
+    @State private var savingPreset = false
+    @State private var presetName = ""
+    @State private var deletingPreset = false
+
+    private var selected: ExportPreset? { presets.first { $0.id == selectedID } }
+
+    var body: some View {
+        LabeledContent("Preset") {
+            Menu(selected?.name ?? String(localized: "None")) {
+                Button("None") { apply(nil) }
+                ForEach(presets) { preset in
+                    Button(preset.name) { apply(preset.id) }
+                }
+                Divider()
+                Button("Save as Preset…") {
+                    presetName = selected?.name ?? ""
+                    savingPreset = true
+                }
+                if let modified {
+                    Button("Update “\(modified.name)”") { update() }
+                }
+                if let preset = selected {
+                    Button("Delete “\(preset.name)”…") { deletingPreset = true }
+                }
+            }
+            .fixedSize()
+        }
+        .overlay(alignment: .bottomLeading) {
+            if let issue { IssueText(text: issue).offset(y: 18) }
+        }
+        .alert("Save Export Preset", isPresented: $savingPreset) {
+            TextField("Name", text: $presetName)
+            Button("Save") { save(presetName) }
+            Button("Cancel", role: .cancel) {}
+        }
+        .alert(String(localized: "Delete the export preset “\(selected?.name ?? "")”?"), isPresented: $deletingPreset) {
+            Button("Delete", role: .destructive) { delete() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Exports already made are not affected.", comment: "Delete export preset alert")
+        }
+    }
+}
+
 /// A number in a bezeled 72 pt field, right-aligned, its unit after it.
 private struct NumberField: View {
     let title: LocalizedStringKey

@@ -142,6 +142,12 @@ struct LibraryCommands: Commands {
             Button("Export…") { model?.export.begin() }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
                 .disabled(!can { $0.canExport })
+            // Publishing (issue #28, design §2.1): beside Export, on the same targets.
+            Button(PublishText.menuTitle) { model?.publish.begin() }
+                .keyboardShortcut("e", modifiers: [.command, .option])
+                .disabled(!can { $0.canPublish })
+            Button(PublishText.resultsMenuTitle) { model?.publish.showResults() }
+                .disabled(!can { $0.hasPublishResults })
             // On only while the grid or loupe has the keyboard, like a bare
             // key: enabled elsewhere it would take ⌘⌫ from a text field,
             // where it deletes to the start of the line.
@@ -163,7 +169,9 @@ struct LibraryCommands: Commands {
                     if let job = menu?.state.stoppableJob { model?.stop(job) }
                 }
                 .keyboardShortcut(".", modifiers: .command)
-                .disabled(!can { $0.stoppableJob != nil })
+                // An ending publish keeps the item, dimmed, so ⌘. never moves
+                // on to another job (publishing design §9).
+                .disabled(!can { $0.stoppableJob != nil && !($0.stoppableJob == .publish && $0.publishIsEnding) })
             }
             Divider()
         }
@@ -177,6 +185,7 @@ struct LibraryCommands: Commands {
         case .addFolders: String(localized: "Stop Adding Folders", comment: "File menu (⌘.): stops adding folders")
         case .cardImport: String(localized: "Stop Import")
         case .merge: MergeText.stopMenu
+        case .publish: PublishText.stopMenu
         case nil: String(localized: "Stop")
         }
     }

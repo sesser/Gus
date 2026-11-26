@@ -187,6 +187,12 @@ public enum PublishPermissions {
         public var album: [String] = []
         public var stacking: [String] = []
 
+        public init(server: [String] = [], album: [String] = [], stacking: [String] = []) {
+            self.server = server
+            self.album = album
+            self.stacking = stacking
+        }
+
         public var isEmpty: Bool { server.isEmpty && album.isEmpty && stacking.isEmpty }
         public var all: [String] { server + album + stacking }
     }

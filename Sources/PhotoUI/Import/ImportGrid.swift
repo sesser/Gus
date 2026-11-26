@@ -93,12 +93,19 @@ final class ImportGridController: NSObject, NSCollectionViewDataSource, NSCollec
             if selectionChanged { refreshVisibleCells() }
             return
         }
-        if shots.map(\.id) != self.shots.map(\.id) || shots != self.shots {
+        if shots.map(\.id) != self.shots.map(\.id) {
             self.shots = shots
             self.selection = selection
             if let focusID, !shots.contains(where: { $0.id == focusID }) { self.focusID = nil }
             collectionView.reloadData()
             collectionView.noteFocusRingMaskChanged()
+        } else if shots != self.shots {
+            // The same photos with new marks (a publish record written while
+            // the window shows the server, publishing design §11): the cells
+            // update in place, with no reload.
+            self.shots = shots
+            self.selection = selection
+            refreshVisibleCells()
         } else if selection != self.selection {
             self.selection = selection
             refreshVisibleCells()
@@ -137,7 +144,10 @@ final class ImportGridController: NSObject, NSCollectionViewDataSource, NSCollec
     private func configure(_ cell: ImportCell, at index: Int) {
         let shot = shots[index]
         let server = model.browse.map { browse in
-            ServerMarks(isEdited: model.remoteAsset(for: shot.id)?.isEdited == true, serverName: browse.service.name)
+            ServerMarks(isEdited: model.remoteAsset(for: shot.id)?.isEdited == true, serverName: browse.service.name,
+                        isPublished: model.remoteAsset(for: shot.id).map {
+                            browse.published.contains($0.id) && !browse.linked.contains($0.id)
+                        } ?? false)
         }
         cell.configure(with: shot, included: selection.contains(shot.id), colorSpace: colorSpace, pixelSize: pixelSize,
                        server: server) { [weak model] url, size, space in

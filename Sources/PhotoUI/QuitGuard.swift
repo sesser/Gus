@@ -33,6 +33,11 @@ public enum QuitGuard {
             Text(title: String(localized: "Quit While Exporting?", comment: "Quit alert in the library app"),
                  message: String(localized: "The rest is not exported.", comment: "Quit alert in the library app"),
                  keep: String(localized: "Keep Exporting", comment: "Quit alert button"))
+        case .publishing:
+            Text(title: String(localized: "Quit While Publishing?", comment: "Quit alert in the library app"),
+                 message: String(localized: "Photos already on the server stay there, but unfinished steps can't be retried after quitting. The rest are not published.",
+                                 comment: "Quit alert in the library app: a publish runs"),
+                 keep: String(localized: "Keep Publishing", comment: "Quit alert button"))
         case .merging:
             Text(title: String(localized: "Quit While Merging?", comment: "Quit alert in the library app: an HDR merge runs"),
                  message: String(localized: "The merge is stopped and nothing is added.",

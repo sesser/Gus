@@ -31,6 +31,9 @@ public final class ServerBrowse {
     public internal(set) var assets: [RemoteAsset] = []
     @ObservationIgnored var assetsByURL: [URL: RemoteAsset] = [:]
     public internal(set) var linked: Set<String> = []
+    /// Published to this server from this library (publishing R20): marked
+    /// In Library like a linked photo.
+    public internal(set) var published: Set<String> = []
     public internal(set) var nextCursor: String?
     public internal(set) var isLoadingPage = false
     public internal(set) var loadedFirstPage = false
@@ -68,6 +71,11 @@ public final class ServerBrowse {
     func cancel() {
         connectTask?.cancel()
         pageTask?.cancel()
+    }
+
+    /// Imported from this server or published to it from this library (R20).
+    public func isInLibrary(_ id: String) -> Bool {
+        linked.contains(id) || published.contains(id)
     }
 
     func setClient(_ client: (any RemotePhotoSource)?) {
@@ -299,20 +307,24 @@ extension CardImportModel: ServerSheetHost {
                 let linked = (try? await catalog?.linkedRemoteIDs(provider: browse.service.provider,
                                                                   address: address.normalized,
                                                                   among: page.assets.map(\.id))) ?? []
+                let published = (try? await catalog?.publishedRemoteIDs(provider: browse.service.provider,
+                                                                        address: address.normalized,
+                                                                        among: page.assets.map(\.id))) ?? []
                 guard !Task.isCancelled, self.browse === browse else { return }
                 browse.isLoadingPage = false
                 let isFirst = !browse.loadedFirstPage
                 browse.loadedFirstPage = true
                 browse.linked.formUnion(linked)
+                browse.published.formUnion(published)
                 // A page may repeat a photo the last one ended with (offsets
                 // move when photos are added): appended once.
                 let new = page.assets.filter { browse.assetsByURL[$0.gridURL] == nil }
                 for asset in new { browse.assetsByURL[asset.gridURL] = asset }
                 browse.assets += new
                 browse.nextCursor = page.nextCursor
-                shots += new.map { $0.shot(linked: browse.linked.contains($0.id)) }
+                shots += new.map { $0.shot(linked: browse.isInLibrary($0.id)) }
                 if !kept.isEmpty {
-                    selection.formUnion(new.filter { !browse.linked.contains($0.id) }.map(\.gridURL).filter(kept.contains))
+                    selection.formUnion(new.filter { !browse.isInLibrary($0.id) }.map(\.gridURL).filter(kept.contains))
                 }
                 if isFirst {
                     AccessibilityText.announce(String(localized: "\(browse.assets.count) photos loaded",
@@ -497,6 +509,37 @@ extension CardImportModel: ServerSheetHost {
         guard let service = removalAfterSheet else { return }
         removalAfterSheet = nil
         askToRemoveServer(service)
+    }
+
+    // MARK: Publishing (issue #28)
+
+    /// A publish run wrote records: photos the window lists that are now
+    /// published are marked In Library in place, and unchecked (design §11).
+    public func publishedRecordsChanged() {
+        guard let browse, let address = browse.address, let catalog = library?.catalog, !browse.assets.isEmpty else { return }
+        let ids = browse.assets.map(\.id)
+        Task {
+            guard let published = try? await catalog.publishedRemoteIDs(provider: browse.service.provider,
+                                                                        address: address.normalized, among: ids),
+                  self.browse === browse, !published.subtracting(browse.published).isEmpty else { return }
+            browse.published.formUnion(published)
+            shots = shots.map { shot in
+                guard let asset = browse.assetsByURL[shot.id], browse.isInLibrary(asset.id) else { return shot }
+                var marked = shot
+                marked.files = marked.files.map { file in
+                    var file = file
+                    file.isDuplicate = true
+                    return file
+                }
+                return marked
+            }
+            selection = selection.filter { url in browse.assetsByURL[url].map { !browse.isInLibrary($0.id) } ?? true }
+        }
+    }
+
+    /// The servers again, after Publish added or changed one.
+    public func loadServersAfterPublish() async {
+        await loadServers()
     }
 
     // MARK: Hosting the Server sheet (publishing design §4)

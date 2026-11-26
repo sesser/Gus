@@ -13,7 +13,7 @@ import Foundation
 /// present more than this lists. Panels and alerts run through `WindowModal`
 /// (AppKit) are not covered.
 enum LibraryModal: CaseIterable {
-    case export, lookTables, sidebarSheet, sidebarDeletion, removal, importSummary, merge, copyAdjustments
+    case export, lookTables, sidebarSheet, sidebarDeletion, removal, importSummary, merge, copyAdjustments, publish, publishServer, publishResults
 
     enum Kind {
         /// Calls `modalDidClose()` from its `onDismiss`, once it has gone.
@@ -24,7 +24,7 @@ enum LibraryModal: CaseIterable {
 
     var kind: Kind {
         switch self {
-        case .export, .lookTables, .sidebarSheet, .merge, .copyAdjustments: .sheet
+        case .export, .lookTables, .sidebarSheet, .merge, .copyAdjustments, .publish, .publishServer, .publishResults: .sheet
         case .sidebarDeletion, .removal, .importSummary: .dialog
         }
     }
@@ -41,6 +41,9 @@ extension LibraryModel {
         case .importSummary: presetImportSummary != nil
         case .merge: showsMergeSheet
         case .copyAdjustments: showsCopySheet
+        case .publish: showsPublishSheet
+        case .publishServer: publish.serverSheet != nil
+        case .publishResults: showsPublishResults
         }
     }
 
@@ -62,6 +65,8 @@ extension LibraryModel {
 
     /// A sheet, dialog or alert of the window has closed: a waiting report opens, unless one is still up.
     func modalDidClose() {
+        // Publish's Server sheet comes up in its place first (publishing design §4).
+        if publish.sheetDidClose() { return }
         guard presetSheetWaits, !otherModalIsUp else { return }
         presetSheetWaits = false
         presetManagerPage = .report
