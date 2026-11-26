@@ -168,3 +168,46 @@ public enum PublishPathForms {
         return forms(of: path).contains { Array($0.unicodeScalars) == scalars }
     }
 }
+
+/// The permissions publishing needs, by option (R8, design §5). `stack.read`
+/// is never asked for (RI-V5).
+public enum PublishPermissions {
+    /// Every publish: upload, and read every duplicate answer and original (R19).
+    public static let always = ["asset.upload", "asset.read"]
+    /// Any album, new or existing (DQ-V1: a lost create is looked for).
+    public static let album = ["album.read", "albumAsset.create"]
+    /// A new album, besides `album`.
+    public static let newAlbum = ["album.create"]
+    /// Stacking: the account (only its assets are originals) and the create.
+    public static let stacking = ["user.read", "stack.create"]
+
+    /// The gaps under each option, in the order the names are listed.
+    public struct Missing: Hashable, Sendable {
+        public var server: [String] = []
+        public var album: [String] = []
+        public var stacking: [String] = []
+
+        public var isEmpty: Bool { server.isEmpty && album.isEmpty && stacking.isEmpty }
+        public var all: [String] { server + album + stacking }
+    }
+
+    public static func missing(from permissions: [String], album choice: PublishAlbumChoice, stacking: Bool) -> Missing {
+        func lacking(_ names: [String]) -> [String] {
+            permissions.contains("all") ? [] : names.filter { !permissions.contains($0) }
+        }
+        var missing = Missing()
+        missing.server = lacking(always)
+        switch choice {
+        case .none: break
+        case .existing: missing.album = lacking(album)
+        case .new: missing.album = lacking(album + newAlbum)
+        }
+        if stacking { missing.stacking = lacking(Self.stacking) }
+        return missing
+    }
+
+    /// The key can list albums (design §3.4): without `album.read` only None can be chosen.
+    public static func canListAlbums(_ permissions: [String]) -> Bool {
+        permissions.contains("all") || permissions.contains("album.read")
+    }
+}
