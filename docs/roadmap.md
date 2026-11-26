@@ -46,7 +46,9 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 Set by the owner 2026-11-20 (replacing #219, #218 and #87, all done); #241 and #88 left it when they shipped (2026-11-21) and #150 when it shipped (2026-11-22), so all three slots are free. #243 moved in on 2026-11-22 and shipped the same day. A PRD is required for every Now item before any work starts. The owner picks what moves in. On 2026-11-24 the owner started #282, the follow-up of bug #277; it shipped 2026-11-25 (branch `feature/gain-map-hdr-editing`), so all three slots are free again.
 
-Nothing is in Now.
+On 2026-11-25 the owner moved publishing (#28) into Now, ahead of #286, and cut it to its first slice, publishing to Immich.
+
+1. [#28](https://github.com/sesser/Gus/issues/28) `publishing-engine`: Getting edited photos into Immich means exporting and uploading by hand, leaving them loose beside their originals. Ahead of #286 at the owner's choice (2026-11-25)
 
 ## Next
 
@@ -62,10 +64,13 @@ On 2026-11-20 the owner set Now to AI masks (#88), the preset list view (#241) a
 On 2026-11-20 the owner asked for a choice of what Copy Adjustments copies (#243); it went first in Next (Now was full), moved to Now on 2026-11-22 and shipped 2026-11-22.
 On 2026-11-23 the owner dropped the closed items (#64, #65, #71, #73) and set Next to features: #28, #85, #90, #151, #199, #110, #108, #107, #104, in that order. The bugs and tooling items that were in Next went to the top of Later: none has affected the owner's use of the app, so features come first until a bug does (or others report one on GitHub).
 On 2026-11-23 the owner also placed Import from Immich (#271) first in Next, ahead of #28, whose Immich target reuses the connection layer #271 creates. #271 shipped 2026-11-24 (branch `feature/immich-import`), so #28 became first in Next and builds on its `remoteService` and `remoteLink` tables and connection layer. Later that day HDR export of gain-map photos (#286), split out of #282, was placed ahead of it.
+On 2026-11-25 #28 moved to Now and its later slices (share links, published filters, Apple Photos) took its place here; the Folder destination it proposed was dropped, since Export covers it.
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
-1. [#286](https://github.com/sesser/Gus/issues/286) `gain-map-hdr-export`: An HDR edit of a gain-map photo can't leave the app, since exports are SDR. Ahead of #28 at the owner's choice (2026-11-24): the next step after #282, which it builds on
-1. [#28](https://github.com/sesser/Gus/issues/28) `publishing-engine`: Getting edited photos into Apple Photos or Immich means exporting to a folder and uploading by hand
+1. [#286](https://github.com/sesser/Gus/issues/286) `gain-map-hdr-export`: An HDR edit of a gain-map photo can't leave the app, since exports are SDR. The next step after #282, which it builds on
+1. [#297](https://github.com/sesser/Gus/issues/297) `publish-share-links`: Sharing published photos means making a link in Immich by hand (after #28)
+1. [#298](https://github.com/sesser/Gus/issues/298) `publish-filters`: No way to find what was published, or changed since (after #28)
+1. [#299](https://github.com/sesser/Gus/issues/299) `publish-apple-photos`: Getting edited photos into Apple Photos means exporting and importing by hand (after #28; spike first)
 1. [#85](https://github.com/sesser/Gus/issues/85) `dng-export`: No DNG output
 1. [#90](https://github.com/sesser/Gus/issues/90) `stacks`: No hand-made or burst stacks
 1. [#151](https://github.com/sesser/Gus/issues/151) `panorama-merge`: No way to merge overlapping photos into a panorama. Open for the PRD: approach (Core Image if it offers stitching, the Hugin libraries, or a stitcher of our own); GRDB is the only dependency (ask first) and Hugin is GPL (owner, 2026-11-11)
