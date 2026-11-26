@@ -421,19 +421,7 @@ private struct OriginalsCheckView: View {
                 Label(PublishText.originalsSummary(found: result.found, of: result.checked),
                       systemImage: result.found == result.checked ? "checkmark.circle" : "exclamationmark.triangle")
                 ForEach(result.groups, id: \.group) { entry in
-                    DisclosureGroup(isExpanded: .constant(result.groups.count == 1) ) {
-                        ForEach(Array(entry.photos.prefix(10).enumerated()), id: \.offset) { _, photo in
-                            Text("\(photo.name): \(PublishText.reason(photo.reason))")
-                                .font(.system(size: 11))
-                                .textSelection(.enabled)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        if entry.photos.count > 10 {
-                            Text(PublishText.andMore(entry.photos.count - 10)).font(.system(size: 11))
-                        }
-                    } label: {
-                        Text("\(entry.photos.count): \(PublishText.groupTitle(entry.group))")
-                    }
+                    ReasonGroup(group: entry.group, photos: entry.photos, opensAtFirst: result.groups.count == 1)
                 }
                 if result.offline > 0 { Caption(text: PublishText.originalsOffline(result.offline)) }
                 Caption(text: PublishText.unstackedNote)
@@ -547,6 +535,36 @@ private struct PublishFolderMapPage: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
+        }
+    }
+}
+
+/// One reason's photos, closed unless it is the only reason (design §7): at
+/// most ten, then "And ‹n› more.".
+private struct ReasonGroup: View {
+    let group: NoOriginalReason.Group
+    let photos: [(name: String, reason: NoOriginalReason)]
+    @State private var isExpanded: Bool
+
+    init(group: NoOriginalReason.Group, photos: [(name: String, reason: NoOriginalReason)], opensAtFirst: Bool) {
+        self.group = group
+        self.photos = photos
+        _isExpanded = State(initialValue: opensAtFirst)
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            ForEach(Array(photos.prefix(10).enumerated()), id: \.offset) { _, photo in
+                Text("\(photo.name): \(PublishText.reason(photo.reason))")
+                    .font(.system(size: 11))
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if photos.count > 10 {
+                Text(PublishText.andMore(photos.count - 10)).font(.system(size: 11))
+            }
+        } label: {
+            Text("\(photos.count): \(PublishText.groupTitle(group))")
         }
     }
 }

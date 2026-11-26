@@ -6,9 +6,12 @@ Owner: swift-macos-engineer. Branch `feature/publishing-engine` (off `develop`).
 Spec: the PRD (issue #28, revision 4, approved 2026-11-25) and [design.md](design.md)
 (current against revision 4; rulings in its §16).
 
-**State: In progress.** Engineering started 2026-11-26. The verification below
-(2026-11-25, and three more items on 2026-11-26) is done; its requirements
-issues and design questions are ruled (PRD revisions 3 and 4, design §16).
+**State: Done** (2026-11-26). Every acceptance criterion is built and mapped
+to a test or a check below, except AC17 (the owner's, on his own server).
+`swift test` passes, `Scripts/build-app.sh all` builds, the CI toolchain build is
+clean, and the UI was checked with the debug script. Open for others: RI-E1
+(below), the checks **For a person**, the owner's approval of the proposed
+`CLAUDE.md` Network rule, and the follow-ups under **Follow-ups proposed**.
 
 ## Progress
 
@@ -69,6 +72,156 @@ Built (each step committed on the branch):
    section "Publishing to an Immich server".
 
 Left: see **State** at the top and the checks below.
+
+## Acceptance criteria
+
+Tests are Swift Testing suites in `Tests/PhotoCoreTests` (`PublishRulesTests`,
+`PublishJobTests`, `PublishBoundaryTests`, `RemoteConnectionTests`,
+`CatalogTests`, `LibraryModalTests`, `LocalizationTests`). Scripted checks ran
+the bundle copied with identifier `me.sesser.gus.debugtest.publish28`, a
+`photobench` scratch library and the fake server (2026-11-26; commands under
+**Scripted checks**).
+
+| AC | Test or check | Result |
+|---|---|---|
+| AC1 | `PublishBoundaryTests.noPublishingOutsideTheLibraryApp` (no publishing code in the importer, `photocli` or the command registry; the menu item and ⌥⌘E); scripted `publish menu`, `publish sheet` (opens with saved servers), `publish serversheet add` | Pass |
+| AC2 | `PublishJobTests.offlineAndArchive` (offline fails only that photo), `linkAndCopy` (a copy is its own publication), `ExportJobTests.pairsExportOnceFromTheirRAWAndVideosAreLeftOut` (the same `ExportTargets`); scripted runs: "1 video was left out." | Pass |
+| AC3 | `uploadsAsExported` (pixels, name and metadata equal to an export with the typed description; no rating or label; only the four fields; library unchanged), `PublishRulesTests.captureDate` (10:20 at +02:00 sent as 10:20 labelled UTC), `uploadBody`, `description`; `ExportTests` for what each level keeps | Pass |
+| AC4 | `offlineAndArchive` (visibility set by the upload), `newAlbum` (no second album), `rememberedChoices`; scripted: the Archive caption with and without stacking, a new album remembered as existing, empty description on reopening | Pass |
+| AC5 | `PublishRulesTests.permissions` (each removed in turn is named; exact set; `stack.read` never), `PublishBoundaryTests.purposes`; scripted with a two-permission key: Album and Stacking name their missing permissions, Publish dimmed, then enabled with None and stacking off, and that run published | Pass |
+| AC6 | `expectOnlyAllowedRequests` in the job tests, `RemoteConnectionTests.allowlist` (updates and deletes refused; `RemoteRequestAllowlist.writes` is the four) | Pass |
+| AC7 | `linkAndCopy`, `stackingOffAndFallThrough` (no stack request with stacking off; a trashed linked asset falls through to the map), `PublishBoundaryTests.pairPartner` | Pass |
+| AC8 | `PublishRulesTests` (longest folder, volume identity, NFC/NFD, case, own beside partner's, qualifying beside each non-qualifying kind, pair order), `folderMapOwnBesidePartner` | Pass |
+| AC9 | `PublishRulesTests.reasonOrder`, `moreThanOne`, `linked`, `ladder`; `noOriginalReasons`; scripted Check Originals: "No mapped folder", then "Nothing at the mapped path" with the path | Pass |
+| AC10 | `joinsExistingStack` (non-primary original, trashed member out, no request about it, the create names edit, primary, original), `linkAndCopy` (two edits, later in grid order primary, two uploads at once), `refusedStackRetried` | Pass |
+| AC11 | `refusedStackRetried`; scripted: refused stack, Retry Failed, both stacked, three uploads in all | Pass |
+| AC12 | One `OriginalFinder` for both (by construction); scripted `publish originals` | Pass |
+| AC13 | `records` (records survive removing the server); scripted: the question once ("3 photos were already published"), Skip sent nothing ("3 were skipped."), New Copy uploaded, Cancel sent nothing | Pass |
+| AC14 | `duplicateUsable` (read before album and stack, album added, recorded), `duplicateLeftAlone` (trash, hidden, locked: no album or stack request, not retried), `duplicateReadFailsThenRetried` | Pass |
+| AC15 | Scripted `import grid` after publishing: the published edits are marked In Library; `records` (`publishedRemoteIDs`) | Pass |
+| AC16 | `faults` (429 tried again; rejected key stops and says which), `lostConnection`, `personsStop`, `uploadsAsExported` (no temporary file; masters byte for byte), `endingWaitsForFullySent` | Pass |
+| AC17 | The owner, on his own server | Open (owner) |
+| AC18 | Scripted: a confirmed local http server publishes with no second question and the sheet says Not encrypted. An https server's sheet has no such line by code (`service.serverAddress?.scheme == .http`); not run, the fake server is http only | Pass (http); https by reading |
+| AC19 | Scripted: Edit Server, name only: no warning; address changed on a server with records: the warning | Pass |
+| AC20 | `personsStop` (the photo in progress is the only one without its album) | Pass |
+| AC21 | `lostConnection` (fault: unreached included), `personsStop` (own Stop: left out; uploaded photo finished), `PublishBoundaryTests.retryAndLaterRuns` (a later run's photo left out; a re-edit renders as saved at the retry); the three refusal reasons by code (`retryRefusal`), "A publish is already running." seen scripted | Pass |
+| AC22 | By reading: the texts design §4.1 lists are changed (Server sheet captions and results by host, unencrypted notice, Import inspector captions, Remove Server alert, `Info.plist`); the user guide's import section and its new Publishing section (trashed members, a lost answer, unfinished steps) | Done, for the reviewers to read |
+| AC23 | `endingWaitsForFullySent` (answer within the bound: recorded; none: ends at the bound, no record), `notFullySentCancelledAtOnce`; scripted: Stopping… with Stop dimmed and File ▸ Stop Publishing dimmed, then recorded | Pass; a quit during the wait not scripted |
+| AC24 | `lostAlbumCreate`, both the automatic repeat and Retry Failed, with an older album of that name holding the first photo | Pass |
+| AC25 | `PublishBoundaryTests.purposes`; scripted: saved from Publish with two permissions, refused from Import with "To save a key made only for publishing…", the Import window shows "Can't Import from", a key lacking `asset.read` refused from Publish | Pass |
+
+## Scripted checks (2026-11-26)
+
+`Scripts/build-app.sh`, the bundle copied and re-signed with its own
+identifier, `photobench generate --jpeg 3 --videos 1`, `photobench import`
+into a scratch library, then `--library-root <scratch> --debug-script "…"`.
+The scripts start the fake server (`import server fake start 3`), set its
+permissions, add it (`import server add Home fake`, or `publish serversheet …`),
+and drive `publish …` (`DebugPublishCommands.swift` lists every command). Seen:
+the sheet's rows and issues, both pages, Check Originals, the question, three
+complete runs, a refused stack and its retry, the ending wait, the import
+window's In Library marks, both Server sheet hosts and the address warning.
+
+One combined script (scenario 4: Publish, then the import window's Add, Edit
+and Close, then Publish's Edit) did not quit within its 220 s timeout after
+the import-hosted sheet steps; each part run alone passed and quit. Not
+explained; QA should run it again (it may be AppKit ignoring a quit while a
+sheet is up, #276).
+
+## Live check (2026-11-26)
+
+`PublishLiveTests` (opt-in: `PUBLISH_LIVE_SERVER`, `PUBLISH_LIVE_KEY_FILE`)
+ran the real client and engine against the throwaway 3.2.0 and 3.4.2: a
+multipart upload streamed by URLSession, a new album made with the first
+photo, stacking on a linked original (the edit primary), and a duplicate
+answer read before anything else. Passed on both. The servers were removed
+afterwards; the images kept.
+
+## Decisions on the open items
+
+- **Trashed primary** (PRD open question 1): holds; see item A and RI-E1.
+- **Archive with more than two** (task): holds; item B.
+- **A lost album create** (PRD open question 2): holds with the set read
+  before the create; item C and `lostAlbumCreate`.
+- **Moving the connection code to a library-only target** (PRD open question
+  3): **not done**, and not required. R25 and AC1 ask for no publishing path in
+  the importer or `photocli`, which holds and is pinned by
+  `PublishBoundaryTests`. The code is still linked into both: the importer
+  links PhotoUI, whose shared import window hosts the server source
+  (`ServerSource`, `ServerSheet`, `ServerText`), and PhotoCore holds
+  `Remote/`. A real split needs a `Remote` target and the server parts of the
+  import window moved to a library-only target with hooks in
+  `CardImportModel`: #271's settled surface, and larger than this slice.
+  Proposed as a follow-up.
+- **Request shapes and streaming** (task): as status.md's table; the upload
+  streams the multipart body from a file (`uploadTask(with:fromFile:)`), and
+  "fully sent" is read at stop time from the task's counters
+  (`RemoteUploadEnding.end`), as verified.
+- **LibRaw-decoded exports**: not checked; there is no raw sample in the
+  repository's fixtures that the system decoder refuses, and the owner's
+  photos are not used.
+
+## Proposed `CLAUDE.md` Network rule (R27; the owner approves before it is committed)
+
+Type names checked against the code on this branch.
+
+> - **Network.** The app contacts one kind of host: an Immich server the user
+>   adds, and only the library app does it (the standalone importer, About and
+>   `photocli` have no path to it). All of it is PhotoCore `Remote/`: import
+>   reads behind `RemotePhotoSource` and never writes; publishing goes behind
+>   `RemotePublishDestination`. The key lives only in the Keychain
+>   (`KeychainKeyStore`, service `<bundle id>.servers`, account the
+>   connection's uuid), never in the catalog, preferences, logs, Activity or
+>   debug output. Only the allowlisted requests are ever built
+>   (`RemoteRequestAllowlist`), checked before a request exists: GET, the one
+>   search POST, and, for publishing only, four writes
+>   (`RemoteRequestAllowlist.writes`: upload an asset, create an album, add
+>   assets to an album, create a stack). No request updates or deletes anything
+>   on the server; adding another write needs the owner's approval. Creating a
+>   stack makes the server replace the stack it joins, so it names the
+>   original's current primary and runs one at a time per original
+>   (`StackSequencer`); an album create is never sent again before the album it
+>   may have made is looked for (`AlbumCoordinator`). An upload sends only the
+>   rendered temporary file and the values publishing names
+>   (`PublishUploadBody`: date, name, visibility), never an original or a
+>   sidecar; it streams from disk, and a stopped run cancels it at once unless
+>   it was fully sent, then waits at most 10 s for its answer
+>   (`RemoteUploadEnding`). The key goes only as `x-api-key` and only to the
+>   connection's host. Response bodies and downloads are capped (an error's
+>   body at 64 KiB, read only for the server's message). Redirects are never
+>   followed, and there are no cookies, cache or credential storage. Transport
+>   policy: `https://` by default; plain `http://` only to a local-network host
+>   after the user confirms the notice. An untrusted certificate is never
+>   accepted silently; the user may trust one fingerprint per connection, a
+>   changed one fails, and nothing turns checking off. Nothing else may use
+>   `URLSession`: `RemoteHTTPSession.swift` is the one HTTP path (the fake
+>   server uses the Network framework). Tests use `FakeImmichServer` and
+>   `InMemoryKeyStore`. A test launch always uses the in-memory store. No
+>   package was added: Foundation and the Security framework.
+
+Also for the owner's part of `CLAUDE.md`: the catalog table list gains
+`remotePublication` and `remotePublishSettings` (migration v18).
+
+## For a person (not scriptable)
+
+- The sheet, its two pages and the results sheet at the smallest window; their
+  look in the dark library window; keyboard only from ⌥⌘E to Publish.
+- Return in the Description field (design §13: Return should press Publish and
+  Option-Return insert a line; a vertical `TextField` may insert a line
+  instead, which the design accepts). Not confirmed by the engineer.
+- Menus and the context menu by eye; the toolbar's Publish item in the default
+  set.
+- The quit alert during a real run, and a quit while a run is ending (asks
+  nothing, waits out the bound).
+- AC17 on the owner's server (https, a reverse proxy, the web interface).
+
+## Known and left
+
+- Announcements (design §13): the album, stacking and Archive issues are
+  announced when they appear; the Server section's issue is the menu's hint
+  only, and Check Originals' summary is announced. VoiceOver is left to CI.
+- A server whose permissions change after the sheet's check keeps the old
+  check until Check Again or Publish (which checks again).
 
 ## Immich verification (2026-11-25)
 
@@ -542,7 +695,37 @@ Kept as raised; every one is ruled in design §16.4.
 | 2026-11-26, baseline at a58d943 | `swift build --build-tests` | Built clean, no errors |
 | 2026-11-26, engine | `swift test --filter "Remote\|Publish\|CatalogTests\|LibraryRemoval"` | 159 tests in 15 suites passed |
 | 2026-11-26, engine | `swift test --filter PublishJobTests`, three runs | 20 of 20 each time |
+| 2026-11-26, done | `swift test` | 1620 tests in 226 suites passed (100.7 s) |
+| 2026-11-26, done | `Scripts/build-app.sh all` | Both bundles built and signed |
+| 2026-11-26, done | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, no errors (Xcode 26.3, `/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`) |
+| 2026-11-26, done | `PUBLISH_LIVE_SERVER=… PUBLISH_LIVE_KEY_FILE=… swift test --filter PublishLiveTests`, 3.2.0 and 3.4.2 | Passed on both |
+
+Determinism of the new tests: none sleeps to synchronize. The stop tests
+(`personsStop`, `endingWaitsForFullySent`) stop at the client's own "fully
+sent" callback (`PublishJob.onFullySent`), which the session's serial delegate
+queue delivers before the answer, and `personsStop` cancels whichever of the
+callback and the task assignment comes second. `endingWaitsForFullySent`'s
+no-answer case measures the bound (2 s) with a 4 s margin above it.
+`notFullySentCancelledAtOnce` relies on a 48 MB body not fitting the loopback
+buffers (about 4 MB observed, status.md task 5). `PublishJobTests` passed 3 of
+3 runs in isolation and in 3 full runs; that rules out only a frequent flake.
+
+## Follow-ups proposed
+
+- **Move the server code to a library-only target** (enhancement): a `Remote`
+  target and the server parts of the import window (`ServerSource`,
+  `ServerSheet`, `ServerText`) in a library-only target, so the standalone
+  importer and `photocli` link none of it. See **Decisions on the open items**.
+- **Explain the combined script's timeout** (bug, for QA first): see
+  **Scripted checks**.
 
 ## README
 
-Nothing yet.
+- Publishing: File ▸ Publish… uploads to an Immich server (a Features line).
+- Catalog migration v18 (`remotePublication`, `remotePublishSettings`).
+- The read-only wording about servers changes (R27): the README's network
+  sentence, roadmap principle 3 and `CLAUDE.md`'s Network rule (proposed
+  above).
+- `PUBLISH_LIVE_SERVER` and `PUBLISH_LIVE_KEY_FILE` run `PublishLiveTests`
+  against a throwaway Immich (opt-in, like the other sample tests).
+- No new package; no build command changed.

@@ -1332,6 +1332,9 @@ final class LibraryModel {
     /// The library window, while it exists.
     var window: NSWindow? { windowObserver.window }
 
+    /// The server a publish runs to (the import window dims its Edit and Remove Server…).
+    var publishingServerUUID: String? { publish.runningServerUUID }
+
     /// Catalog volumes by identity (the folder map's Mac folders, R12).
     var volumesByIdentity: [String: VolumeRecord] {
         Dictionary(volumesByID.values.map { ($0.identity, $0) }, uniquingKeysWith: { first, _ in first })

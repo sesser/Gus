@@ -459,8 +459,15 @@ extension CardImportModel: ServerSheetHost {
         serverSheet = ServerSheetModel(mode: .add, host: self, purpose: .importing, keys: library.remoteKeyStore)
     }
 
+    /// The chosen server is being published to (design §4): it can't be
+    /// edited or removed until the run ends.
+    public var serverIsBusyPublishing: Bool {
+        guard let uuid = library?.publishingServerUUID, let browse else { return false }
+        return browse.service.uuid == uuid
+    }
+
     public func showEditServer(reviewingCertificate: Bool = false) {
-        guard let library, let service = browse?.service, !isImporting else { return }
+        guard let library, let service = browse?.service, !isImporting, !serverIsBusyPublishing else { return }
         let sheet = ServerSheetModel(mode: .edit(service), host: self, purpose: .importing, keys: library.remoteKeyStore)
         if reviewingCertificate, case .certificateChanged(let summary)? = browse?.failure {
             sheet.page = .certificate(summary, changed: true)
@@ -469,7 +476,8 @@ extension CardImportModel: ServerSheetHost {
     }
 
     public func askToRemoveServer(_ service: RemoteServiceRecord? = nil) {
-        guard !isImporting, let service = service ?? browse?.service else { return }
+        guard !isImporting, let service = service ?? browse?.service,
+              service.uuid != library?.publishingServerUUID else { return }
         removingServer = service
     }
 

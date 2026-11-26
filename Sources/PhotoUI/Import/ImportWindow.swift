@@ -665,7 +665,7 @@ private struct ServerSection: View {
                 Caption(text: String(localized: "This key can do more than importing needs. Importing only reads."))
             }
             Button("Edit Server…") { model.showEditServer() }
-                .disabled(model.isImporting)
+                .disabled(model.isImporting || model.serverIsBusyPublishing)
         }
     }
 }

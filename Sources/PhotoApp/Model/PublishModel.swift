@@ -135,6 +135,8 @@ final class PublishModel: ServerSheetHost {
     private(set) var jobName = ""
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var runningID: UUID?
+    /// The server the running publish goes to (its uuid), nil when none runs.
+    private(set) var runningServerUUID: String?
     /// Every run since launch, newest last (R23: Retry Failed until quit).
     private(set) var runs: [PublishRun] = []
     var resultsRunID: UUID?
@@ -606,6 +608,7 @@ final class PublishModel: ServerSheetHost {
         jobName = run.service.name
         started = Date()
         runningID = run.id
+        runningServerUUID = run.service.uuid
         let total = retrying ? run.retryCandidates.count : run.items.count
         progress = PublishProgress(done: 0, total: total, current: 0, phase: .rendering)
         task = Task {
@@ -627,6 +630,7 @@ final class PublishModel: ServerSheetHost {
         started = nil
         task = nil
         runningID = nil
+        runningServerUUID = nil
         // An album the run made is remembered as an existing album (R7).
         if case .ready(let id, let name, true) = run.album, let library, let serviceID = run.service.id {
             var choices = run.choices
