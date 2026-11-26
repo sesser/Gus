@@ -4,18 +4,74 @@ Issue: #28 · Complexity: Hard
 
 Owner: swift-macos-engineer. Branch `feature/publishing-engine` (off `develop`).
 Spec: the PRD (issue #28, **revision 7**, 2026-11-26) and [design.md](design.md)
-(rulings in its §16 and §17: D-1 to D-11 and the correction to §3.6).
+(rulings in its §16 and §17: D-1 to D-13 and the correction to §3.6).
 
-**State: Done** (2026-11-26, second review round). Every second-pass finding of
-[review.md](review.md) (F19 to F23) and [code-review.md](code-review.md) (C8 to
-C10), PRD revision 7 (R23, AC21) with D-10 and D-11, and the code reviewer's two
-wording points on the proposed Network rule are fixed, each with its test or
-scripted check (**Second review round** below). `swift test`,
-`Scripts/build-app.sh all` and the CI toolchain build are recorded under **Build
-and test**. Open for others: the checks **For a person**, the owner's approval
-of the proposed `CLAUDE.md` Network rule, **Design questions** and
-**Follow-ups proposed**. Next: code-reviewer's third pass and the designer's
-(the UI changed), then qa-tester.
+**State: Done** (2026-11-26, third review round). The third-pass design review's
+findings F24 to F28 of [review.md](review.md) are fixed (F27 and F28, optional,
+included), with D-12 and D-13 built as ruled, each with its test or scripted
+check (**Third review round** below); the user guide says when Retry Failed is
+not offered. `swift test`, `Scripts/build-app.sh all` and the CI toolchain build
+are recorded under **Build and test**. Open for others: the checks **For a
+person** (and review.md's M1 to M10), the owner's approval of the proposed
+`CLAUDE.md` Network rule (unchanged this round) and **Follow-ups proposed**.
+Next: code-reviewer's pass on this round and the designer's (the UI changed),
+then qa-tester.
+
+## Third review round (2026-11-26)
+
+Started from this file at eb34859. The designer's `design.md` and `review.md`
+were committed as they were (b16e129).
+
+| # | Fix | Test or check |
+|---|---|---|
+| F24 (D-12) | The rule is in PhotoCore, one for the button and the job: `PublishRun.retryVersionIDs(laterPublished:)` (the candidates less the photos not uploaded that a later run published; the run's own uploads are never asked about), `offersRetry(laterPublished:)` and `retrySentByLaterRuns(laterPublished:)`; `Catalog.laterPublications(of:)` reads the later publications. `PublishJob` now takes its retry list from `retryVersionIDs`, so what R23 covers and counts is unchanged, and an empty retry started anyway still ends as before (no new non-ending). The app reads the later publications when the results sheet appears, when its run changes (`resultsRunID`) and when a publish ends with the sheet open; only the newest read lands. With nothing left the button is gone and the caption **A later publish already sent the photos left to retry.** stands in its place (new catalog key, "Publishing (issue #28)"); `retry()` reads them again after the servers and starts nothing then (no message, no ending, the sheet stays). Counts, lists, header and Activity message unchanged | `PublishRulesTests.retryNothingLeftRule` and `PublishBoundaryTests.retryNothingLeftAfterLaterRun` (a fault-stopped run, later runs publishing its photos one by one, the catalog read, the job sending nothing). With the rule stubbed as before (the candidates, `offersRetry`) they failed with 5 and 2 issues; restored and passing. Scripted: `27-results-retry-sent-by-later-run.png` (caption, no button; a scripted Retry Failed is refused, Activity still 2 messages); `23a`, `23`, `23b` below |
+| F25 (D-13) | `PublishServerChange.after(reload:chosenID:before:)` (PhotoCore) tells a reload's meaning for the chosen server. Removed: `chosenServerWasRemoved()` gives up the check, albums, Check Originals and a Publish being confirmed (`cancelSheetWork`), clears the server, check, client, albums, album choice (None), folder map, links, the Skip or New Copy question and the start issue, returns from the folder map page dropping its unsaved pairs, and shows **This server was removed.** (announced, `AnnouncedIssue`; also the Server pop-up's hint) until another server is chosen or added; with no saved server left, the No saved server state and no line. The folder-map row and the "no original can be found yet" line show only with a chosen server, and `showFolderMapPage` refuses without one. Show in, stacking, the file settings and the description stay | `PublishRulesTests.chosenServerChange` (with the rule stubbed to the old "reload changes nothing", 4 issues; restored, passing). Scripted: `26-publish-chosen-server-removed.png` (Server None, the line, Album None dimmed, no folder-map row or line, Check Originals and Publish dimmed; the print shows check idle, albums empty); `26b-folder-map-before-removal.png` then `26b-folder-map-server-removed.png` (back on the main page, pairs dropped, a scripted `map open` refused); `26c-another-server-chosen.png` (the line gone, checked, Publish on); `26d-check-failed-before-removal.png` then `26e-last-server-removed.png` (No saved server, no line, check idle) |
+| F26 | `ReasonGroup`'s lines in a `VStack(alignment: .leading, spacing: 4)` at full width, leading | Scripted, 12 photos, one group open: `06-check-originals-result.png` (ten lines of different widths and "And 2 more." on one leading edge) |
+| F27 | File Settings shows `editor.watermarkIssue ?? settingsIssue`, so a non-PNG pick says so while the image is missing | Scripted, the watermark file deleted between two launches: `29a-file-settings-watermark-missing.png` ("The watermark image is missing."), then a non-PNG picked: `29b-file-settings-not-png-over-missing.png` ("“notpng.png” is not a PNG image.") |
+| F28 | The same rule: the chosen record's address or trusted certificate changed in a reload runs `choose(_:keepingChoices: true)`, only while the sheet shows (nothing is contacted otherwise). A rename alone does nothing | `chosenServerChange` (address, certificate, rename, another id). Scripted: Trip, Archive and a description chosen, then the import window's Edit set the address to `localhost`: the sheet shows the new address, checks 2 (was 1), Trip, Archive and the description kept (`28-address-changed-checked-again.png`); a rename then: checks still 2 |
+| User guide | Retry Failed is not offered when a later publish to that server already sent every photo it would cover, with the caption; the publish sheet when its server is removed or its address or certificate changed in the import window | Reading |
+
+Also fixed, found by the snapshots: **the results' Failed list drew the first
+photo's row for every failed photo** (`IMG_00001.JPG` twice where the run had
+`IMG_00001` and `IMG_00002` failed; the print and the counts were right). The
+section nested a `ForEach` over each photo's failures with their offsets as ids
+inside a `ForEach` over photos; it is now one flat `ForEach` with an id per photo
+and failure. Seen fixed in `27` and `23a` (both names).
+
+New debug words: `publish settings watermark <file>` (as Choose Image…), `import
+server sheet field address fakehost` (the fake server named `localhost`); the
+publish print adds `removedLine`, `mapRow`, `checks <n>` (sheet checks started)
+and the File Settings page's issue; `publish results retry` prints `refused`
+when nothing starts, and the results print shows the caption.
+
+### Snapshots (third round)
+
+The debug bundle (`CONFIGURATION=debug Scripts/build-app.sh library`) copied
+with identifier `me.sesser.gus.debugtest.round3`, signed ad hoc; a fresh copy
+of a new `photobench generate --jpeg 3 --dng 0 --heic 0 --videos 1` library
+(`photobench import`) for every script, and a 12-photo one for `06`; the fake
+server with the publishing permissions; every launch with `--library-root`.
+Each PNG was read after it was written. In
+`/private/tmp/claude-501/-Users-randy--claude-spares-spare-ZSbkzm/7f274175-835d-4217-a958-c2a7b08f08df/scratchpad/round3/shots/`:
+
+- `06-check-originals-result.png`: F26, twelve photos.
+- `23a-results-older-run-one-photo-left.png`: a fault-stopped run after a later
+  run published one of its photos: Retry Failed offered (two still to send).
+- `23-results-newest-after-retry.png`: that run retried: it ended last, opens by
+  default and is first in the Run pop-up (D-9); the photo the later run
+  published still counts as Failed, so the caption shows (D-12).
+- `23b-results-later-run.png`: the later run, nothing to retry.
+- `27-results-retry-sent-by-later-run.png`: F24, a later run published all.
+- `26-publish-chosen-server-removed.png`, `26b-folder-map-before-removal.png`,
+  `26b-folder-map-server-removed.png`, `26c-another-server-chosen.png`,
+  `26d-check-failed-before-removal.png`, `26e-last-server-removed.png`: F25.
+- `28-address-changed-checked-again.png`: F28.
+- `29a-file-settings-watermark-missing.png`,
+  `29b-file-settings-not-png-over-missing.png`: F27.
+
+Not captured: a failed check followed by removal with another server left (the
+removal sets the same idle state, printed in `26e`); the announcement of the
+removal line (VoiceOver).
 
 ## Second review round (2026-11-26)
 
@@ -458,9 +514,17 @@ Also for the owner's part of `CLAUDE.md`: the catalog table list gains
   the next Retry Failed still covers what it covered. A Stop after the retry has
   started on its photos is the person's Stop, so photos still not uploaded drop
   out of the next retry (R23's "the latest ending decides").
-- A run's photos that a later run published are left out of its retry, but
-  the results still count them as failed or not published and still offer
-  Retry Failed, which then has nothing to send (see **Design questions**).
+- A run's photos that a later run published are left out of its retry and
+  still counted as failed or not published in that run's results (D-12: they
+  record that run); when they are all its retry would cover, Retry Failed is
+  not offered and a caption says why.
+- A key changed for the chosen server in the import window (the address and
+  certificate unchanged) is not noticed by an open publish sheet: the record
+  doesn't change, so its check stands until Check Again or Publish, which
+  checks again (as for permissions above).
+- The chosen server removed in the import window while the publish sheet has
+  handed its place to its own Server sheet (Add or Edit): that sheet is not
+  closed; on its return the publish sheet shows the removal as above.
 
 ## Immich verification (2026-11-25)
 
@@ -949,6 +1013,12 @@ None open.
 | 2026-11-26, second round | `swift test` | 1639 tests in 226 suites passed (90.1 s), on the final sources |
 | 2026-11-26, second round | `Scripts/build-app.sh all` | Both bundles built and signed (release; the library app's executable records SDK 27.2, minimum 15.0) |
 | 2026-11-26, second round | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, exit 0, no warning in the changed files (`/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`) |
+| 2026-11-26, third round, baseline at b16e129 | `swift build --build-tests` | Built clean |
+| 2026-11-26, third round | the new tests with each rule stubbed as before (`retryVersionIDs` = the candidates, `offersRetry(laterPublished:)` = `offersRetry`; `PublishServerChange.after` = `.unchanged`) | `retryNothingLeftRule` 5 issues, `retryNothingLeftAfterLaterRun` 2, `chosenServerChange` 4; restored and passing |
+| 2026-11-26, third round | `swift test --skip-build --filter "PublishJobTests\|PublishRulesTests\|PublishBoundaryTests"`, 20 runs | 20 of 20 passed (60 tests) |
+| 2026-11-26, third round | `swift test` | 1642 tests in 226 suites passed (96.6 s), on the final sources |
+| 2026-11-26, third round | `Scripts/build-app.sh all` | Both bundles built and signed (release; the library app's executable records SDK 27.2, minimum 15.0) |
+| 2026-11-26, third round | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, exit 0, no warning in the changed files (`/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`) |
 
 Determinism of the new tests: none sleeps to synchronize. The stop tests
 (`personsStop`, `endingWaitsForFullySent`) stop at the client's own "fully
@@ -974,6 +1044,15 @@ tests) passed 20 of 20 times with `--skip-build`, which rules out a per-run
 flake rate of about 1 in 7 or more (at about 95%), not rarer ones; the
 structural argument above is the claim for those.
 
+Determinism of the third round's tests: `retryNothingLeftRule` and
+`chosenServerChange` are pure functions over values. `retryNothingLeftAfterLaterRun`
+runs every job at concurrency 1 against the fake server, as `retryAndLaterRuns`
+does; the fault is added from the server's own upload callback, the later runs
+are awaited before each read, and `laterPublications` compares record times
+with the first run's start, which every later record follows by at least one
+upload's round trip. No timing or shared state decides it; the 20 clean runs
+only rule out a flake of about 1 in 7 or more.
+
 Determinism of the second round's tests: none sleeps to synchronize. C9 makes
 the report order structural: every report is computed and delivered under the
 counter's one lock, so the listener receives them in the order of their states,
@@ -989,7 +1068,10 @@ concurrency 1 and checks every report, whatever their timing. The 30 clean runs
 rule out a per-run flake rate of about 1 in 10 or more (at about 95%); the
 structural argument is the claim for rarer ones.
 
-## Design questions (second round)
+## Design questions (second round, ruled)
+
+Both ruled by the designer on 2026-11-26 (design §17: D-12 for DQ-R2-1, option
+(c) with a caption; D-13 for DQ-R2-2) and built in the third round. None open.
 
 - **DQ-R2-1: Retry Failed for photos a later run published.** R23 leaves out of
   a retry a photo not yet uploaded that a later run has since published, and the
