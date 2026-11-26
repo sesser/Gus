@@ -1,122 +1,118 @@
 # Publish to Immich: design review
 
 Issue: #28. Reviewer: apple-ui-designer. Date: 2026-11-26. Branch
-`feature/publishing-engine`. Second pass at a382a7b (first pass at b244b48).
+`feature/publishing-engine`. Third pass at eb34859 (first at b244b48, second at
+a382a7b).
 
 Compared with [`design.md`](design.md) (rulings in its §16 and §17), the PRD
-(revision 6) and the HIG. Method: reading the sources, the String Catalog entries
-of the changed publishing strings, the user guide, [`status.md`](status.md), and
-the engineer's 20 snapshot files (01 to 18, with 05 twice and 06 twice) of the
-running app. Nothing was built or run by this review. The snapshots draw the
-default button as in an inactive window, and the Activity popover's glass comes
-out colored; neither is a finding.
+(revision 7) and the HIG. Method: reading the current sources that
+[`status.md`](status.md) names for the second round, the catalog entries it
+changed, the user guide, and the engineer's 22 retaken snapshots (`round2/shots`).
+Nothing was built or run, and the diff against a382a7b was not run (no shell in
+this review). The snapshots draw the default button as in an inactive window, and
+the Activity popover's glass comes out colored; neither is a finding.
 
 ## Verdict
 
-**Changes needed.** F1 to F8 and F10 to F18 are fixed. The fix for F9 brought in
-a blocker: **Publish N Photos stays dimmed after the server check passes**
-(F19). Three smaller faults (F20 to F22) and one minor one (F23) are also open.
+**Changes needed, all small; no blocker.** F19 to F23 are fixed, and D-10 and
+D-11 are built as ruled. Three faults are open (F24 to F26): the two the
+engineer asked about as DQ-R2-1 and DQ-R2-2, now ruled (D-12, D-13), and one in
+the Check Originals list that earlier passes missed. F27 and F28 are minor and
+optional.
 
 ## Open findings
 
 ### Must fix
 
-**F19. Publish stays dimmed after a passing check.** `PublishModel.canPublish`
-(line 380) tests `client != nil` before `serverInfo`, and `client` is
-`@ObservationIgnored` (line 81). While the check runs `client` is nil, so the
-guard stops there and SwiftUI registers no dependency on `check`. When the check
-passes, nothing the button's view (`PublishMainPage`) reads changes, so it is
-not drawn again. Snapshot `01-publish-main.png` shows it: the check has passed
-(no spinner, Album enabled), no issue is shown, and **Publish 3 Photos** is
-disabled. In `06-check-originals-result.png` it is enabled, after a visit to
-another page redrew it. The scripted checks missed it because `publish start`
-calls `confirm()` and `publish print` computes `canPublish` afresh.
-Why it matters: the sheet's one purpose can't be carried out by the ordinary
-route (open, press Return), and no reason is given (design §3.8; HIG Buttons,
-Feedback).
-Fix: remove `@ObservationIgnored` from `client`, so every input of `canPublish`
-is observed. Check it on screen: open the sheet, wait for the check, snapshot
-without visiting a page or pressing anything.
+**F24. Retry Failed is offered when it has nothing to send** (DQ-R2-1, ruling
+D-12). After a later publish has sent a run's remaining photos, the older run
+still shows the button. Pressing it sends nothing and ends the run again as
+completed, so the results then read **Failed 1**, **Not published 1**, no stop
+line, and the button again (`23-results-newest-after-retry.png` shows exactly
+this). The Activity message says "not published because publishing stopped" for a
+run that now reads as completed. Publishing again after fixing a key is an
+ordinary way to get here. Why it matters: a button that is on and does nothing,
+as often as it is pressed (HIG Buttons, Feedback).
+Fix (design §10.3): no button when every photo it would cover is left out because
+a later run published it; in its place, the caption **A later publish already
+sent the photos left to retry.** Counts, lists and messages are unchanged.
 
-### Should fix
+**F25. The sheet keeps a removed server's state** (DQ-R2-2, ruling D-13). C10
+dims Publish and Check Originals, but the model still holds the removed server's
+check, albums and folder map. Seen in `26-publish-chosen-server-removed.png`:
+**Edit Folder Map…** is on, the "no original can be found yet … this server" line
+stands, and nothing says why Publish is off. By reading: the **Album** pop-up is
+still on with the removed server's albums; if its check had failed or lacked a
+permission, **Try Again** and **Check Again** do nothing and **Edit Server…**
+opens Add Server; the folder map page is titled **Folder Map for “”**.
+Fix: design §3.3, "The chosen server is removed".
 
-**F20. One photo reads "1 of 1 photos."** Both catalog variations of **Originals
-found for %lld of %lld photos.** and of **Publishing stopped after %lld of %lld
-photos.** are plural, and the catalog compiler can inflect only a first number.
-Publishing the loupe's one photo is a common case, so fix on this branch (ruling
-D-6), replacing the two keys, with no plural variation:
-**Originals found: %1$lld of %2$lld.** and **Publishing stopped. Photos on the
-server: %1$lld of %2$lld.** This was the engineer's proposed follow-up; it is
-not needed after this.
+**F26. Check Originals' photo lines are centered on each other.** `ReasonGroup`
+(`PublishSheet.swift`) puts its `Text`s straight into the `DisclosureGroup`,
+whose stack centers them. In `06-check-originals-result.png` the first line starts
+3 pixels right of the other two, only because its digits are narrower; with
+file names or paths of different lengths, and in the "And ‹n› more." line, the
+left edges stagger visibly. Why it matters: a list is read down its leading edge
+(HIG Layout, alignment). Design §7.
+Fix: wrap the content in `VStack(alignment: .leading, spacing: 4)` with
+`.frame(maxWidth: .infinity, alignment: .leading)`.
 
-**F21. Skip or New Copy says "them" about one photo.** `PublishText
-.questionMessage` has one first part for every count, under a title reading **1
-photo was already published to…** (design §8 asks for singular and plural; missed
-in the first pass). With one published photo use (ruling D-7): **Skip leaves it
-as it is on the server. New Copy publishes it again; no photo on the server is
-replaced, and a file that hasn't changed may be reported as already there.** The
-last sentence is unchanged.
+### Minor (optional)
 
-**F22. A retry that only finishes steps reads "Rendering 0 of 2".**
-`ItemContext.steps` calls `counter.step` only from the upload path, so for photos
-already accepted the job keeps its starting phase and a current of 0 for the
-whole retry (design §9: those steps run under Uploading; ruling D-8).
-Fix: report `.uploading` with the photo's sequence when its upload is already
-done.
+**F27. On File Settings, a bad watermark pick is hidden while the image is
+missing.** The page passes `publish.settingsIssue` to `ExportSettingsSections`,
+which shows it in preference to `editor.watermarkIssue`. Choosing a non-PNG then
+changes nothing on screen. Fix: pass
+`publish.editor.watermarkIssue ?? publish.settingsIssue`. Export is not affected.
 
-### Minor
+**F28. An address changed in the import window leaves the old check up** (by
+reading). `serversChanged` only reloads the records, so the open sheet shows the
+new address over the old address's check, albums and Check Originals client until
+**Check Again** or another choice. **Publish** connects afresh, so this is about
+what is shown. Fix: when the chosen record's address or trusted certificate
+differs after a reload, run `choose(_:keepingChoices: true)`.
 
-**F23. After a retry, "newest" is not the newest.** `endedRuns` is in start
-order, but the Run pop-up shows end times. Retrying an older run leaves the list
-out of time order, and **File ▸ Publish Results…** opens a different run from the
-one just retried (design §10.2; ruling D-9). Fix: order `endedRuns` by
-`endedAt`; or say in `status.md` why not.
-
-## First-pass findings, confirmed against a382a7b
-
-"Reading" means the code was read; a snapshot number means it was also seen.
+## Second-pass findings, confirmed against eb34859
 
 | # | Finding | Result |
 |---|---|---|
-| F1 | Cancel during Checking still published | **Fixed.** Session-guarded confirm task, cancelled on dismissal; question carries its server and client; form dimmed, Cancel on (08) |
-| F2 | An ending run showed as running | **Fixed** by reading: slot holds stopping; counter and `followed(by:)` keep ending; D-1 details. Ending state not in any snapshot (15 shows the ended run) |
-| F3 | Retry invisible and repeatable | **Fixed.** Slot claimed before the check, check inside the task, `endedAt` set on every ending (12, 16) |
-| F4 | Retry unaware of removed or moved server | **Fixed** (14) |
-| F5 | Edit Server threw choices away | **Fixed** by reading (`keepingChoices`) |
-| F6 | Server path rewritten while typed | **Closed.** Not reproduced by the engineer; the text is now kept as typed and the slash dropped in matching and on Done (05) |
-| F7 | Export watermark warning stayed | **Fixed** by reading (`onWatermarkPicked`). 17 and 18 are identical and show only the top of the sheet, so the warning has not been seen |
-| F8 | Results showed the running run | **Fixed** by reading (`endedRuns`) |
-| F9 | Reopened sheet publishable before loading | Asked changes are in; **superseded by F19**, a fault the fix introduced |
-| F10 | Untrusted certificate unexplained | **Fixed** by reading (D-3) |
-| F11 | Stale originals check came back | **Fixed** by reading (`resetOriginals`; album no longer clears) |
-| F12 | Album pop-up tick and permission line | **Fixed** by reading; needs a person (M4) |
-| F13, G-2 | Issues not announced | **Fixed** by reading (`AnnouncedIssue`, hints) |
-| F14 | Import marks late; actions not dimmed | **Fixed** by reading |
-| F15 | No popover spinner; Waiting stuck | **Fixed** (16) |
-| F16 | Result wording | **Fixed** (10, 11; D-5 line by reading only, see below) |
-| F17 | Add Folder focus | **Fixed** (05, added: the server field has the selection) |
-| F18 | Retry overwrote remembered choices | **Fixed** by reading |
+| F19 | Publish stayed dimmed | **Fixed.** `client` and `session` are observed; `01` shows **Publish 3 Photos** on with nothing pressed, and the A/B copy (`01b`) shows it off. Return publishing: M2. F9 is closed with it |
+| F20 | "1 of 1 photos." | **Fixed.** Both keys replaced, old entries gone (`25`, `10`) |
+| F21 | "them" about one photo | **Fixed** by reading (code and catalog; "The other ‹n› photos" inflects). The alert is unseen: M6 |
+| F22 | "Rendering 0 of 2" on a steps-only retry | **Fixed** by reading (first report and `steps` both report Uploading) and the engineer's test; unseen |
+| F23 | Newest run | **Fixed.** `PublishRun.byEnding`; the retried run opens by default (`23`). Pop-up order by reading |
 
-RI-E1 is ruled (PRD revision 5); `design.md` §4.1 and §15 now agree with it.
+## D-10 and D-11 as built
+
+| Ruling | Result |
+|---|---|
+| D-10: a Stop during the check is not an ending | **Pass** by reading: `PublishRetry.perform` and `ended(stopAsked:)`, then `release` with no `finish`, so no message, announcement or sheet. Run unchanged on screen (`19`, `21`) and the next retry covers it (`22`) |
+| D-10: **Stopping…**, Stop dimmed, until the check returns | **Pass** by reading; the moment was too short to capture: M7 |
+| D-10: an open results sheet stays on its run | **Pass** by reading (`resultsRunID` untouched; the retried run is left out until released): M7 |
+| D-11: **Show Results…** dimmed during the retry | **Pass** (`16` dimmed, `19` on again); `showResults` opens no other run |
+
+## Export
+
+The change in this round (`ExportSettingsEditor.useWatermark` loads the image
+after setting it) keeps Export acceptable. Choosing the same image again after
+its file had gone now clears the warning and draws the mark (`17`, `18`); a
+non-PNG says so and keeps the earlier choice (`17b`). A pick of a different image
+loads it twice, which shows nothing. F7 is now seen as well as read.
 
 ## Snapshots
 
-| File | What it shows |
+| Files | What is on screen |
 |---|---|
-| 01 | Main page. **Publish dimmed with a passing check (F19)** |
-| 02, 03, 06 (check originals) | The same view three times: top of the sheet, missing `asset.upload`, Album **None**, **Timeline**. Section and issue are right. They do **not** show what `status.md` says: no New Album name or note, no Archive warning, no dimmed Check Originals. Retake after the change has drawn and scrolled into view, or those stay unseen. If the controls don't redraw after the script's command, that is a further fault to report |
-| 04 | File Settings: as designed |
-| 05, 05 added | Folder map: typed text kept, example correct, field focused |
-| 06 result | Folder map saved, **1 folder**, Check Originals; the result itself is below the fold and unseen |
-| 07 | Server sheet from Publish: host captions and unencrypted notice as designed |
-| 08 | Confirming: form dimmed, Cancel on, **Checking…** |
-| 09 to 12, 14 | Results: counts, sections, reasons, Run pop-up, Retry Failed and its refusals as designed |
-| 13 | Named "retry check failed", but the header has no **Publishing stopped: …** line and Retry is enabled. By code a run stopped by its check shows that line, so this is probably another run (F23) or was taken before the retry ended. Retake with the fixes |
-| 15 | Popover with the ended, stopped run; not the ending state |
-| 16 | Retry's check: title, **Stop**, detail, spinner: as designed |
-| 17, 18 | Export top of sheet; the watermark section is not in view |
+| 01, 02, 03 | As designed: enabled Publish; New Album with its note and button; Archive warning wraps |
+| 06, 06 dimmed, 06 result, 25 | As designed apart from F26 |
+| 09, 10, 13, 21, 22 | Results as designed; 13 now has its stop line |
+| 15, 16, 19 | Activity as designed |
+| 23 | Order right; **F24** |
+| 24 | Sheet behind the one-photo question |
+| 26 | **F25** |
+| 17, 17b, 18 | Export, as above |
 
-Nothing is clipped or overlapping in the views shown.
+Nothing is clipped or overlapping.
 
 ## Design requirements
 
@@ -124,36 +120,33 @@ Nothing is clipped or overlapping in the views shown.
 |---|---|---|
 | P1, §2.1 | File menu items, order, ⌥⌘E, Stop title, enabling | Pass by reading; M3 |
 | §2.2, §2.3 | Toolbar item; context menu | Pass by reading; M3 |
-| P2, §3.1, §3.2 | Sheet, header, sections | Pass (01); smallest window M1 |
-| §3.3 | Server section | Pass (01, 02) |
-| §3.4 | Album, Archive captions | Pass by reading; unseen, M1, M4 |
-| §3.5 | Stacking | Pass (01) |
-| P3, §3.6 | Shared form, presets, description | Pass (04); Export M8 |
-| §3.8 | Publish enabling; Cancel sends nothing | **Fail (F19)**; Cancel passes (08) |
-| P4, P13, P14, §4 | Server sheet by host, wording, address warning | Pass (07); swap M5 |
-| P5, §5 | Missing permissions | Pass (02) |
-| P6, §6 | Folder map | Pass (05); M2 |
-| P7, §7 | Check Originals | **Fail** wording (F20); rest by reading |
-| P8, §8 | Skip / New Copy | **Fail** singular (F21); keys M6 |
-| P9, §9 | Activity, Stop, ending, quit | **Fail** detail on a steps-only retry (F22); rest pass (16); M7 |
-| P10, §10 | Activity row, results, Retry Failed | **Fail** wording (F20), order (F23); rest pass (09 to 14) |
+| P2, §3.1, §3.2 | Sheet, header, sections | Pass (01, 25); smallest window M1 |
+| §3.3 | Server section | Pass (01); **fail** on a removed server (F25) |
+| §3.4 | Album, Archive captions | Pass (02, 03); M4 |
+| §3.5 | Stacking | Pass (06) |
+| P3, §3.6 | Shared form, presets, description | Pass; F27 optional; M8 |
+| §3.8 | Publish enabling; Cancel sends nothing | Pass (01) |
+| P4, P13, P14, §4 | Server sheet by host, wording, address warning | Pass by the second pass (no change); M5 |
+| P5, §5 | Missing permissions | Pass (06 dimmed) |
+| P6, §6 | Folder map | Pass by the second pass; M2 |
+| P7, §7 | Check Originals | Wording passes; **fail** alignment (F26) |
+| P8, §8 | Skip / New Copy | Pass by reading; M6 |
+| P9, §9 | Activity, Stop, ending, quit | Pass (15, 16); M7 |
+| P10, §10 | Activity row, results, Retry Failed | **Fail** offering an empty retry (F24); rest pass |
 | P11, §11 | Import window marks | Pass by reading; M9 |
-| P12, P15, P16 | Nothing elsewhere; Archive warns; Already There | Pass by reading |
-| §13 | Keyboard, announcements, plurals | **Fail** plurals (F20, F21); M2 |
+| P12, P15, P16 | Nothing elsewhere; Archive warns; Already There | Pass |
+| §13 | Keyboard, announcements, plurals | Pass by reading; M2 |
 
-## Strings and user guide
+## User guide
 
-The new and changed catalog entries read for D-1, D-3, D-4, the already-there
-forms of Not Finished, and the plural entries match the design, apart from F20
-and F21. The user guide matches the UI and PRD revision 6 on terms, link order,
-the former top photo, **Stopping…**, the retry's check, the dropped slash and
-"uploads no photo twice (except after a lost answer…)". It quotes neither string
-that F20 changes. No change needed.
+Matches the UI and PRD revision 7, the retry's Stop and the dimmed **Show
+Results…** included. With F24 it needs a few words where it says when Retry Failed
+is offered (not when a later publish already sent what was left).
 
 ## Rulings
 
-D-1 to D-5, the §3.6 correction and the new D-6 to D-9 are recorded in
-[`design.md`](design.md) §17 and the sections it names.
+D-12 (DQ-R2-1) and D-13 (DQ-R2-2) are recorded in [`design.md`](design.md) §17
+and the sections it names. Neither changes a requirement.
 
 ## Requirements and design issues
 
@@ -161,28 +154,32 @@ None for the product manager.
 
 ## Manual checks (a person, bundled app, scratch library and a test server)
 
-After F19 to F22 are fixed.
+After F24 to F26 are fixed.
 
 - **M1.** Publish sheet, both pages and results at the smallest window, also with
-  Increase Contrast: **New Album…** with an existing name (note and button),
-  Archive with stacking (warning wraps), Check Originals' result, long addresses.
+  Increase Contrast; long addresses.
 - **M2.** Keyboard only: ⌥⌘E, every control, **Return** publishes straight after
-  the check; note what Return and Option-Return do in Description; focus returns
-  to the grid or loupe. In the folder map type `/mnt/media/photos` by hand, paste
-  a trailing slash, and check focus after **Add Folder…** through the real panel.
+  the check with no click first; note what Return and Option-Return do in
+  Description; focus returns to the grid or loupe. In the folder map type
+  `/mnt/media/photos` by hand, paste a trailing slash, and check focus after
+  **Add Folder…** through the real panel.
 - **M3.** File menu, context menu and toolbar by eye: order, dimming, the
   `paperplane` item in the default set, Customize and overflow.
 - **M4.** Album pop-up with the mouse: the tick; with a key lacking `album.read`,
   the dimmed **New Album…** and its line.
 - **M5.** Add, Edit, Cancel and Review Certificate from Publish: sheets swap
-  cleanly, choices and description kept, Publish enabled after the return.
-- **M6.** Skip or New Copy: Return is Skip, Esc returns. Results: Return and Esc
-  close; the Run pop-up; selecting a reason.
+  cleanly, choices and description kept, Publish enabled after the return. With
+  the sheet open, remove its server in the import window.
+- **M6.** Skip or New Copy, for one published photo and for several: wording,
+  Return is Skip, Esc returns. Results: Return and Esc close; the Run pop-up;
+  selecting a reason.
 - **M7.** A real run: **Stop** while a large photo renders (**Stopping…**) and
-  while it uploads (never back to Uploading); **Show Results…**; Quit during a
-  run, and again while it is ending (no question).
-- **M8.** Export: with the watermark file missing, the warning shows; choosing a
-  good image clears it; a non-PNG says so.
+  while it uploads (never back to Uploading); **Stop** while a retry checks a slow
+  server, with another run's results open (nothing changes); **Show Results…**;
+  Quit during a run, and again while it is ending (no question).
+- **M8.** Watermark file missing, in Export and in Publish ▸ File Settings: the
+  warning shows; choosing the same image again clears it (in Publish this is
+  unverified); a non-PNG says so.
 - **M9.** Import window during a publish: new uploads become In Library; Edit and
   Remove Server dimmed.
 - **M10.** The owner's server (AC17): an https server shows no **Not encrypted**
@@ -190,5 +187,5 @@ After F19 to F22 are fixed.
 
 ## Follow-up
 
-Open: F19 to F23. I confirm the fixes here. F1 to F8 and F10 to F18 are closed;
-F9 is closed once F19 is.
+Open: F24 to F26 (F27 and F28 optional). I confirm the fixes here. F1 to F23 are
+closed.

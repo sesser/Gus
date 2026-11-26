@@ -165,6 +165,26 @@ Information lines below, each `info.circle` and 11 pt secondary, only when true:
 | Keychain refused | **The key couldn't be read** and the system's text; **Try Again**, **Edit Server…** |
 | Passed | Nothing extra |
 
+**The chosen server is removed** while the sheet is open, from the import window
+(D-13). The sheet never picks another by itself: what is published can't be taken
+back by the app, so the destination changes only when the person changes it.
+
+- The **Server** pop-up reads **None**, and under it an issue line, announced
+  (§13): **This server was removed.** It goes when another server is chosen or
+  added.
+- Nothing of the removed server stays: no address, **Not encrypted** line, check
+  state or permission lines; **Album** reads **None**, dimmed; the folder-map row
+  and the "no original can be found yet" line are hidden; **Check Originals** and
+  **Publish** are dimmed; a check, Check Originals or Publish in progress is
+  given up, and an open Skip or New Copy alert is dismissed.
+- On the folder map page, the sheet returns to the main page and the page's
+  unsaved changes are dropped.
+- **Show in**, **Stack with original**, the file settings and the description
+  stay on screen. Choosing another server then loads its remembered choices as
+  usual (§3.7).
+- When no saved server is left, the **No saved server** state shows instead, with
+  no removal line.
+
 The publish check is II's check (reachable, Immich, 3.2.0 or newer, key
 accepted, certificate) but it asks for **only the permissions the chosen options
 need** (§5), not import's five. In particular it reads the key's account (which
@@ -504,7 +524,8 @@ missing.
   `exclamationmark.triangle`; the words carry the meaning.
 - One `DisclosureGroup` per reason, closed, listing photo names with the reason
   sentence of §7.1 (including the path looked for), at most 10 then **And ‹n›
-  more.** Text is selectable. When only one reason occurs, its group opens.
+  more.** Text is selectable. When only one reason occurs, its group opens. The
+  lines share one leading edge, whatever their lengths.
 - Counts cover the photos that could be published: videos are already excluded,
   offline photos are counted on their own line. Skip, chosen later, can lower
   what the run stacks; the check does not ask that question.
@@ -888,6 +909,14 @@ Further:
   no caption.
 - The title stays **Retry Failed** (R23's name) even when all it has to do is
   finish steps.
+- **Nothing left to send** (D-12). When every photo the retry would cover is left
+  out because a later run published it (the rule above, the same one the job
+  applies), there is no button, so no empty run can be started. In its place the
+  button bar shows the caption **A later publish already sent the photos left to
+  retry.** With even one photo still to send or finish, the button shows as
+  usual. The run's counts, lists, header and Activity message are unchanged: they
+  record that run. The later publications are read when the sheet appears, when
+  the **Run** selection changes and when a publish ends while the sheet is open.
 - It starts by reading the saved servers again; a refusal found then leaves the
   results sheet open with its reason. Otherwise the retry is the running publish
   from that moment, its server check included (D-2).
@@ -1105,8 +1134,9 @@ Design questions, from `status.md`:
 
 Cited as "review D-‹n›". D-1 to D-5 are from the first pass, D-6 to D-9 from the
 second ([`review.md`](review.md)). D-10 and D-11 follow code review Q2, ruled by
-PRD revision 7 ([`code-review.md`](code-review.md)). The sections named carry the
-full text.
+PRD revision 7 ([`code-review.md`](code-review.md)). D-12 and D-13, from the third
+pass, answer the engineer's DQ-R2-1 and DQ-R2-2 ([`status.md`](status.md));
+neither changes a requirement. The sections named carry the full text.
 
 | # | Ruling | Where |
 |---|---|---|
@@ -1121,6 +1151,8 @@ full text.
 | D-9 | The newest run is the one that ended last; the Run pop-up is in that order | §10.2 |
 | D-10 | A Stop during a retry's check is not an ending: the run, its end time and its Activity message stay as they were; no new message, no announcement, no sheet; **Stopping…** until the check returns; an open results sheet stays on the run it shows | §9, §10.3 |
 | D-11 | While a run is being retried, **Show Results…** on its row is dimmed | §10.1 |
+| D-12 | (DQ-R2-1) No **Retry Failed** when a later run has published every photo it would cover; the caption **A later publish already sent the photos left to retry.** stands in its place. Counts, lists and messages unchanged | §10.3 |
+| D-13 | (DQ-R2-2) The chosen server removed while the sheet is open: **Server** reads None with **This server was removed.**, nothing of that server stays, and no other server is chosen by itself | §3.3 |
 
 Correction to §3.6 (first pass): Export reports no empty template, so the missing
 watermark image is the only settings issue.
