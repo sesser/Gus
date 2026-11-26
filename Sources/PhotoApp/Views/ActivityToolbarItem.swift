@@ -235,7 +235,8 @@ private struct ActivityPopover: View {
                                 model.setActivityPopoverShown(false)
                                 model.publish.showResults(id)
                             }
-                            .disabled(model.otherModalIsUp)
+                            // Dimmed while this run is retried (review D-11).
+                            .disabled(model.otherModalIsUp || model.publish.isBeingRetried(id))
                         }
                     }
                 }

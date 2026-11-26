@@ -230,7 +230,8 @@ enum PublishText {
     }
 
     static func originalsSummary(found: Int, of total: Int) -> String {
-        String(localized: "Originals found for \(found) of \(total) photos.", comment: "Check Originals result")
+        // Two numbers and no noun after them, so one photo reads right (review D-6).
+        String(localized: "Originals found: \(found) of \(total).", comment: "Check Originals result")
     }
 
     static func originalsOffline(_ count: Int) -> String {
@@ -307,8 +308,12 @@ enum PublishText {
     }
 
     static func questionMessage(published: Int, total: Int) -> String {
-        let base = String(localized: "Skip leaves them as they are on the server. New Copy publishes them again; no photo on the server is replaced, and a file that hasn't changed may be reported as already there.",
-                          comment: "Skip or New Copy alert message")
+        // One published photo is "it" (review D-7).
+        let base = published == 1
+            ? String(localized: "Skip leaves it as it is on the server. New Copy publishes it again; no photo on the server is replaced, and a file that hasn't changed may be reported as already there.",
+                     comment: "Skip or New Copy alert message: one photo was already published")
+            : String(localized: "Skip leaves them as they are on the server. New Copy publishes them again; no photo on the server is replaced, and a file that hasn't changed may be reported as already there.",
+                     comment: "Skip or New Copy alert message")
         let others = total - published
         guard others > 0 else { return base }
         return base + " " + String(localized: "The other \(others) photos are published either way.", comment: "Skip or New Copy alert message")
@@ -369,7 +374,8 @@ enum PublishText {
         if let stop = run.ending?.stop {
             if stop == .stopped {
                 let done = run.items.filter(\.isAccepted).count
-                lines.append(String(localized: "Publishing stopped after \(done) of \(run.items.count) photos.",
+                // Two numbers and no noun after them (review D-6).
+                lines.append(String(localized: "Publishing stopped. Photos on the server: \(done) of \(run.items.count).",
                                     comment: "Publish results: the person stopped"))
             } else {
                 lines.append(String(localized: "Publishing stopped: \(stopTitle(stop, service: run.service)).",

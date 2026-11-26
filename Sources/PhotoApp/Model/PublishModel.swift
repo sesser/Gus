@@ -72,13 +72,16 @@ final class PublishModel: ServerSheetHost {
     private(set) var servers: [RemoteServiceRecord] = []
     /// Each opening of the sheet, and each dismissal, is a new session: an
     /// answer applies only to the session it was asked in (review F1).
-    @ObservationIgnored private var session = 0
+    /// Observed, as `isConfirming` reads it.
+    private var session = 0
     /// The session Publish was pressed in, while its check and lookup run.
     private var confirmingSession: Int?
     @ObservationIgnored private var confirmTask: Task<Bool, Never>?
     private(set) var serviceID: Int64?
     private(set) var check: CheckState = .idle
-    @ObservationIgnored private(set) var client: ImmichClient?
+    /// Observed: `canPublish` reads it, and Publish N Photos must redraw when
+    /// the check sets it (review F19).
+    private(set) var client: ImmichClient?
     private(set) var albums: [RemoteAlbum] = []
     private(set) var albumsState: AlbumsState = .notLoaded
     /// The album, visibility, stacking and render settings chosen. A change
@@ -283,7 +286,7 @@ final class PublishModel: ServerSheetHost {
         let readsAccount = stacking
         let opened = session
         checkTask = Task {
-            let outcome = await Self.connect(service, keys: keys, readsAccount: readsAccount)
+            let outcome = await PublishConnection.connect(service, keys: keys, readsAccount: readsAccount)
             guard !Task.isCancelled, session == opened, self.serviceID == service.id else { return }
             switch outcome {
             case .failed(let result):
@@ -294,36 +297,6 @@ final class PublishModel: ServerSheetHost {
                 check = .passed(info)
                 if PublishPermissions.canListAlbums(info.permissions) { loadAlbums() }
             }
-        }
-    }
-
-    enum Connection {
-        case ready(ImmichClient, PublishServerInfo)
-        case failed(ConnectionCheckResult)
-    }
-
-    /// The key from the store, a client and the check, off the main actor
-    /// (the Keychain may ask the person).
-    nonisolated static func connect(_ service: RemoteServiceRecord, keys: any RemoteKeyStore, readsAccount: Bool) async
-        -> Connection {
-        guard let address = service.serverAddress else { return .failed(.notImmich) }
-        let key: String
-        do throws(RemoteKeyStoreError) {
-            guard let stored = try keys.key(account: service.uuid) else {
-                return .failed(.keychain(RemoteKeyStoreError.from(errSecItemNotFound).message))
-            }
-            key = stored
-        } catch {
-            return .failed(.keychain(error.message))
-        }
-        let connection = RemoteConnection(address: address, key: key, pinned: service.pinnedFingerprint,
-                                          unencryptedConfirmed: service.allowsUnencrypted)
-        guard let client = try? ImmichClient(connection: connection) else {
-            return .failed(.unreachable(reason: "", isLocalHost: address.isLocalNetworkHost))
-        }
-        switch await client.publishCheck(readsAccount: readsAccount) {
-        case .passed(let info): return .ready(client, info)
-        case .failed(let result): return .failed(result)
         }
     }
 
@@ -376,10 +349,11 @@ final class PublishModel: ServerSheetHost {
     var settingsIssue: String? { editor.settingsIssue }
 
     /// Publish N Photos is enabled (design §3.8): never over what an earlier
-    /// opening or server left (review F9).
+    /// opening or server left (review F9), nor for a server removed in the
+    /// meantime (code review C10). Every input is observed (review F19).
     var canPublish: Bool {
-        guard !isLoading, client != nil, serverInfo != nil, missing.isEmpty, !isPublishing, !isConfirming,
-              !versionIDs.isEmpty else { return false }
+        guard !isLoading, service != nil, client != nil, serverInfo != nil, missing.isEmpty, !isPublishing,
+              !isConfirming, !versionIDs.isEmpty else { return false }
         if isNewAlbum, newAlbumName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return false }
         return !rememberedAlbumGone && settingsIssue == nil
     }
@@ -533,7 +507,7 @@ final class PublishModel: ServerSheetHost {
     // MARK: Check Originals (R16, design §7)
 
     var canCheckOriginals: Bool {
-        guard let info = serverInfo, info.ownerID != nil, stacking else { return false }
+        guard service != nil, client != nil, let info = serverInfo, info.ownerID != nil, stacking else { return false }
         return missing.server.isEmpty && missing.stacking.isEmpty && !isPublishing
     }
 
@@ -643,7 +617,7 @@ final class PublishModel: ServerSheetHost {
         confirmingSession = opened
         startIssue = nil
         defer { if confirmingSession == opened { confirmingSession = nil } }
-        let outcome = await Self.connect(service, keys: library.remoteKeyStore, readsAccount: stacking)
+        let outcome = await PublishConnection.connect(service, keys: library.remoteKeyStore, readsAccount: stacking)
         guard !Task.isCancelled, session == opened, serviceID == service.id else { return false }
         let client: ImmichClient
         let info: PublishServerInfo
@@ -713,7 +687,7 @@ final class PublishModel: ServerSheetHost {
         defaults.set(service.uuid, forKey: Self.lastServerKey)
         runs.append(run)
         let map = folderMap
-        task = Task { await execute(run, retrying: false, client: client, accountID: info.ownerID, folderMap: map) }
+        task = Task { await execute(run, client: client, accountID: info.ownerID, folderMap: map) }
         return true
     }
 
@@ -742,24 +716,31 @@ final class PublishModel: ServerSheetHost {
         return true
     }
 
-    /// Runs `run` (it holds the slot) and finishes it.
-    private func execute(_ run: PublishRun, retrying: Bool, client: any RemotePublishDestination, accountID: String?,
+    /// Runs a new `run` (it holds the slot) and finishes it. Retries go
+    /// through `retryRun`.
+    private func execute(_ run: PublishRun, client: any RemotePublishDestination, accountID: String?,
                          folderMap: [PublishFolderMapping]) async {
         guard let job = job(client: client, accountID: accountID, folderMap: folderMap) else {
+            // Not reached: the library owns this model for the app's life.
+            // A new run that never started has nothing to report but the stop.
             var ended = run
             ended.ending = .stopped(.stopped)
             ended.endedAt = Date()
             return finish(ended)
         }
-        if retrying { progress?.total = run.retryCandidates.count }
-        let ended = await job.run(run, retrying: retrying) { progress in
+        let ended = await job.run(run, progress: report(for: run.id))
+        finish(ended)
+    }
+
+    /// The job's reports, on the main actor, while `id` holds the slot.
+    private func report(for id: UUID) -> @Sendable (PublishProgress) -> Void {
+        { progress in
             Task { @MainActor in
-                guard self.slot.holder == run.id, let current = self.progress else { return }
+                guard self.slot.holder == id, let current = self.progress else { return }
                 // A report sent before the stop may arrive after it (review F2).
                 self.progress = current.followed(by: progress)
             }
         }
-        finish(ended)
     }
 
     /// Reports in Activity only, never an alert (design §10): the run's row,
@@ -768,11 +749,7 @@ final class PublishModel: ServerSheetHost {
         var run = run
         if run.endedAt == nil { run.endedAt = Date() }
         if let index = runs.firstIndex(where: { $0.id == run.id }) { runs[index] = run } else { runs.append(run) }
-        progress = nil
-        started = nil
-        task = nil
-        runningServerUUID = nil
-        slot.release(run.id)
+        release(run.id)
         // An album the run made is remembered as an existing album (R7): the
         // album only, and only while no later run to that server has started
         // (review F18).
@@ -791,6 +768,15 @@ final class PublishModel: ServerSheetHost {
         library?.cardImport.publishedRecordsChanged()
     }
 
+    /// The slot goes, with the Activity job; nothing is reported.
+    private func release(_ id: UUID) {
+        progress = nil
+        started = nil
+        task = nil
+        runningServerUUID = nil
+        slot.release(id)
+    }
+
     /// Stop (Activity, File ▸ Stop Publishing, Stop and Quit): the run ends
     /// by R17's rule, showing Stopping until it has (design §9, review D-1).
     func cancel() {
@@ -807,10 +793,11 @@ final class PublishModel: ServerSheetHost {
 
     // MARK: Results and Retry Failed (design §10)
 
-    /// Runs that have ended, oldest first: the results, the Run pop-up and
+    /// Runs that have ended, by the time they ended, the last one last (a
+    /// retry's ending included, review D-9): the results, the Run pop-up and
     /// File ▸ Publish Results… never show one still going (review F8).
     var endedRuns: [PublishRun] {
-        runs.filter { $0.ending != nil && $0.id != slot.holder }
+        PublishRun.byEnding(runs.filter { $0.ending != nil && $0.id != slot.holder })
     }
 
     var resultsRun: PublishRun? {
@@ -818,11 +805,20 @@ final class PublishModel: ServerSheetHost {
         return ended.first { $0.id == resultsRunID } ?? ended.last
     }
 
+    /// The results of run `id`, or with none given (File ▸ Publish Results…)
+    /// the run that ended last. A run being retried is never shown, and never
+    /// replaced by another (design §10.1, review D-11).
     func showResults(_ id: UUID? = nil) {
-        guard let run = endedRuns.first(where: { $0.id == id }) ?? endedRuns.last else { return }
+        let ended = endedRuns
+        let shown = if let id { ended.first { $0.id == id } } else { ended.last }
+        guard let run = shown else { return }
         resultsRunID = run.id
         library?.showsPublishResults = true
     }
+
+    /// Show Results… on a run's Activity row is dimmed while that run is
+    /// being retried, its check included (review D-11).
+    func isBeingRetried(_ id: UUID) -> Bool { slot.holder == id }
 
     /// The results sheet appeared: the servers are read again, so Retry
     /// Failed's reason is current (review F4).
@@ -844,7 +840,8 @@ final class PublishModel: ServerSheetHost {
     /// at once and its server check is part of the run, in Activity with
     /// Stop (review D-2), so nothing else can start meanwhile (code review C2).
     func retry(_ id: UUID) {
-        guard let library, !isRetryPending, !isPublishing, let run = runs.first(where: { $0.id == id }) else { return }
+        guard let library, !isRetryPending, !isPublishing, let run = runs.first(where: { $0.id == id }),
+              run.offersRetry else { return }
         isRetryPending = true
         Task {
             await loadServers()
@@ -856,37 +853,31 @@ final class PublishModel: ServerSheetHost {
         }
     }
 
-    /// A retry holding the slot: its check, then the run. A check that fails
-    /// ends it, saying what the check found (review D-5).
+    /// A retry holding the slot: its check, then the run (`PublishRetry`).
+    /// A check that fails ends it, saying what the check found (review D-5).
+    /// A Stop while it checks, or before it has started on any photo, is not
+    /// an ending: the slot goes, and the run, its end time, its results and
+    /// its Activity message stay as they were (PRD revision 7, review D-10).
+    /// The job keeps showing Checking until the run's first report.
     private func retryRun(_ run: PublishRun, service: RemoteServiceRecord) async {
-        guard let library else { return }
-        let outcome = await Self.connect(service, keys: library.remoteKeyStore, readsAccount: run.choices.stacking)
-        var ended = run
-        ended.endedAt = Date()
-        if Task.isCancelled {
-            ended.ending = .stopped(.stopped)
-            return finish(ended)
-        }
-        switch outcome {
-        case .failed(let result):
-            ended.ending = .stopped(.checkFailed(result))
+        guard let keys = library?.remoteKeyStore else { return release(run.id) }
+        let outcome = await PublishRetry.perform(
+            run,
+            check: { await PublishConnection.connect(service, keys: keys, readsAccount: run.choices.stacking) },
+            makeJob: { [weak self] client, info in await self?.retryJob(service: service, client: client, info: info) },
+            progress: report(for: run.id))
+        if let ended = outcome.ended(stopAsked: slot.isStopping) {
             finish(ended)
-        case .ready(let client, let info):
-            let missing = PublishPermissions.missing(from: info.permissions, album: run.choices.album,
-                                                     stacking: run.choices.stacking)
-            if let first = missing.all.first {
-                ended.ending = .stopped(.missingPermission(first))
-                return finish(ended)
-            }
-            let map = (try? await library.catalog.publishSettings(serviceID: service.id ?? -1))?.folderMap ?? []
-            if Task.isCancelled {
-                ended.ending = .stopped(.stopped)
-                return finish(ended)
-            }
-            let phase: PublishProgress.Phase = isEnding ? .ending : .rendering
-            progress?.phase = phase
-            await execute(run, retrying: true, client: client, accountID: info.ownerID, folderMap: map)
+        } else {
+            release(run.id)
         }
+    }
+
+    /// The retry's job, with the server's folder map as saved now.
+    private func retryJob(service: RemoteServiceRecord, client: ImmichClient, info: PublishServerInfo) async -> PublishJob? {
+        guard let library else { return nil }
+        let map = (try? await library.catalog.publishSettings(serviceID: service.id ?? -1))?.folderMap ?? []
+        return job(client: client, accountID: info.ownerID, folderMap: map)
     }
 
     // MARK: Hosting the Server sheet (design §4)

@@ -21,10 +21,11 @@ import PhotoUI
 ///     publish stopatsent                  stops the run when the next upload is fully sent
 ///     publish wait                        until the run ends; prints the Activity row
 ///     publish stop                        File ▸ Stop Publishing
-///     publish results [print|retry|close]
+///     publish results [print|retry|close] | results run <n>   (the Run pop-up's item n, latest first)
 ///     publish serversheet add|edit|close|print|submit | field name|address|key <text> | confirm on|off
 ///     publish menu                        what Publish, Publish Results and Stop allow
 ///     publish job                         the Activity job: title, detail, progress, Stop
+///     publish activity                    the newest Activity message, its Show Results… and when it was posted
 ///     publish sheet nowait                File ▸ Publish… and print at once, before the check (review F9)
 ///     publish press | cancel              Publish N Photos without waiting | the sheet's Cancel (review F1)
 ///     publish map type <text>             types into the last pair's server field, a character at a
@@ -32,6 +33,8 @@ import PhotoUI
 ///                                         which field has the keyboard (review F17)
 ///     publish originals nowait            starts Check Originals and returns (review F11)
 ///     publish servers                     the saved servers as the sheet and Retry Failed know them (review F4)
+///     publish scroll top|bottom|<points>  scrolls the library window's sheet (this one, Export's, the results)
+///                                         so a snapshot shows what is below its fold
 @MainActor
 enum DebugPublishCommands {
     static func run(_ words: [String], model: LibraryModel) async {
@@ -48,6 +51,9 @@ enum DebugPublishCommands {
             printSheet(model)
         case "cancel":
             model.showsPublishSheet = false
+            try? await Task.sleep(for: .milliseconds(300))
+        case "scroll":
+            scrollSheet(rest.first ?? "top", model: model)
             try? await Task.sleep(for: .milliseconds(300))
         case "servers":
             print("debug-script: publish servers \(publish.servers.map { "\($0.name) \($0.address)" })")
@@ -150,6 +156,8 @@ enum DebugPublishCommands {
             while publish.isPublishing { try? await Task.sleep(for: .milliseconds(50)) }
             publish.debugOnFullySent = nil
             printActivity(model)
+        case "activity":
+            printActivity(model)
         case "stop":
             if let job = model.newestStoppableJob { model.stop(job) }
             try? await Task.sleep(for: .milliseconds(100))
@@ -169,6 +177,14 @@ enum DebugPublishCommands {
                 }
             case "close":
                 model.showsPublishResults = false
+            case "run":
+                // The Run pop-up's item <n>, 1-based, latest first (review D-9).
+                let listed = Array(publish.endedRuns.reversed())
+                if let n = Int(rest.dropFirst().first ?? ""), listed.indices.contains(n - 1) {
+                    publish.resultsRunID = listed[n - 1].id
+                }
+                try? await Task.sleep(for: .milliseconds(200))
+                printResults(publish)
             default:
                 if !model.showsPublishResults { publish.showResults() }
                 try? await Task.sleep(for: .milliseconds(200))
@@ -266,13 +282,24 @@ enum DebugPublishCommands {
 
     private static func printActivity(_ model: LibraryModel) {
         guard let message = model.activity.messages.last else { return print("debug-script: publish activity none") }
+        // Show Results… is dimmed as the popover dims it (review D-11).
+        let action: String = if let id = message.actionID.flatMap(PublishText.runID(fromAction:)) {
+            PublishText.showResults + (model.otherModalIsUp || model.publish.isBeingRetried(id) ? " dimmed" : " enabled")
+        } else { "-" }
         print("debug-script: publish activity \(message.isWarning ? "warning" : "info") '\(message.title ?? "")' "
-              + "action \(message.actionID == nil ? "-" : PublishText.showResults)")
+              + "action \(action) messages \(model.activity.messages.count) "
+              + "posted \(message.date.formatted(.iso8601.time(includingFractionalSeconds: true)))")
         for line in message.text.components(separatedBy: "\n") { print("debug-script: publish activity line '\(line)'") }
     }
 
     private static func printResults(_ publish: PublishModel) {
         guard let run = publish.resultsRun else { return print("debug-script: publish results none") }
+        // The Run pop-up, latest first, as the sheet lists it.
+        let listed = publish.endedRuns.reversed().map { candidate in
+            (candidate.id == run.id ? "✓" : "") + (candidate.endedAt ?? candidate.startedAt)
+                .formatted(.iso8601.time(includingFractionalSeconds: true))
+        }
+        print("debug-script: publish results runs [\(listed.joined(separator: ", "))]")
         let album = run.album.name ?? ""
         for item in run.items {
             var notes: [String] = []
@@ -322,6 +349,31 @@ enum DebugPublishCommands {
         }
         let shown = (sheet.firstResponder as? NSTextView)?.string ?? "-"
         print("debug-script: publish map typed '\(text)' field '\(shown)' model '\(publish.editingMap.last?.serverPath ?? "-")'")
+    }
+
+    /// Scrolls the tallest scroll view of the library window's sheet.
+    private static func scrollSheet(_ target: String, model: LibraryModel) {
+        guard let sheet = model.window?.attachedSheet, let root = sheet.contentView else {
+            return print("debug-script: publish scroll: no sheet")
+        }
+        func scrollViews(in view: NSView) -> [NSScrollView] {
+            let own: [NSScrollView] = if let scrollView = view as? NSScrollView { [scrollView] } else { [] }
+            return own + view.subviews.flatMap(scrollViews(in:))
+        }
+        guard let scrollView = scrollViews(in: root).filter({ $0.documentView != nil })
+            .max(by: { $0.documentView!.frame.height < $1.documentView!.frame.height }),
+            let document = scrollView.documentView else { return print("debug-script: publish scroll: no scroll view") }
+        let clip = scrollView.contentView
+        let maximum = max(0, document.frame.height - clip.bounds.height)
+        let offset = switch target {
+        case "top": 0.0
+        case "bottom": maximum
+        default: min(maximum, Double(target) ?? 0)
+        }
+        let y = document.isFlipped ? offset : maximum - offset
+        clip.scroll(to: NSPoint(x: clip.bounds.origin.x, y: y))
+        scrollView.reflectScrolledClipView(clip)
+        print("debug-script: publish scroll \(Int(offset)) of \(Int(maximum))")
     }
 
     private static func lastTextField(in view: NSView?) -> NSTextField? {

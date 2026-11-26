@@ -1313,15 +1313,20 @@ you get a second copy. Quitting while publishing asks first.
 When a run ends, Activity says what happened (published, already on the server,
 skipped, stacked, not stacked, videos left out, failed, not finished, not
 published because publishing stopped), with **Show Results…**; **File ▸
-Publish Results…** opens the newest run's results, and the **Run** pop-up
-earlier ones. The results list every failed, unfinished and unstacked photo
+Publish Results…** opens the results of the run that ended last (a retry's ending counts), and
+the **Run** pop-up earlier ones, latest first. The results list every failed, unfinished and unstacked photo
 with its reason. **Retry Failed** repeats only what did not succeed, with the
 run's server, settings and choices: it uploads no photo twice (except after a
 lost answer, described above), makes no second album or stack, and finishes
 the album and stacking of photos already uploaded. It first checks the server,
 as part of the run (Activity says **Checking “‹name›”…**, with **Stop**); if the
-check fails, the run reports what it found and sends nothing. After a stop caused by the server, it also publishes the photos not
-reached; after your own Stop it doesn't. It is offered until you quit, and not
+check fails, the run reports what it found and sends nothing. Pressing **Stop**
+while it is still checking calls the retry off and changes nothing: nothing is
+sent, no new message appears, and the run keeps its results, its time and what
+the next **Retry Failed** covers (its **Show Results…** is dimmed only while the
+retry runs). After a stop caused by the server, it also publishes the photos not
+reached; after your own Stop it doesn't, and stopping a retry once it has started
+on its photos counts as your own Stop. It is offered until you quit, and not
 while another publish runs, after the server was removed, or after its address
 changed (the results say which, and stay open). Unfinished steps are not kept after you quit. Stack the photo in
 Immich, or publish it again as a New Copy. That stacks the existing photo if

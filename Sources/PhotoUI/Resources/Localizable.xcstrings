@@ -19623,29 +19623,6 @@
         }
       }
     },
-    "Originals found for %lld of %lld photos." : {
-      "comment" : "Publishing (issue #28)",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Originals found for %lld of %lld photos."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Originals found for %lld of %lld photos."
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "%lld photos are offline and wouldn't be published." : {
       "comment" : "Publishing (issue #28)",
       "localizations" : {
@@ -20118,29 +20095,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The API key is missing %@"
-          }
-        }
-      }
-    },
-    "Publishing stopped after %lld of %lld photos." : {
-      "comment" : "Publishing (issue #28)",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Publishing stopped after %lld of %lld photos."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Publishing stopped after %lld of %lld photos."
-                }
-              }
-            }
           }
         }
       }
@@ -21286,6 +21240,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add %@ to the key in Immich to import from this server, or choose Edit Server… to enter a key that has them."
+          }
+        }
+      }
+    },
+    "Originals found: %lld of %lld." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Originals found: %lld of %lld."
+          }
+        }
+      }
+    },
+    "Publishing stopped. Photos on the server: %lld of %lld." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publishing stopped. Photos on the server: %lld of %lld."
+          }
+        }
+      }
+    },
+    "Skip leaves it as it is on the server. New Copy publishes it again; no photo on the server is replaced, and a file that hasn't changed may be reported as already there." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip leaves it as it is on the server. New Copy publishes it again; no photo on the server is replaced, and a file that hasn't changed may be reported as already there."
           }
         }
       }

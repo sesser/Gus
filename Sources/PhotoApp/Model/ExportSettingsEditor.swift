@@ -130,6 +130,9 @@ final class ExportSettingsEditor {
             }
             settings.watermark = watermark
             settings.watermarkEnabled = true
+            // The same image chosen again (its file had gone) keeps its
+            // identifier, so `settings` alone doesn't load it for the preview.
+            loadWatermark()
             watermarkIssue = nil
             return true
         } catch {
