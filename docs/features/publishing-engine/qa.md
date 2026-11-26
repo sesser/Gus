@@ -2,37 +2,42 @@
 
 Owner: qa-tester. Date: 2026-11-26. Step 4 of `docs/WORKFLOW.md`.
 Issue: #28. Spec: the issue body, PRD revision 7 (AC1 to AC25).
-Tested: `feature/publishing-engine` at c2ea497, on an Apple M4 Pro, macOS
-27.2.1 (26B131), macOS SDK 27.2, Swift 6.4.2. This is the second pass; the first
-was at e23d1ea (committed in bc54ded).
+Tested: `feature/publishing-engine` at 0eac173, on an Apple M4 Pro, macOS
+27.2.1 (26B131), macOS SDK 27.2, Swift 6.4.2. Third pass: the first was at
+e23d1ea (committed in bc54ded), the second at c2ea497. From c2ea497 to 0eac173
+nothing under `Sources/`, `Scripts/`, `Support/`, `Package.swift`,
+`Package.resolved`, `Branding.xcconfig` or the user guide changed (`git diff`):
+one test was added and the rest is docs. So the app sessions and builds of the
+second pass hold for 0eac173 and were not rerun.
 
 ## Verdict
 
-**Passes.** 24 of the 25 criteria are verified at c2ea497; AC17 is the owner's,
-on their own server. Q1 to Q4 of the first pass are fixed. One new finding, a
-missing test (Q7, design ruling D-17), blocks nothing. Open outside the
-findings: the checks under **For a person**, the owner's approval of the proposed
-`CLAUDE.md` Network rule (R27, `status.md`), and the known issue #303 (read
-**Known issues** before trying the branch).
+**Passes.** 24 of the 25 criteria are verified; AC17 is the owner's, on their own
+server. No finding of this feature is open: Q7, the last one, is closed (Q5 and
+Q6 are filed as #301 and #302). Open outside the findings: the checks under
+**For a person**, the owner's approval of the proposed `CLAUDE.md` Network rule
+(R27, `status.md`), and the known issue #303 (read **Known issues** before trying
+the branch).
 
 ## What was run
 
-| What | Result |
-|---|---|
-| `swift test` | 1669 tests in 228 suites passed (99.5 s). `PublishLiveTests` skipped (opt-in) |
-| `swift test --skip-build --filter "PublishKeyPairingTests\|ServerKeyPairingTests\|PublishJobTests\|PublishRulesTests\|PublishBoundaryTests\|RemoteConnectionTests\|RemoteSessionTests"`, 30 runs | 30 of 30 passed (104 tests). Rules out a per-run flake rate of about 1 in 10 or more (at about 95%), not rarer ones |
-| Nine changes made one at a time to a scratch copy of the sources outside the checkout, each followed by those suites | Eight made the intended tests fail; one (D-17) failed nothing (see **Changed since the first pass**, Q7) |
-| `Scripts/build-app.sh all` | Exit 0, both bundles; both executables record SDK 27.2, minimum 15.0; both signatures verify |
-| `swift build --build-tests` under Xcode 26.3 (Swift 6.2.4), `--scratch-path .build-xcode26.3` | Exit 0. Nothing was left to compile in that build folder (the engineer's build of these sources), so this is not a clean build |
-| Debug-script runs of a copy of the release bundle (identifier `me.sesser.gus.debugtest.qarecheck28`, re-signed ad hoc), launched from the shell, never activated | S1 to S8, S11 and S13 rerun; W1 to W6, T and L new (see **Scripts**), each with `--library-root` on a scratch library and the app's fake server |
-| The commands under **For a person**, extracted from this file and run in zsh | See the end of that section |
-| Live check against a real Immich | **Not rerun.** `PublishJob`, `ImmichClient`, `ImmichAPI`, `RemoteHTTPSession` and the String Catalog are unchanged since e23d1ea, where it passed on 3.2.0 and 3.4.2 |
+| At | What | Result |
+|---|---|---|
+| 0eac173 | `swift test`, once | 1670 tests in 228 suites passed (98.4 s). `PublishLiveTests` and the other opt-in suites skipped; the RAW golden comparison skipped (goldens made on macOS build 26B123, this Mac is 26B131) |
+| 0eac173 | `swift test --skip-build --filter "PublishKeyPairingTests\|ServerKeyPairingTests\|PublishJobTests\|PublishRulesTests\|PublishBoundaryTests\|RemoteConnectionTests\|RemoteSessionTests"`, 30 runs | 30 of 30 passed (105 tests). Rules out a per-run flake rate of about 1 in 10 or more (at about 95%), not rarer ones |
+| 0eac173 | Q7: the same suites in a scratch copy of HEAD outside the checkout, unmutated, with three mutations of `PublishRetry.perform`, then restored | Unmutated and restored: 105 passed. Each mutation failed only the new test (see **Follow-up**) |
+| 0eac173 | `swift build --build-tests` under Xcode 26.3 (Swift 6.2.4), `--scratch-path .build-xcode26.3` | Exit 0. Nothing was left to compile in that build folder, so this is not a clean build |
+| c2ea497 | Nine changes made one at a time to a scratch copy of the sources, each followed by the publishing suites | Eight made the intended tests fail; the ninth (D-17) failed nothing then (Q7, closed above) |
+| c2ea497 | `Scripts/build-app.sh all` | Exit 0, both bundles; both executables record SDK 27.2, minimum 15.0; both signatures verify |
+| c2ea497 | Debug-script runs of a copy of the release bundle (identifier `me.sesser.gus.debugtest.qarecheck28`, re-signed ad hoc), launched from the shell, never activated | S1 to S8, S11 and S13 rerun; W1 to W6, T and L new (see **Scripts**), each with `--library-root` on a scratch library and the app's fake server |
+| c2ea497 | The commands under **For a person**, extracted from this file and run in zsh | See **How the sign-off commands were checked** |
+| e23d1ea | Live check against a real Immich, 3.2.0 and 3.4.2 | Passed. Not rerun since: `PublishJob`, `ImmichClient`, `ImmichAPI`, `RemoteHTTPSession` and the String Catalog are unchanged |
 
 ## End to end: what was sent, and what was touched
 
-A relay between the app and its own fake server recorded every byte the app sent
-in S1 to S6, S7a, S7b, S8, S11 and T (plain http, and https through a throwaway certificate),
-and a checker went through the recordings. At this commit the checker was shown
+At c2ea497. A relay between the app and its own fake server recorded every byte
+the app sent in S1 to S6, S7a, S7b, S8, S11 and T (plain http, and https through a throwaway certificate),
+and a checker went through the recordings. At that commit the checker was shown
 to flag a planted `DELETE` and a planted upload of an original.
 
 - 990 connections. Writes: `POST /assets` 165, `POST /albums` 6,
@@ -104,7 +109,7 @@ ideal height, so the smallest window stays with P2).
 
 ## Changed since the first pass
 
-Source and tests from e23d1ea to c2ea497. "Mutation" is the change made to the
+Source and tests from e23d1ea to 0eac173. "Mutation" is the change made to a
 scratch copy; every named test passes unchanged.
 
 | Behaviour | How | Evidence | Result |
@@ -114,7 +119,7 @@ scratch copy; every named test passes unchanged.
 | Q3: scripted `quit` with a publishing sheet up | Script | S7e (Server sheet up), S7g (publish sheet up), S7h (results up) each quit by themselves; before, S7e and S7g were killed | Pass |
 | Q4: the script prints the failed check's own words | Script | S7b and L print **The key couldn't be read**; L's snapshot shows the same | Pass |
 | Publishing never pairs a key with another address than its row's (security N7) | Test | `PublishKeyPairingTests` `staleRecordNeverPaired`, `waitsForTheRow`, `checkDuringSave`, `saveHoldsTheGate`. Mutations: row ignored, and gate removed, each 7 issues across these and the import tests. W6: Publish with a stale record sent nothing and showed D-15's line | Pass |
-| D-17: Retry Failed whose server changed as its check starts is called off | None | Read in `PublishRetry.perform`. No test: turned into an ending, all 98 tests of the six publishing and pairing suites pass. Not reachable by script or by hand (an instant) | **Open (Q7)** |
+| D-17: Retry Failed whose server changed or was removed as its check starts, or whose catalog can't be read, is called off | Test | `PublishJobTests` `retryCalledOffWhenServerChanged` (real `PublishConnection.connect`; each case asserted, `.calledOff`, no request, no job built, run unchanged). Mutations: the whole case ends the run, 6 issues; `.changed` alone, 4; `.unreadable` alone, 2. Not reachable by script or by hand (an instant) | Pass |
 | D-18: the Import window follows a server saved from Publish | Script | `ServerKeyPairingTests` `importCheckWithSavedRow`, `importCheckWaitsForTheRow`, `sourceFollowRule` (certificate and running import ignored: 5 issues). W1: rename in place, nothing requested by the window, selection, album and typed project kept; address change: reload, selection and album gone, every later request to the new address. W2: during an import nothing moves, originals keep coming from the old address, then the window follows and keeps "Imported 6 photos". W4: follows while closed. Not raising the window or moving the keyboard: P8 | Pass |
 | D-19: a Server sheet behind the saved server | Script | `ServerKeyPairingTests` `sheetBehindAtPress`, `sheetBehindAtSave`, `sheetKeyChangedAtSave`, `sheetUpToDateAndTypedKey`, `sheetRemovedAtSave`, `sheetSaveHoldsTheGate` (save unguarded: 2 issues). W3: the publish sheet's own Server sheet stale (not driven before): nothing sent to the typed address, nothing written, publish sheet back with Home as saved, checked again, album, Archive and description kept, no D-15 line, nothing published; the Import window's sheet stale: the same, no write; a name-only Save from a stale sheet renames and keeps the other address (D-16). W5: the import grid then has the keyboard. T: Trust Certificate with the key field empty saves a new address | Pass |
 | F30: a rename during the import window's check stays | Test | `checkKeepsARenameTakenMeanwhile` (revision ignored: 2 issues). W4 | Pass |
@@ -125,15 +130,7 @@ scratch copy; every named test passes unchanged.
 
 ## Findings
 
-**Q7 (low, missing test; design D-17).** Nothing fails if a Retry Failed whose
-check finds its server changed or removed (`PublishConnection` `.changed`, or
-`.unreadable`) ends the run instead of being called off. Steps: in
-`PublishRetry.perform`, make that case set `ended.ending` and return
-`.checkStopped(ended)`; run the publishing suites. Actual: all pass. Expected: a
-test that holds the account's `RemoteKeyGate` (or hands `perform` a check that
-returns `.changed`) and asserts `.calledOff` for both cases, with no write.
-
-No failure was found.
+None open. No failure was found. The history of Q1 to Q7 is under **Follow-up**.
 
 ## Known issues
 
@@ -387,19 +384,25 @@ wait 3; sidebar all; wait 1; selectall; publish sheet; snapshot $QA/shots/L1-lon
 **Before you start (known issue #303).** Do not try this branch on a copy of your
 real library while your real server is saved in that copy or in the original, and
 don't run two copies of the app on one library: the copies share the server's
-Keychain key. The steps below use new, empty or synthetic scratch libraries. (The
-branch also migrates a library, which can't be undone.)
+Keychain key. The steps below use new scratch libraries. (The branch also
+migrates a library, which can't be undone.)
 
-VoiceOver and older macOS releases are not asked for. P1 to P6 and P8 need only
-the app's fake server and cover review.md's M1 to M6 and M8; P7 is AC17 (M7) on
-your own server. Order: session A (P1, P2, P3, P4, P8, then P5, which removes
-the server), session C (one item of P4), session B (P6), then P7.
+**What matters most.** **P7 is essential** (AC17, publishing to your own server,
+the one criterion not verified): do it first. Next P8, P5 and P3 (keys, window
+focus and sheet changes that scripts could not fully drive). P6 is mostly
+scripted; P1, P2 and P4 are by eye. This is the whole list; you may sign off with
+checks left open by naming them.
 
-Never open the bundle without `--args --library-root …` (a bare `open` or a
-double-click opens your real library). Quit your installed copy first, if you
-have one: `build/Gus.app` shares its preferences. In sessions A, B and C don't
-rate, edit or duplicate photos: a script launch turns undo grouping off, and an
-edit by hand can crash the app. Publishing is safe.
+One decision besides the checks: approve or change the proposed `CLAUDE.md`
+Network rule in `status.md`, to be committed on this branch before the pull
+request (R27).
+
+### Setup
+
+Quit your installed copy first, if you have one: `build/Gus.app` shares its
+preferences. Never open the bundle without `--args --library-root …` (a bare
+`open` or a double-click opens your real library). Quit the app before each next
+launch.
 
 Build and make three scratch libraries (if `~/gus-signoff-28` is left from an
 earlier try, delete it first):
@@ -413,9 +416,80 @@ swift run -c release photobench import --library-root "$HOME/gus-signoff-28/libr
 swift run -c release photobench import --library-root "$HOME/gus-signoff-28/library-keys" --source "$HOME/gus-signoff-28/photos"
 ```
 
-**Session A.** A fake server named **Test** is already added; its key stays in
-memory, so keep this one running through P8 and P5. (Its test key, if a sheet
-asks, is `fake-key-0123456789`.)
+### P7 (AC17, M7): your server
+
+This launch uses the real identifier, so the key goes into your Keychain (as a
+new item) and preferences are shared with your installed app; the library is a
+new, empty scratch one.
+
+```zsh
+cd /Users/randy/Projects/Gus
+mkdir -p "$HOME/gus-signoff-28/library-real"
+open -n build/Gus.app --args --library-root "$HOME/gus-signoff-28/library-real"
+```
+
+Give the Import window a destination inside `~/gus-signoff-28`, not a folder
+Immich or your real library uses. macOS may ask about the local network (read
+that text) and about the Keychain.
+
+1. In Immich, pick one external-library photo and one uploaded photo that already
+   have a title or description and keywords (so you add none in the app: that
+   writes `.xmp` sidecars beside the originals if sidecar writing is on, and
+   Immich may read them; exposure changes don't). Put one of the two in a stack
+   with some other test photo, not on top if you want the stronger case. Use
+   photos and stacks you can afford to rearrange.
+2. File ▸ Import: add your server there with a key holding import's five
+   permissions (`asset.read`, `asset.view`, `asset.download`, `album.read`,
+   `user.read`) plus `asset.upload`, `albumAsset.create`, `album.create` and
+   `stack.create`. Import the uploaded photo.
+3. File ▸ Add Folder Without Copying…: the folder, as this Mac mounts it, that
+   holds the external-library photo (a small one).
+4. Change each of the two slightly (exposure). Select both, ⌥⌘E. **Edit Folder
+   Map…**: that Mac folder, and the path Immich shows in the asset's info panel
+   up to the same folder. **Check Originals** must say 2 of 2 before you go on.
+5. Album **New Album…**, Show in **Timeline**, stacking on, All metadata.
+   Publish.
+6. In Immich: each shows as a stack with the edit on top; the earlier stack
+   members are still in it; the date and time are the capture's; title or
+   description and keywords read as expected; both are in the album. An https
+   server shows no **Not encrypted** line.
+7. Optional: publish one again as **New Copy** at Copyright and contact only (the
+   date and time should still be the capture's).
+8. Optional, the rest of M6: publish a large photo and press **Stop** while it
+   renders (**Stopping…** until the render returns); after a run, **Rescan** in
+   the Import window shows the uploads **In Library**. With a certificate macOS
+   doesn't trust, **Review Certificate…** swaps sheets and comes back.
+9. Afterwards delete the test uploads and the album in Immich by hand (the app
+   never deletes), unstack what you stacked, and use Remove Server… to take the
+   key out of the Keychain.
+
+If something looks wrong, these are expected:
+
+- "Nothing at the mapped path": the server path is the one inside Immich's
+  container, not the host's; capital letters count; the external library must
+  belong to the key's account (a partner's doesn't count). "Size differs": the
+  file changed since Immich scanned it.
+- A reverse proxy: an upload limit gives "the server didn't accept the upload
+  (413)" (nginx's default is 1 MB); a short timeout cuts large TIFFs;
+  compressing unasked makes the server read as not Immich.
+- A certificate macOS doesn't trust: the sheet says so with **Review
+  Certificate…** (read that wording, F10). Plain http is refused except to a
+  local address; Tailscale addresses count as not local.
+- A key missing a permission: named under the option, Publish dimmed.
+- Creating a stack replaces the one it joins, and members in Immich's trash drop
+  out of it (documented). Archive takes the original out of the timeline.
+- Publishing the same photo again may add a second copy rather than say it is
+  already there (#302).
+
+### Session A: P1, P2, P3, P4, P8, then P5
+
+These and the next two sessions use only the app's fake server. In all three
+don't rate, edit or duplicate photos: a script launch turns undo grouping off,
+and an edit by hand can crash the app. Publishing is safe.
+
+A fake server named **Test** is already added. Its key stays in memory, so keep
+this one running through P8 and P5 (which removes the server). If a sheet asks
+for the key, it is `fake-key-0123456789`.
 
 ```zsh
 cd /Users/randy/Projects/Gus
@@ -427,16 +501,16 @@ open -n build/Gus.app --args --library-root "$HOME/gus-signoff-28/library" --deb
   Publish in the default set, Customize Toolbar and the overflow menu.
 - **P2 (M1). Look.** Select All, ⌥⌘E. The three pages (main, Edit Settings…,
   Edit Folder Map…) and, after a run, the results, at the smallest window, also
-  with Increase Contrast. (A long address cut in the middle is already checked,
-  script L.)
-- **P3 (M2). Keyboard only.** From ⌥⌘E through every control. Press **Return**
-  right after the check finishes, with no click first: it publishes (or, for
-  photos already published, asks Skip or New Copy). In Description try Return
-  and Option-Return and note what Return does (publishing, a new line or nothing
-  are all acceptable). In the folder map, **Add Folder…** through the real
-  panel: the server field has the keyboard; type `/mnt/media/photos`, edit its
-  middle, paste a path ending in `/`. Focus goes back to the grid after the sheet
-  closes.
+  with Increase Contrast.
+- **P3 (M2). Keyboard only.** From ⌥⌘E through every control.
+  - Press **Return** right after the check finishes, with no click first: it
+    publishes (or, for photos already published, asks Skip or New Copy).
+  - In Description try Return and Option-Return and note what Return does
+    (publishing, a new line or nothing are all acceptable).
+  - In the folder map, **Add Folder…** through the real panel: the server field
+    has the keyboard. Type `/mnt/media/photos`, edit its middle, paste a path
+    ending in `/`.
+  - After the sheet closes, focus is back on the grid.
 - **P4 (M4). Mouse.** The Album pop-up ticks the current choice. Add Server…,
   Edit “Test”… and Cancel swap sheets and keep your choices and description. In
   Edit Settings…, choose a watermark PNG, delete that file in the Finder, reopen
@@ -449,147 +523,105 @@ open -n build/Gus.app --args --library-root "$HOME/gus-signoff-28/library" --deb
      **Edit “Test”…**, change the spelling, **Save**. The Import window does not
      come forward and the library window keeps the keyboard (Esc closes the
      publish sheet). Brought forward, the Import window shows the new address.
-     Repeat once with the Import window minimized and once with it closed.
+     Repeat with the Import window minimized and with it closed.
   2. Open the server's sheet in both windows (the publish sheet's **Edit
      “Test”…**, and File ▸ Edit Server… with the Import window in front). In one,
      change the spelling and **Save**. In the other, change the address to
      `http://localhost:9`, tick the notice and **Save**: it closes with no alert
-     and the first sheet's address stays. From Publish, the publish sheet comes
-     back with Test chosen, your album and description kept and no line under
-     Server; from Import, the arrow keys move in the grid. Do it once each way
-     round. (If the second sheet changes only the name, the name is saved and the
-     other address kept.) (M8's tooltip after a rename is checked by script, W1
-     and W4.)
-- **P5 (M5). Question and results.** Publish one photo twice, then several: the
-  Skip or New Copy wording; **Return** is Skip; **Esc** returns. With the alert
-  up, in the Import window change Test's address to the other spelling and Save:
-  the alert closes, the sheet says **This server's address or certificate
-  changed. Nothing was published.**, and Activity shows no new run. With the
-  alert up again, note the port, then remove the server in the Import window: the
-  alert closes. Add it again there at the same address and port with the test
-  key, open **Edit “‹name›”…** from Publish, remove that server in the Import
-  window, change the name and Save: the sheet closes once and Publish comes back
-  with **This server was removed.** (or the empty state if it was the last). In
-  results: Return and Esc close; the Run pop-up; selecting a reason's text.
+     and the first sheet's address stays. When the second sheet is Publish's, the
+     publish sheet comes back with Test chosen, your album and description kept
+     and no line under Server; when it is Import's, the arrow keys move in the
+     grid. Do it once each way round. (If the second sheet changes only the name,
+     the name is saved and the other address kept.)
+- **P5 (M5). Question and results.**
+  1. Publish one photo twice, then several: read the Skip or New Copy wording.
+     **Return** is Skip; **Esc** returns.
+  2. With the question up, in the Import window change Test's address to the other
+     spelling and Save: the question closes, the sheet says **This server's
+     address or certificate changed. Nothing was published.**, and Activity shows
+     no new run.
+  3. With the question up again, note the port, then remove the server in the
+     Import window: the question closes.
+  4. Add it again there at the same address and port with the test key. Open
+     **Edit “‹name›”…** from Publish, remove that server in the Import window,
+     change the name and Save: the sheet closes once and Publish comes back with
+     **This server was removed.** (or the empty state if it was the last).
+  5. In results: Return and Esc close; the Run pop-up; selecting a reason's text.
 
-**Session C**, for the rest of P4. Quit A first. The key lacks `album.read`; the
-publish sheet is already open:
+### Session C: the rest of P4
+
+The key lacks `album.read`; the publish sheet is already open:
 
 ```zsh
 cd /Users/randy/Projects/Gus
 open -n build/Gus.app --args --library-root "$HOME/gus-signoff-28/library-keys" --debug-script "wait 3; import server fake start 12; import server fake fault permissions asset.upload,asset.read,albumAsset.create,album.create,user.read,stack.create; sidebar all; selectall; publish sheet; publish serversheet add; publish serversheet field name Test; publish serversheet field address fake; publish serversheet field key fake; publish serversheet confirm on; publish serversheet submit"
 ```
 
-  Open the Album pop-up: **New Album…** is dimmed, with **Albums need album.read
-  on this key**.
+Open the Album pop-up: **New Album…** is dimmed, with **Albums need album.read on
+this key**.
 
-**Session B**, for P6. Quit C first. The server takes uploads and never answers:
+### Session B: P6
+
+The server takes uploads and never answers:
 
 ```zsh
 cd /Users/randy/Projects/Gus
 open -n build/Gus.app --args --library-root "$HOME/gus-signoff-28/library-held" --debug-script "wait 3; import server fake start 12; import server fake fault permissions all; import open; wait 1; import server add Test fake; import close; import server fake fault hold on"
 ```
 
-- **P6 (M6). A run in progress.** Publish a few photos. Look at Activity's row;
-  ⌘Q: **Quit While Publishing?**, Return and Esc keep publishing. While it runs,
-  the Import window's Edit Server… and Remove Server… for Test are dimmed.
-  **Stop**: **Stopping. Waiting for “Test” to answer…** for about 10 seconds,
-  Stop dimmed, then the message with **Show Results…**. Publish again, **Stop**,
-  and ⌘Q during the stopping time: no question, the app quits when the wait ends.
-  (M6's Stop while a retry checks a slow server is scripted, S6.)
+- **P6 (M6). A run in progress.**
+  1. Publish a few photos. Look at Activity's row. ⌘Q asks **Quit While
+     Publishing?**; Return and Esc keep publishing.
+  2. While it runs, the Import window's Edit Server… and Remove Server… for Test
+     are dimmed.
+  3. **Stop**: **Stopping. Waiting for “Test” to answer…** for about 10 seconds,
+     Stop dimmed, then the message with **Show Results…**.
+  4. Publish again, **Stop**, and ⌘Q during the stopping time: no question, the
+     app quits when the wait ends.
 
-- **P7 (AC17, M7). Your server.** Quit B first. This launch uses the real
-  identifier, so the key goes into your Keychain (as a new item) and preferences
-  are shared with your installed app; the library is a new, empty scratch one.
+When you are done, quit the app and delete `~/gus-signoff-28`.
 
-```zsh
-cd /Users/randy/Projects/Gus
-mkdir -p "$HOME/gus-signoff-28/library-real"
-open -n build/Gus.app --args --library-root "$HOME/gus-signoff-28/library-real"
-```
+## How the sign-off commands were checked
 
-  Give the Import window a destination inside `~/gus-signoff-28`, not a folder
-  Immich or your real library uses. macOS may ask about the local network (read
-  that text) and about the Keychain.
-
-  1. In Immich, pick one external-library photo and one uploaded photo that
-     already have a title or description and keywords. Put one of the two in a
-     stack with some other test photo, not on top if you want the stronger case.
-     Use photos and stacks you can afford to rearrange.
-  2. File ▸ Import: add your server there with a key holding import's five
-     permissions plus `asset.upload`, `albumAsset.create`, `album.create` and
-     `stack.create`. Import the uploaded photo.
-  3. File ▸ Add Folder Without Copying…: the folder, as this Mac mounts it, that
-     holds the external-library photo (a small one).
-  4. Change each of the two slightly (exposure). Select both, ⌥⌘E. **Edit Folder
-     Map…**: that Mac folder, and the path Immich shows in the asset's info panel
-     up to the same folder. **Check Originals** must say 2 of 2 before you go on.
-  5. Album **New Album…**, Show in **Timeline**, stacking on, All metadata.
-     Publish.
-  6. In Immich: each shows as a stack with the edit on top; the earlier stack
-     members are still in it; the date and time are the capture's; title or
-     description and keywords read as expected; both are in the album; an https
-     server shows no **Not encrypted** line.
-  7. Optional: publish one again as **New Copy** at Copyright and contact only
-     (the date and time should still be the capture's).
-  8. Optional, the rest of M6: publish a large photo and press **Stop** while it
-     renders (**Stopping…** until the render returns); after a run, **Rescan** in
-     the Import window shows the uploads **In Library**. With a certificate macOS
-     doesn't trust, **Review Certificate…** swaps sheets and comes back.
-  9. Afterwards delete the test uploads and the album in Immich by hand (the app
-     never deletes), unstack what you stacked, use Remove Server… to take the key
-     out of the Keychain, and delete `~/gus-signoff-28`.
-
-  What could go wrong:
-
-  - Adding keywords or editing metadata in the app writes `.xmp` sidecars beside
-    the originals if sidecar writing is on, and Immich may read them. Exposure
-    changes don't. Pick photos that already carry their metadata.
-  - "Nothing at the mapped path": the server path is the one inside Immich's
-    container, not the host's; capital letters count; the external library must
-    belong to the key's account (a partner's doesn't count). "Size differs": the
-    file changed since Immich scanned it.
-  - A reverse proxy: an upload limit gives "the server didn't accept the upload
-    (413)" (nginx's default is 1 MB); a short timeout cuts large TIFFs;
-    compressing unasked makes the server read as not Immich.
-  - A certificate macOS doesn't trust: the sheet says so with **Review
-    Certificate…** (read that wording, F10). Plain http is refused except to a
-    local address; Tailscale addresses count as not local.
-  - A key missing a permission: named under the option, Publish dimmed.
-  - Creating a stack replaces the one it joins, and members in Immich's trash
-    drop out of it (documented). Archive takes the original out of the timeline.
-  - Publishing the same photo again may add a second copy rather than say it is
-    already there (#302).
-
-**How these commands were checked** (c2ea497): the five blocks were taken from this file and run in zsh, with
+At c2ea497 the five blocks were taken from this file and run in zsh, with
 `$HOME/gus-signoff-28` replaced by a scratch folder, `open -n build/Gus.app
 --args` by the executable of a scratch copy of the bundle the first block built
-(nothing was activated), and `quit` appended. All five exited 0 and no block
-holds a comment line. Session A added Test and its check passed; session C showed
-**New Album…** dimmed with "Albums need album.read on this key"; session B,
-driven on by script, showed the quit question (Keep Publishing the default),
-**Stopping. Waiting for “Test” to answer…** with Stop dimmed, and the stopped
-message. P7's launch was tried with a scripted `quit` and the scratch copy's
-identifier; the real-identifier launch, the Keychain and your server were not
-touched.
+(nothing was activated), and `quit` appended. All five exited 0. Session A added
+Test and its check passed; session C showed **New Album…** dimmed with "Albums
+need album.read on this key"; session B, driven on by script, showed the quit
+question (Keep Publishing the default), **Stopping. Waiting for “Test” to
+answer…** with Stop dimmed, and the stopped message. P7's launch was tried with a
+scripted `quit` and the scratch copy's identifier; the real-identifier launch,
+the Keychain and your server were not touched. At 0eac173 the blocks are
+unchanged (only their order here), nothing they build or launch has changed, and
+they were not run again: each passes `zsh -n`, none holds a comment line, and
+every launch passes `--library-root`.
 
-Owner's decision, not a check: approve or change the proposed `CLAUDE.md`
-Network rule in `status.md`, to be committed on this branch before the pull
-request (R27).
+Not asked of you because scripts cover them: a long server address cut in the
+middle (M1; L), an **In Library** tooltip naming a renamed server (M8; W1, W4)
+and Stop while a retry checks a slow server (M6; S6).
 
 ## Safety of these runs
 
-Every launch was the executable of a copy of the bundle (or a unit test), with
-`--library-root` on a scratch library; nothing was opened with `open`, activated
-or brought forward. No instance or relay was left running; the owner's library
-folder had no file newer than the start of this pass; the scratch copy's
-preferences were removed. The Keychain was not read (a script launch keeps keys
-in memory), no server but the app's fake one was contacted, and Docker was not
-used. The publishing temporary folder is shared by every copy of the app (it is
-named from the fixed bundle identifier). The first run of S11 and S13 still
-pointed at the first pass's scratch folder and wrote snapshots and two imported
-files there; both were rerun with this pass's paths. Of the checkout, only this
-file changed (the build folders aside).
+Third pass (0eac173): the app was not launched and `open` was not run; only
+builds and unit tests, in the checkout and in a scratch copy of HEAD outside it
+(built offline from the checkout's already fetched dependencies). No server but
+the tests' fake ones was contacted, and the tests use no Keychain item. The
+owner's library folder had no file newer than the start of the pass, and no
+instance of the app was running afterwards.
+
+Second pass (c2ea497): every launch was the executable of a copy of the bundle
+(or a unit test), with `--library-root` on a scratch library; nothing was opened
+with `open`, activated or brought forward. No instance or relay was left running;
+the owner's library folder had no file newer than the start of that pass; the
+scratch copy's preferences were removed. The Keychain was not read (a script
+launch keeps keys in memory), no server but the app's fake one was contacted, and
+Docker was not used. The publishing temporary folder is shared by every copy of
+the app (it is named from the fixed bundle identifier). The first run of S11 and
+S13 still pointed at the first pass's scratch folder and wrote snapshots and two
+imported files there; both were rerun with that pass's paths.
+
+Of the checkout, each pass changed only this file (the build folders aside).
 
 ## Follow-up
 
@@ -603,6 +635,12 @@ file changed (the build folders aside).
 | Q4 script words differ from the sheet's | Fixed (S7b, L) |
 | Q5 Date Range dimmed (#271's code) | Filed as #301; not fixed here |
 | Q6 export bytes differ between launches | Filed as #302; the user guide and `status.md` no longer promise identical bytes; not fixed here |
-| Q7 missing test, D-17 | Open (new in this pass) |
+| Q7 missing test, D-17 | New in that pass: nothing failed if `PublishRetry.perform` ended the run instead of calling a retry off on `.changed` or `.unreadable` |
+
+2026-11-26, confirmation at 0eac173:
+
+| Finding | Result |
+|---|---|
+| Q7 missing test, D-17 | **Fixed** (21bdca7, test only): `PublishJobTests` `retryCalledOffWhenServerChanged`. In a scratch copy, the case `.changed, .unreadable` made to set `ended.ending` and return `.checkStopped(ended)` failed it with 6 issues (not called off, and the run replaced, for each of a new address, a removal and an unreadable catalog); `.changed` alone mutated, 4 issues; `.unreadable` alone, 2. The other 104 tests of the publishing and pairing suites passed under every mutation, and all 105 pass unmutated and restored |
 
 No P item has been reported done. No sign-off yet.
