@@ -878,6 +878,157 @@ struct PublishJobTests {
         #expect(try await catalog.publishSettings(serviceID: id).choices == expected)
     }
 
+    @Test("A retry that only finishes steps reports Uploading with each photo's number, never Rendering 0 (review F22, D-8)")
+    func retryFinishingStepsReportsUploading() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await Self.fixture(root, files: ["a.jpg", "b.jpg"])
+            let ids = [try await f.version("a.jpg"), try await f.version("b.jpg")]
+            let album = FakeImmichServer.Album(name: "Kept", assetCount: 0)
+            f.server.setAlbums([album])
+            f.server.add(.answer(method: "PUT", path: "/albums/", status: 500, times: 2))
+            var run = await f.job(stacking: false).run(try await f.makeRun(ids, album: .existing(id: album.id, name: "Kept"),
+                                                                             stacking: false))
+            #expect(run.items.allSatisfy { $0.isAccepted && $0.hasFailed })
+            #expect(run.retryCandidates == ids)
+            f.server.clearFaults()
+            let reports = Mutex<[PublishProgress]>([])
+            run = await f.job(stacking: false).run(run, retrying: true) { progress in reports.withLock { $0.append(progress) } }
+            #expect(run.items.allSatisfy { $0.album == .done })
+            #expect(f.server.uploads.count == 2)
+            let all = reports.withLock { reports -> [PublishProgress] in reports }
+            #expect(!all.isEmpty)
+            #expect(all.allSatisfy { $0.phase == .uploading && $0.current >= 1 }, "\(all.map { "\($0.phase) \($0.current)" })")
+            #expect(all.map(\.current).max() == 2)
+        }
+    }
+
+    // MARK: A Stop while a retry checks its server (PRD revision 7, R23, AC21, review D-10)
+
+    /// Waits until the task is cancelled (never used to wait for an event).
+    static func untilCancelled() async {
+        try? await Task.sleep(for: .seconds(3600))
+    }
+
+    @Test("A Stop while a retry checks its server sends nothing and leaves the run as it was; the next retry still covers the unreached (AC21, D-10)")
+    func stopDuringRetryCheck() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await Self.fixture(root, files: ["a.jpg", "b.jpg", "c.jpg"])
+            let ids = [try await f.version("a.jpg"), try await f.version("b.jpg"), try await f.version("c.jpg")]
+            // A fault stop with a photo not reached (as `lostConnection`).
+            f.server.onUploadReceived { _ in f.server.add(.drop) }
+            let run = await f.job(stacking: false).run(try await f.makeRun(ids, stacking: false))
+            f.server.onUploadReceived(nil)
+            f.server.clearFaults()
+            f.server.remove(.drop)
+            #expect(run.ending == .stopped(.unreachable))
+            #expect(run.retryCandidates == [ids[1], ids[2]])
+            let keys = InMemoryKeyStore()
+            try keys.setKey(FakeImmichServer.validKey, account: f.service.uuid)
+            let service = f.service
+            let temporary = f.temporary
+            let catalog = f.catalog
+            let makeJob: @Sendable (ImmichClient, PublishServerInfo) async -> PublishJob? = { client, info in
+                PublishJob(catalog: catalog, renderer: ExportRenderer(), destination: client, accountID: info.ownerID,
+                           folderMap: [], retry: .none, endingBound: .seconds(2), concurrency: 1,
+                           temporaryRoot: temporary, timeZone: .gmt)
+            }
+            let writesBefore = f.writes
+            let requestsBefore = f.server.requests.count
+
+            // Stop while the server is being asked (its answer held), by the real check.
+            f.server.add(.slowCheck(.seconds(30)))
+            let retry = Task {
+                await PublishRetry.perform(run, check: {
+                    await PublishConnection.connect(service, keys: keys, readsAccount: false)
+                }, makeJob: makeJob)
+            }
+            while !f.server.requests.dropFirst(requestsBefore).contains(where: { $0.path == "/api/server/version" }) {
+                await Task.yield()
+            }
+            retry.cancel()
+            let stopped = await retry.value
+            #expect(stopped.ended(stopAsked: true) == nil, "\(stopped)")
+            if case .calledOff = stopped {} else { Issue.record("not called off: \(stopped)") }
+            f.server.clearFaults()
+
+            // A Stop wins over a check result the app hasn't acted on (a fault found in the same instant).
+            let started = AsyncStream<Void>.makeStream()
+            let racing = Task {
+                await PublishRetry.perform(run, check: {
+                    started.continuation.yield()
+                    await Self.untilCancelled()
+                    return .failed(.keyRejected)
+                }, makeJob: makeJob)
+            }
+            for await _ in started.stream { break }
+            racing.cancel()
+            let raced = await racing.value
+            #expect(raced.ended(stopAsked: true) == nil, "\(raced)")
+
+            // A Stop after the check passed, before the retry started on any photo.
+            let preparing = AsyncStream<Void>.makeStream()
+            let beforePhotos = Task {
+                await PublishRetry.perform(run, check: {
+                    await PublishConnection.connect(service, keys: keys, readsAccount: false)
+                }, makeJob: { client, info in
+                    preparing.continuation.yield()
+                    await Self.untilCancelled()
+                    return await makeJob(client, info)
+                })
+            }
+            for await _ in preparing.stream { break }
+            beforePhotos.cancel()
+            let prepared = await beforePhotos.value
+            #expect(prepared.ended(stopAsked: true) == nil, "\(prepared)")
+
+            // Nothing was written; the run is as it was, its unreached photo still covered.
+            #expect(f.writes == writesBefore)
+            #expect(f.server.uploads.count == 1)
+            #expect(run.ending == .stopped(.unreachable))
+            #expect(run.retryCandidates == [ids[1], ids[2]])
+
+            // The next Retry Failed publishes them.
+            let next = await PublishRetry.perform(run, check: {
+                await PublishConnection.connect(service, keys: keys, readsAccount: false)
+            }, makeJob: makeJob)
+            let ended = try #require(next.ended(stopAsked: false))
+            if case .ran = next {} else { Issue.record("not run: \(next)") }
+            #expect(ended.ending == .completed)
+            #expect(ended.items.allSatisfy { $0.isAccepted })
+            #expect(f.server.uploads.count == 3)
+            f.expectOnlyAllowedRequests()
+        }
+    }
+
+    @Test("A retry whose check fails ends with what it found, unless a Stop came before the app acted on it (D-5, D-10)")
+    func retryCheckFailsOrRuns() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await Self.fixture(root, files: ["a.jpg", "b.jpg"])
+            let ids = [try await f.version("a.jpg"), try await f.version("b.jpg")]
+            f.server.onUploadReceived { _ in f.server.add(.drop) }
+            let run = await f.job(stacking: false).run(try await f.makeRun(ids, stacking: false))
+            f.server.onUploadReceived(nil)
+            f.server.clearFaults()
+            f.server.remove(.drop)
+            #expect(run.ending == .stopped(.unreachable))
+            let keys = InMemoryKeyStore()
+            try keys.setKey("wrong-key", account: f.service.uuid)
+            let service = f.service
+            let writesBefore = f.writes
+            let outcome = await PublishRetry.perform(run, check: {
+                await PublishConnection.connect(service, keys: keys, readsAccount: false)
+            }, makeJob: { _, _ in nil })
+            guard case .checkStopped(let ended) = outcome else {
+                Issue.record("not stopped by its check: \(outcome)")
+                return
+            }
+            #expect(ended.ending == .stopped(.checkFailed(.keyRejected)))
+            #expect(outcome.ended(stopAsked: false)?.ending == ended.ending)
+            #expect(outcome.ended(stopAsked: true) == nil, "a Stop pressed before the app acted wins (D-10)")
+            #expect(f.writes == writesBefore)
+        }
+    }
+
     @Test("An id the server gives that isn't plain ASCII is never put in a path (security review N1)")
     func strangeIDsNeverRequested() async throws {
         let server = try await FakeImmichServer()

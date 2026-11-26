@@ -377,6 +377,18 @@ public struct PublishSlot: Hashable, Sendable {
 }
 
 extension PublishRun {
+    /// `runs` by the time each ended (a run not ended: its start), the last
+    /// to end last; runs that ended at the same time keep their order. The
+    /// newest run is the one that ended last, a retry's ending included
+    /// (design §10.2, review D-9).
+    public static func byEnding(_ runs: [PublishRun]) -> [PublishRun] {
+        runs.enumerated().sorted { lhs, rhs in
+            let left = lhs.element.endedAt ?? lhs.element.startedAt
+            let right = rhs.element.endedAt ?? rhs.element.startedAt
+            return left != right ? left < right : lhs.offset < rhs.offset
+        }.map(\.element)
+    }
+
     /// An album this run made may be remembered for its server (R7) only if
     /// no later run to that server has started since (review F18): a retry
     /// of an older run never changes what a newer one remembered.

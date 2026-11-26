@@ -72,6 +72,22 @@ public struct PublishJob: Sendable {
     /// each photo's steps and the ending.
     public func run(_ run: PublishRun, retrying: Bool = false,
                     progress: @escaping @Sendable (PublishProgress) -> Void = { _ in }) async -> PublishRun {
+        await perform(run, retrying: retrying, progress: progress).run
+    }
+
+    /// Retry Failed over `run` (R23). Nil when it was stopped before it
+    /// started on any photo: that Stop is not an ending, and the run stays as
+    /// it was (PRD revision 7, design §10.3, review D-10).
+    public func retry(_ run: PublishRun,
+                      progress: @escaping @Sendable (PublishProgress) -> Void = { _ in }) async -> PublishRun? {
+        let outcome = await perform(run, retrying: true, progress: progress)
+        return outcome.calledOff ? nil : outcome.run
+    }
+
+    /// The run, and whether the person's Stop came before any photo was
+    /// started (no request about a photo was made).
+    private func perform(_ run: PublishRun, retrying: Bool,
+                         progress: @escaping @Sendable (PublishProgress) -> Void) async -> (run: PublishRun, calledOff: Bool) {
         var run = run
         var versionIDs = retrying ? run.retryCandidates : run.items.map(\.versionID)
         if retrying {
@@ -97,21 +113,28 @@ public struct PublishJob: Sendable {
         let counter = ProgressCounter(total: total, report: progress)
         let ending = RemoteUploadEnding(bound: endingBound, onFullySent: onFullySent,
                                         onAwaitingChange: { counter.awaiting($0) })
-        counter.step(.rendering)
 
         let indexes = Dictionary(run.items.enumerated().map { ($1.versionID, $0) }, uniquingKeysWith: { first, _ in first })
         let work = versionIDs.compactMap { id in indexes[id].map { (order: $0, id: id) } }
+        // The first photo starts at once: its step, never "0 of N"; a photo
+        // whose upload is done finishes its steps under Uploading (review D-8).
+        if let first = work.first {
+            counter.step(run.items[first.order].isAccepted ? .uploading : .rendering, current: 1)
+        } else {
+            counter.step(.rendering)
+        }
         let context = ItemContext(job: self, state: state, albums: albums, sequencer: sequencer, ending: ending,
                                   folder: folder, counter: counter, runDate: run.startedAt,
                                   service: run.service, choices: run.choices, description: run.description)
         var stop: PublishStop?
+        /// Photos started so far, also their 1-based sequence.
+        var sequence = 0
         // The person's Stop ends the run as a fault does: every later report
         // says so (design §9, review F2).
         await withTaskCancellationHandler {
             await withTaskGroup(of: PublishStop?.self) { group in
                 var pending = work.makeIterator()
                 var running = 0
-                var sequence = 0
                 func startNext() -> Bool {
                     guard stop == nil, !Task.isCancelled, let next = pending.next() else { return false }
                     sequence += 1
@@ -137,6 +160,7 @@ public struct PublishJob: Sendable {
         } onCancel: {
             counter.stopping()
         }
+        let calledOff = stop == nil && Task.isCancelled && sequence == 0
         run = await state.run
         if let stop {
             run.ending = .stopped(stop)
@@ -146,7 +170,7 @@ public struct PublishJob: Sendable {
             run.ending = .completed
         }
         run.endedAt = Date()
-        return run
+        return (run, calledOff)
     }
 
     // MARK: Values sent (R3, R4)
@@ -277,13 +301,17 @@ final class ProgressCounter: Sendable {
         reportTo = report
     }
 
+    /// Each report is delivered inside the lock, so reports reach the
+    /// listener in the order of the states they describe (code review C9).
+    /// The listener must not block or call back: the app's makes a task, the
+    /// tests' append under a lock of their own.
     private func change(_ body: @Sendable (inout State) -> Void) {
         let total = self.total
-        let progress = state.withLock { state -> PublishProgress in
+        let reportTo = self.reportTo
+        state.withLock { state in
             body(&state)
-            return state.progress(total: total)
+            reportTo(state.progress(total: total))
         }
-        reportTo(progress)
     }
 
     /// A photo's step: rendering or uploading.
@@ -526,7 +554,9 @@ struct ItemContext: Sendable {
         var originalFailure: PublishFailure?
 
         if case .accepted = item.upload {
-            // A retry: the upload is done; the rest follows.
+            // A retry: the upload is done; the rest follows, under Uploading
+            // (design §9, review D-8).
+            counter.step(.uploading, current: sequence)
         } else {
             guard let exportItem, (try? await job.catalog.version(id: versionID)) != nil else {
                 await state.update(order) { $0.upload = .failed(.removedFromLibrary) }

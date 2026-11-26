@@ -370,6 +370,38 @@ struct PublishRulesTests {
         #expect(older.mayRememberItsAlbum(among: [older, elsewhere]))
     }
 
+    @Test("Runs are listed by the time they ended, a retry's ending included; the newest is the one that ended last (review F23, D-9)")
+    func endedRunsByEndTime() {
+        let home = RemoteServiceRecord(name: "Home", address: "https://h.example")
+        let choices = PublishChoices(settings: ExportSettings(), album: .none)
+        func run(started: TimeInterval, ended: TimeInterval?) -> PublishRun {
+            var run = PublishRun(service: home, choices: choices, description: nil, items: [],
+                                 startedAt: Date(timeIntervalSince1970: started))
+            run.ending = .completed
+            run.endedAt = ended.map { Date(timeIntervalSince1970: $0) }
+            return run
+        }
+        // The first run was retried after the second ended.
+        let retried = run(started: 100, ended: 400)
+        let second = run(started: 200, ended: 300)
+        let sameTime = run(started: 250, ended: 300)
+        let ordered = PublishRun.byEnding([retried, second, sameTime])
+        #expect(ordered.map(\.id) == [second.id, sameTime.id, retried.id])
+        #expect(PublishRun.byEnding([sameTime, second]).map(\.id) == [sameTime.id, second.id], "ties keep their order")
+    }
+
+    @Test("A retry's outcome: called off leaves the run; a check's ending gives way to a Stop asked first; a run that ran is recorded (D-10)")
+    func retryOutcomeRule() {
+        var run = PublishRun(service: RemoteServiceRecord(name: "S", address: "https://s"),
+                             choices: PublishChoices(settings: ExportSettings(), album: .none), description: nil, items: [])
+        run.ending = .stopped(.stopped)
+        #expect(PublishRetryOutcome.calledOff.ended(stopAsked: false) == nil)
+        #expect(PublishRetryOutcome.calledOff.ended(stopAsked: true) == nil)
+        #expect(PublishRetryOutcome.checkStopped(run).ended(stopAsked: false) != nil)
+        #expect(PublishRetryOutcome.checkStopped(run).ended(stopAsked: true) == nil)
+        #expect(PublishRetryOutcome.ran(run).ended(stopAsked: true)?.ending == .stopped(.stopped))
+    }
+
     @Test("A launch removes only the temporary folders of launches that have ended (code review C5, security review L1)")
     func temporaryFoldersPerLaunch() async throws {
         try await RepositoryFiles.withTemporaryDirectory { base in

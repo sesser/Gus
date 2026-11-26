@@ -235,7 +235,10 @@ public final class RemoteHTTPSession: Sendable {
         delegate.register(sink, for: task.taskIdentifier)
         // Whether this upload's answer is awaited by an ending run: set by the
         // cancellation, ended once the upload is over, whichever order the
-        // two come in (the handler may run beside the return).
+        // two come in (the handler may run beside the return). The count is
+        // raised and lowered inside this lock, so this upload's end can never
+        // be counted before its beginning (code review C8). Lock order: this
+        // upload's `wait`, then the ending's count, then the run's progress.
         enum Wait { case running, awaiting, over }
         let wait = Mutex(Wait.running)
         let outcome: Result<RemoteAnswer, TaskFailure> = await withTaskCancellationHandler {
@@ -245,18 +248,16 @@ public final class RemoteHTTPSession: Sendable {
             }
         } onCancel: {
             let waits = RemoteUploadEnding.end(task, by: ending.deadline())
-            let began = wait.withLock { state -> Bool in
-                guard waits, state == .running else { return false }
+            wait.withLock { state in
+                guard waits, state == .running else { return }
                 state = .awaiting
-                return true
+                ending.beganAwaiting()
             }
-            if began { ending.beganAwaiting() }
         }
-        let wasAwaited = wait.withLock { state -> Bool in
-            defer { state = .over }
-            return state == .awaiting
+        wait.withLock { state in
+            if state == .awaiting { ending.endedAwaiting() }
+            state = .over
         }
-        if wasAwaited { ending.endedAwaiting() }
         delegate.unregister(task.taskIdentifier)
         switch outcome {
         case .success(let answer):
@@ -578,20 +579,21 @@ public final class RemoteUploadEnding: Sendable {
     /// An ending run waits for at least one answer to a fully sent file.
     public var isAwaitingAnswers: Bool { awaiting.withLock { $0 > 0 } }
 
+    /// The change is told inside the count's lock, so two uploads' changes
+    /// reach the listener in the order the count made them (code review C8).
     func beganAwaiting() {
-        let count = awaiting.withLock { count -> Int in
+        awaiting.withLock { count in
             count += 1
-            return count
+            if count == 1 { onAwaitingChange?(true) }
         }
-        if count == 1 { onAwaitingChange?(true) }
     }
 
     func endedAwaiting() {
-        let count = awaiting.withLock { count -> Int in
-            count = max(0, count - 1)
-            return count
+        awaiting.withLock { count in
+            guard count > 0 else { return }
+            count -= 1
+            if count == 0 { onAwaitingChange?(false) }
         }
-        if count == 0 { onAwaitingChange?(false) }
     }
 
     /// The deadline, set by the first call.
