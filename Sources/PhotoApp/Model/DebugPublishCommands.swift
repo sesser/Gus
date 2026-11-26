@@ -251,9 +251,9 @@ enum DebugPublishCommands {
             lines.append("check passed version \(info.version) account \(info.ownerID == nil ? "-" : "read") "
                          + "checks \(publish.debugChecksStarted)")
         case .failed(let result):
-            let text = ServerText.result(result, host: service?.serverAddress?.host ?? "", name: service?.name ?? "",
-                                         purpose: .publishing)
-            lines.append("check failed \(result.kind) '\(text?.title ?? "")' '\(text?.detail ?? "")'")
+            // The sheet's own title and detail (QA Q4).
+            lines.append("check failed \(result.kind) '\(PublishText.checkTitle(result, service: service))' "
+                         + "'\(PublishText.checkDetail(result, service: service))'")
         }
         let missing = publish.missing
         if !missing.server.isEmpty { lines.append("issue server '\(PublishText.cantPublish(missing.server))'") }

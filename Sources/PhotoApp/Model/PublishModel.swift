@@ -1065,6 +1065,19 @@ final class PublishModel: ServerSheetHost {
         library.showsPublishSheet = false
     }
 
+    /// The debug script's `quit` (QA Q3): the publish sheet, its Server sheet,
+    /// the Skip or New Copy question and the results close, and the publish
+    /// sheet doesn't come back after the Server sheet.
+    func closeSheetsForQuit() {
+        guard let library else { return }
+        pendingServerSheet = nil
+        returnsAfterServerSheet = false
+        question = nil
+        serverSheet = nil
+        library.showsPublishSheet = false
+        library.showsPublishResults = false
+    }
+
     /// A library sheet closed: the waiting Server sheet comes up, or, after
     /// it, the publish sheet again.
     func sheetDidClose() -> Bool {

@@ -267,23 +267,25 @@ private struct PublishForm: View {
             let text = ServerText.result(result, host: publish.service?.serverAddress?.host ?? "",
                                          name: publish.service?.name ?? "", purpose: .publishing)
             VStack(alignment: .leading, spacing: 6) {
-                if case .keychain(let message) = result {
-                    Label(PublishText.keyUnreadable, systemImage: "exclamationmark.triangle")
+                // Titles and details from `PublishText.checkTitle` and
+                // `checkDetail`, which the debug script prints too (QA Q4).
+                if case .keychain = result {
+                    Label(PublishText.checkTitle(result, service: publish.service), systemImage: "exclamationmark.triangle")
                         .font(.system(size: 13, weight: .semibold))
-                    Caption(text: ServerText.keychainDetail(message))
+                    Caption(text: PublishText.checkDetail(result, service: publish.service))
                 } else if case .untrustedCertificate = result {
                     // Review D-3: the Server sheet shows this on its certificate page.
-                    Label(PublishText.untrustedTitle, systemImage: "exclamationmark.triangle")
+                    Label(PublishText.checkTitle(result, service: publish.service), systemImage: "exclamationmark.triangle")
                         .font(.system(size: 13, weight: .semibold))
-                    Text(PublishText.untrustedDetail)
+                    Text(PublishText.checkDetail(result, service: publish.service))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
-                } else if let text {
-                    Label(text.title, systemImage: "exclamationmark.triangle")
+                } else if text != nil {
+                    Label(PublishText.checkTitle(result, service: publish.service), systemImage: "exclamationmark.triangle")
                         .font(.system(size: 13, weight: .semibold))
-                    Text(text.detail)
+                    Text(PublishText.checkDetail(result, service: publish.service))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)

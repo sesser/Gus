@@ -72,6 +72,17 @@ enum PublishText {
                                      purpose: .publishing)?.title ?? ""
         }
     }
+    /// The detail under a failed server check's title, as the sheet shows it
+    /// (the debug script prints the same, QA Q4).
+    static func checkDetail(_ result: ConnectionCheckResult, service: RemoteServiceRecord?) -> String {
+        switch result {
+        case .keychain(let message): return ServerText.keychainDetail(message)
+        case .untrustedCertificate: return untrustedDetail
+        default:
+            return ServerText.result(result, host: service?.serverAddress?.host ?? "", name: service?.name ?? "",
+                                     purpose: .publishing)?.detail ?? ""
+        }
+    }
     static var noServerTitle: String { String(localized: "Add a Server to Publish To", comment: "Publish sheet with no saved server") }
     static var noServerDetail: String { String(localized: "Photos are published to an Immich server.", comment: "Publish sheet with no saved server") }
     static var loadingAlbums: String { String(localized: "Loading albums…", comment: "Publish sheet: the album pop-up while albums load") }

@@ -904,6 +904,8 @@ enum DebugScript {
             model.showsCopySheet = false
             model.showsLookTableSheet = false
             model.showsPresetSheet = false
+            // Publishing's sheets, its Server sheet and the results (QA Q3).
+            model.publish.closeSheetsForQuit()
             // The import window's own sheet, dialog and alert (QA Q1).
             model.cardImport.serverSheet = nil
             model.cardImport.removingServer = nil
