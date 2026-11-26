@@ -4,18 +4,77 @@ Issue: #28 · Complexity: Hard
 
 Owner: swift-macos-engineer. Branch `feature/publishing-engine` (off `develop`).
 Spec: the PRD (issue #28, **revision 7**, 2026-11-26) and [design.md](design.md)
-(rulings in its §16 and §17: D-1 to D-13 and the correction to §3.6).
+(rulings in its §16 and §17: D-1 to D-16 and the correction to §3.6).
 
-**State: Done** (2026-11-26, third review round). The third-pass design review's
-findings F24 to F28 of [review.md](review.md) are fixed (F27 and F28, optional,
-included), with D-12 and D-13 built as ruled, each with its test or scripted
-check (**Third review round** below); the user guide says when Retry Failed is
-not offered. `swift test`, `Scripts/build-app.sh all` and the CI toolchain build
-are recorded under **Build and test**. Open for others: the checks **For a
-person** (and review.md's M1 to M10), the owner's approval of the proposed
-`CLAUDE.md` Network rule (unchanged this round) and **Follow-ups proposed**.
-Next: code-reviewer's pass on this round and the designer's (the UI changed),
-then qa-tester.
+**State: Done** (2026-11-26, fourth review round). Code review C11 with security
+L2 (built as design D-15), design D-16, code review C12, security N5 and N6, and
+the N2 addendum are fixed, each with a test that failed without its fix or a
+scripted check (**Fourth review round** below); the user guide covers D-15 and
+D-16. `swift test`, `Scripts/build-app.sh all` and the CI toolchain build are
+recorded under **Build and test**. Open for others: the checks **For a person**
+(review.md's M1 to M7), the owner's approval of the proposed `CLAUDE.md` Network
+rule (its temporary-folder sentence changed this round) and **Follow-ups
+proposed**. Next: code-reviewer's pass on this round, the designer's (the UI
+changed: one new line under Server, the Server sheet closing on Save), and the
+security reviewer's on N5 and N6, then qa-tester.
+
+## Fourth review round (2026-11-26)
+
+Started from this file at 41f6d0f. The designer's and reviewers' files
+(`design.md` with D-14 to D-16, `review.md`, `code-review.md`,
+`security-review.md`) were committed as they were (9773e03). Engine e603c77,
+app cd55215.
+
+| # | Fix | Test or check |
+|---|---|---|
+| C11, L2 (D-15) | On a reload where the chosen server's address or trusted certificate changed (`PublishServerChange.connectionChanged`), a Publish being confirmed and the Skip or New Copy question are given up (`cancelSheetWork()`, `question = nil`), as removal does, and the line **This server's address or certificate changed. Nothing was published.** shows under Server, below the address and Not encrypted lines (`AnnouncedIssue`, announced, and the Server pop-up's hint; new catalog key). The recheck keeps every choice and the description (F28). The line shows only when something was given up; it goes when Publish is pressed again, a server is chosen, added or saved from the sheet, the server is removed (D-13's line instead) or the sheet is next opened. The invariant is enforced where a run starts, not only by the reload: `requestPublish`, after its check and records read, and `answer(skip:)`, before `start`, read the server as saved now (`PublishServerChange.since(_:in:)`, PhotoCore, over the new `Catalog.remoteService(id:)`) and start nothing unless the address and fingerprint are the ones checked; a change shows the line, a removal leaves D-13's reload to say so, a catalog that can't be read shows its error as the start issue. While `answer` reads, it counts as a Publish being confirmed (Publish dimmed, and a change or removal arriving then cancels it). A rename or a new key alone gives nothing up | `PublishRulesTests.destinationSinceConfirmed` (rename, address, certificate, removal, a record never saved, against a real catalog); with `since` stubbed to `.unchanged` (no check, as before) it failed with 4 issues; restored, passing. Scripted: `30-publish-address-changed-question-given-up.png` (3 photos published, Publish again asks Skip or New Copy, the import window's Edit moves Home to `localhost`: the question is gone, the line shows, the new address is checked (checks 3), the description kept; a scripted New Copy afterwards starts nothing); `31-publish-address-changed-while-confirming.png` (the fake server's check held 5 s, Publish pressed, the address changed meanwhile: confirming ends, the line shows, the new address is checked, and 6 s later no run has started: Activity none) |
+| D-16 | `Catalog.saveRemoteService(_:)` inserts only a record with no id and otherwise updates, so a removed row is never recreated (GRDB's `save` inserted). `saveRemoteService(_:key:keys:)` checks the row before touching the key store and returns the new `.removed` (deleting the account's key) when it is gone, and again when the row's update finds nothing after the key was written. `removeRemoteService` deletes the key once more after the row, so a Save whose key and row landed between Remove's two steps leaves no key. `Catalog.renameRemoteService(id:to:)` changes only the name of the row as saved now (nil when gone). `ServerSheetModel.submit` (shared by both hosts): a name-only Save renames; a checked Save, and Trust Certificate (which submits), reads the row before the Keychain and the network; a removed server reaches the new `ServerSheetHost.serverSheetFoundRemoved`, with no alert and no new string. Publish: the Server sheet closes, the servers are read again, and the sheet comes back in D-13's removed state (or No saved server), no other server chosen. Import: the sheet closes, a removed source is closed as after Remove Server…, the servers are read again and the library told. A failed write of a name-only Save still leaves the sheet as it was (unchanged from #271) | `RemoteConnectionTests.saveNeverRecreatesRemoved` (typed key, no key, pinned certificate, the plain write and a rename after a removal: no row, no key; Add unaffected), `saveAndRemoveInterleaved` (a removal landing after Save's check as its key is written; Save's key and row landing between Remove's key and row), `renameKeepsWhatAnotherWindowSaved`. With `save` back, no pre-check, no `.removed` and the rename's row check dropped, the first two failed (1 issue each, at the first expectation); with only Remove's second key delete dropped, `saveAndRemoveInterleaved` failed at its key expectation; restored, passing. `renameKeepsWhatAnotherWindowSaved` pins a function that didn't exist before (the old code saved the sheet's copy, address and all, by reading). Scripted: `32-publish-name-only-save-server-removed.png` (Home and Other saved, Edit “Home” from Publish, Home removed in the import window, the name changed and Save: the Server sheet closes, the servers are Other only, the sheet shows None and **This server was removed.**, Publish dimmed); a checked Save (a key typed) after Home, the last server, was removed: the fake server's request list is the same before and after Save, the servers are none, the sheet shows No saved server (`s33`, printed); the import window's own Edit sheet after Home was removed there: Save closes it, no server and no source (`s34`, printed) |
+| C12 | `PublishJob.beforeFirstPhoto` (internal, tests only) is awaited after the job's own reads and before its first photo | `PublishJobTests.stopInsideRetryJobBeforeFirstPhoto`: the job waits there, the test cancels it, `retry` returns nil, nothing was written and one upload is still the only one; the same job then retries both photos. With `calledOff` set to `false` it failed (1 issue: the run came back stopped); restored, passing |
+| N5 | The base folder is made with mode 0700, and an existing one owned by the user is set to 0700. Before anything is listed or removed, `lstat` must find a real folder (not a symbolic link) owned by this user, else cleanup does nothing. Both `open` calls carry `O_NOFOLLOW`, so a lock name that is a symbolic link is never opened (its folder then stays). The launch folder is made 0700 too | `PublishRulesTests.temporaryFoldersNoLinks` (modes; a symbolic-linked base whose target keeps its file; a `.lock` link whose folder and target stay). Against the old behaviour (new signatures, old rules) it failed with 4 issues; restored, passing |
+| N6 | `Launch.make` tries up to 8 new names when a lock can't be taken (`EWOULDBLOCK` when another copy's cleanup took the new name's lock first, or any other refusal) and never makes a folder in the base without its held lock. If no name locks, or the base isn't the user's own folder, the launch works in a folder of its own beside the base (`<bundle id>.publish-<UUID>`, mode 0700), which no other launch's cleanup reaches. An entry with no lock file is removed only when it hasn't changed for a day (`unlockedAge`, by `lstat`'s modification time; `removeLeftovers(in:now:)`) | `temporaryFoldersLockRetry` (the first name's lock held elsewhere: the second name is used and locked, no folder for the first; no name lockable: a folder beside the base, nothing new in it) and `temporaryFoldersLockLessOnlyWhenOld` (a running launch whose lock file was removed keeps its folder, and it goes a day later). Against the old behaviour they failed with 7 and 1 issues; restored, passing. `temporaryFoldersPerLaunch` now ages its lock-less folder by a day |
+| N2 addendum | `ImmichClient.addToAlbum`'s per-photo errors go through `RemoteAnswer.shownText` (trimmed, cut at 200 characters, empty as none), the rule `serverMessage` now also uses (`ImmichClient.refusals`) | `PublishRulesTests.albumAddErrorCut` (5,000 characters to 200, the same as a top-level message; whitespace trimmed; empty and missing as none; `duplicate` and successes left out). Without the cut it failed with 5 issues; restored, passing |
+| Manual checks | The checks below cite review.md's current M1 to M7 | Reading |
+
+Left as they are, and why:
+
+- **N6's fallback folder outside the base** is not removed by a later launch
+  after a crash (nothing else knows it). It is used only when the shared base
+  can't be locked 8 times running or isn't the user's own folder, both of which
+  need something else interfering with the temporary folder; the alternative,
+  failing every run with a new cause and string, costs more than the leftover.
+- **The pre-check reads the catalog** before the Keychain on a checked Save from
+  either host: a catalog that can't be read now shows its error in the sheet
+  (as the save's own catalog failure already did) instead of going on to the
+  check.
+- **`answer(skip:)` now reads the catalog** before starting, so the run starts a
+  few milliseconds after the alert closes; the button bar may show **Checking…**
+  for that moment (`isConfirming`).
+
+New debug words: `publish print` adds `changedLine` and `question up
+‹address›|-`; `publish answer …` waits for the answer's read and prints
+`started` or `not started` with the start issue.
+
+### Snapshots (fourth round)
+
+The debug bundle (`CONFIGURATION=debug Scripts/build-app.sh library`) copied
+with identifier `me.sesser.gus.debugtest.round4`, signed ad hoc; a fresh copy of
+a new `photobench generate --jpeg 3 --dng 0 --heic 0 --videos 1` library
+(`photobench import`) for every script; the fake server with `fault permissions
+all`; every launch with `--library-root`. Each PNG was read after it was written.
+In
+`/private/tmp/claude-501/-Users-randy--claude-spares-spare-ZSbkzm/7f274175-835d-4217-a958-c2a7b08f08df/scratchpad/round4/shots/`:
+
+- `30-publish-address-changed-question-given-up.png`: D-15's line under the
+  new address and the Not encrypted line, Home checked again, Publish enabled.
+- `31-publish-address-changed-while-confirming.png`: the same after a Publish
+  being confirmed was given up.
+- `32-publish-name-only-save-server-removed.png`: D-16 from Publish: Server
+  None, **This server was removed.**, Album dimmed, Check Originals and Publish
+  dimmed.
+
+Not captured: the Skip or New Copy alert closing (an alert is a window the
+snapshot can't draw; the print shows `question -`); the announcement
+(VoiceOver).
 
 ## Third review round (2026-11-26)
 
@@ -429,7 +488,8 @@ afterwards; the images kept.
 ## Proposed `CLAUDE.md` Network rule (R27; the owner approves before it is committed)
 
 Type names checked against the code on this branch (review round: the
-temporary files, the whole-path allowlist match and the id rule added).
+temporary files, the whole-path allowlist match and the id rule added; fourth
+round: the temporary folders' mode, links and age, security N5 and N6).
 
 > - **Network.** The app contacts one kind of host: an Immich server the user
 >   adds, and only the library app does it (the standalone importer, About and
@@ -459,9 +519,12 @@ temporary files, the whole-path allowlist match and the id rule added).
 >   one base folder every copy of the app shares, named from the fixed
 >   `AppBranding.bundleIdentifier` (`PublishTemporaryFolders`:
 >   `<AppBranding.bundleIdentifier>.publish/<launch>`, each launch's held by a
->   lock for the life of its process); each run removes its own when it ends,
->   and a launch removes only the folders of launches that have ended (their
->   lock is free) and folders with no lock file. The key goes
+>   lock for the life of its process, the base the user's alone, mode 0700);
+>   each run removes its own when it ends, and a launch removes only the
+>   folders of launches that have ended (their lock is free) and day-old
+>   folders with no lock file, never following a symbolic link and nothing at
+>   all unless the base is the user's own real folder. A launch that can't lock
+>   a folder there works in one of its own beside the base. The key goes
 >   only as `x-api-key` and only to the connection's host. Response bodies and
 >   downloads are capped (an error's body at 64 KiB, read only for the
 >   server's message). Redirects are never followed, and there are no cookies,
@@ -480,28 +543,36 @@ Also for the owner's part of `CLAUDE.md`: the catalog table list gains
 
 ## For a person (not scriptable)
 
+Numbered as review.md's M1 to M7 (fourth pass).
+
 - The sheet, its two pages and the results sheet at the smallest window; their
-  look in the dark library window; keyboard only from ⌥⌘E to Publish.
+  look in the dark library window (M1); keyboard only from ⌥⌘E to Publish (M2).
 - Return in the Description field (design §13, review G-1: pressing Publish,
-  inserting a line, or neither are all acceptable; note which).
+  inserting a line, or neither are all acceptable; note which; M2).
 - Menus and the context menu by eye; the toolbar's Publish item in the default
-  set.
+  set (M3).
 - The quit alert during a real run, and a quit while a run is ending (asks
-  nothing, waits out the bound).
+  nothing, waits out the bound; M6).
 - The album pop-up's tick and the dimmed New Album… with its line, with a real
-  mouse (F12); the folder map's field typed by hand (`/mnt/media/photos`, an
-  edit in the middle, a pasted trailing slash; M4) and its focus after Add
-  Folder… (F17).
-- Stop while a large photo renders: **Stopping…** until the render returns (D-1).
+  mouse (F12; M4); the folder map's field typed by hand (`/mnt/media/photos`, an
+  edit in the middle, a pasted trailing slash) and its focus after Add
+  Folder… (F17; M2).
+- Stop while a large photo renders: **Stopping…** until the render returns (D-1;
+  M6).
 - Stop while a retry is still checking a slow or Keychain-prompting server:
   **Stopping…** until the check returns, then the job leaves Activity and
-  nothing else changes, an open results sheet included (D-10). The scripts
+  nothing else changes, an open results sheet included (D-10; M6). The scripts
   reached only a check that returns at once when cancelled.
 - Publish N Photos enabled right after the check, with no click elsewhere
-  first, and Return publishing (F19; the snapshot shows the enabled button).
+  first, and Return publishing (F19; the snapshot shows the enabled button; M2).
+- The Skip or New Copy alert closing by itself when the server is removed (M5)
+  or its address is changed in the import window (D-15, the same check), and the
+  line it leaves; with a real window, Save in the publish sheet's own Server
+  sheet after its server was removed in the import window (D-16): the sheet
+  closes and the publish sheet comes back with **This server was removed.**
 - AC17 on the owner's server (https, a reverse proxy, the web interface), and
   there the untrusted-certificate wording if a certificate the system doesn't
-  trust is met (F10, D-3).
+  trust is met (F10, D-3; M7).
 
 ## Known and left
 
@@ -524,7 +595,12 @@ Also for the owner's part of `CLAUDE.md`: the catalog table list gains
   checks again (as for permissions above).
 - The chosen server removed in the import window while the publish sheet has
   handed its place to its own Server sheet (Add or Edit): that sheet is not
-  closed; on its return the publish sheet shows the removal as above.
+  closed at the moment of removal (D-14); its Cancel, or a Save (which saves
+  nothing, D-16), brings the publish sheet back showing the removal as above.
+- An address or certificate changed in the import window while the publish
+  sheet's own Server sheet is up, and that sheet then cancelled: the earlier
+  check and album list may still show until Check Again or another choice;
+  **Publish** still connects to the saved address (D-14, D-15's remaining case).
 
 ## Immich verification (2026-11-25)
 
@@ -1019,6 +1095,12 @@ None open.
 | 2026-11-26, third round | `swift test` | 1642 tests in 226 suites passed (96.6 s), on the final sources |
 | 2026-11-26, third round | `Scripts/build-app.sh all` | Both bundles built and signed (release; the library app's executable records SDK 27.2, minimum 15.0) |
 | 2026-11-26, third round | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, exit 0, no warning in the changed files (`/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`) |
+| 2026-11-26, fourth round, baseline at 9773e03 | `swift build --build-tests` | Built clean |
+| 2026-11-26, fourth round | each new test against its fix undone (N2 cut, C12 `calledOff = false`, N5 and N6 old rules, D-16 `save` and no check, D-16 Remove's second delete alone, D-15 `since` = `.unchanged`) | `albumAddErrorCut` 5 issues; `stopInsideRetryJobBeforeFirstPhoto` 1; `temporaryFoldersLockRetry` 7, `temporaryFoldersLockLessOnlyWhenOld` 1, `temporaryFoldersNoLinks` 4; `saveNeverRecreatesRemoved` 1, `saveAndRemoveInterleaved` 1 (and 1 with only Remove's second delete undone); `destinationSinceConfirmed` 4; restored and passing |
+| 2026-11-26, fourth round | `swift test` | 1651 tests in 226 suites passed (92.1 s), on the final sources |
+| 2026-11-26, fourth round | the publishing and connection suites (`PublishJobTests`, `PublishRulesTests`, `PublishBoundaryTests`, `RemoteConnectionTests`, `RemoteSessionTests`; 86 tests), `--skip-build`, 30 runs | 30 of 30 passed |
+| 2026-11-26, fourth round | `Scripts/build-app.sh all` | Both bundles built and signed (release; the library app's executable records SDK 27.2, minimum 15.0, and holds D-15's string) |
+| 2026-11-26, fourth round | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, exit 0, no warning in the changed files (`/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`) |
 
 Determinism of the new tests: none sleeps to synchronize. The stop tests
 (`personsStop`, `endingWaitsForFullySent`) stop at the client's own "fully
@@ -1068,6 +1150,18 @@ concurrency 1 and checks every report, whatever their timing. The 30 clean runs
 rule out a per-run flake rate of about 1 in 10 or more (at about 95%); the
 structural argument is the claim for rarer ones.
 
+Determinism of the fourth round's tests: none sleeps to synchronize.
+`albumAddErrorCut` and `destinationSinceConfirmed` are pure or run against an
+in-memory catalog in one task. The D-16 tests put the other window's change at a
+fixed point with a key store hook called synchronously inside the save or the
+removal, so the order is the code's, not the scheduler's. The temporary folder
+tests use their own folders and descriptors, and age by passing `now` or setting
+a modification date a day back. `stopInsideRetryJobBeforeFirstPhoto` cancels
+only after the job's hook has yielded, and the hook waits for that cancellation
+(`untilCancelled`), so the Stop always lands after the job's reads and before
+its first photo. The 30 clean runs rule out a per-run flake rate of about 1 in
+10 or more (at about 95%); the structural argument is the claim for rarer ones.
+
 ## Design questions (second round, ruled)
 
 Both ruled by the designer on 2026-11-26 (design §17: D-12 for DQ-R2-1, option
@@ -1110,6 +1204,17 @@ Both ruled by the designer on 2026-11-26 (design §17: D-12 for DQ-R2-1, option
   do change, so those redraw. Not reproduced on screen (toolbar items are glass
   and don't draw in a snapshot); check with a real window, then drop
   `@ObservationIgnored` from `client`.
+- **Publish sheet keeps an old check after its own Server sheet is cancelled**
+  (bug; review.md's follow-up, narrowed by D-15 and D-16 to this one case): an
+  address or certificate changed in the import window while the publish sheet's
+  Server sheet is up, and that sheet then cancelled, leaves the earlier check
+  and album list showing until Check Again or another choice. **Publish**
+  connects to the saved address, and D-15's invariant still holds. Expected: the
+  sheet checks the server as saved now when it comes back. Slug:
+  `publishing-engine`.
+- **A name-only Save whose catalog write fails says nothing** (bug, #271's
+  code, seen while building D-16): the Server sheet stays as it was with no
+  message; a checked Save shows the catalog's error. Expected: the same message.
 - The first round's "combined script's timeout" is explained: the scripted
   `quit` is ignored while a sheet is up (#276). Closing the sheet first quits.
 - The one-photo Check Originals sentence is fixed (F20); that follow-up is gone.
