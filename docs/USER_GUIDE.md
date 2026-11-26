@@ -1308,10 +1308,13 @@ failure that **Retry Failed** finishes.
 before the server was removed and added again at the same address), the app
 asks once: **Skip** (the default) leaves them alone, **New Copy** publishes
 them again as new photos, and **Cancel** sends nothing. Nothing on the server
-is ever replaced. When the server already has an identical file (an unchanged
-photo published again, say), it reports the photo as already on the server;
-it gets the album and the stack unless it is in the trash, hidden, or the
-server won't show it, which the results say. Photos published from this
+is ever replaced. When the server already has an identical file, byte for
+byte, it reports the photo as already on the server; it gets the album and the
+stack unless it is in the trash, hidden, or the server won't show it, which the
+results say. An unchanged photo published again doesn't always make an
+identical file: with a caption or a capture time, the metadata in the file can
+come out in another order after the app was quit and opened again, and New Copy
+then adds a second copy. Photos published from this
 library show as **In Library** in the import window.
 
 The run goes in the background, in Activity, with **Stop** (and **File ▸ Stop

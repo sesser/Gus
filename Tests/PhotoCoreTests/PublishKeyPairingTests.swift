@@ -84,7 +84,7 @@ struct PublishKeyPairingTests {
             let account = held.uuid
             let catalog = f.catalog
             let before = f.server.requests.count
-            let finished = Mutex(false)
+            let finished = Flag()
             var moved = held
             moved.address = "https://photos.example.com"
             moved.allowsUnencrypted = false
@@ -94,12 +94,12 @@ struct PublishKeyPairingTests {
                 try keys.setKey(Self.newKey, account: account)
                 check = Task {
                     let outcome = await PublishConnection.connect(held, catalog: catalog, keys: keys, readsAccount: false)
-                    finished.withLock { $0 = true }
+                    finished.set()
                     return outcome
                 }
                 // The check either waits for the gate or has gone ahead.
-                while RemoteKeyGate.shared.waiters(account) == 0, !finished.withLock({ $0 }) { await Task.yield() }
-                #expect(!finished.withLock { $0 }, "the check read the key while the Save was between its two writes")
+                while RemoteKeyGate.shared.waiters(account) == 0, !finished.isSet { await Task.yield() }
+                #expect(!finished.isSet, "the check read the key while the Save was between its two writes")
                 #expect(f.server.requests.count == before)
                 _ = try await catalog.saveRemoteService(moved)
             }
@@ -162,8 +162,15 @@ struct PublishKeyPairingTests {
     }
 }
 
+/// Set once, read from any task.
+private final class Flag: Sendable {
+    private let value = Mutex(false)
+    var isSet: Bool { value.withLock { $0 } }
+    func set() { value.withLock { $0 = true } }
+}
+
 /// A key store that runs a step right after a key is written.
-final class SaveHookKeyStore: RemoteKeyStore {
+private final class SaveHookKeyStore: RemoteKeyStore {
     let inner = InMemoryKeyStore()
     private let hook = Mutex<(@Sendable () -> Void)?>(nil)
 
