@@ -395,7 +395,9 @@ Edit and Review Certificate alike, including the check that runs again after
 - A name-only Save changes the name and nothing else on the server **as saved
   now** (D-16). It never writes back an address or certificate that another
   window has changed since the sheet opened, which would put a newer key beside
-  an older address. A Save that is checked writes what the form shows, as before.
+  an older address. A Save that is checked writes what the form shows, as before,
+  except that with the key field empty, a sheet that is behind the saved server
+  sends and writes nothing (D-19, §11.2).
 - Such a server is a normal saved server. Choosing it as the Import window's
   source names the missing import permissions and imports nothing (§4.1). A new
   address, key or certificate for it is saved from Publish; from Import the check
@@ -1034,6 +1036,21 @@ coverage. No upload, album or stack request is sent.
 - **Stop and Quit** during the check asks the usual question; the app then quits,
   and as always nothing unfinished is kept.
 
+**The server changes as the check starts** (D-17, answers DQ-F1; security N7).
+**Retry Failed** reads the saved servers before it starts. A save that lands
+after that read and before the check reads the key calls the retry off: nothing
+is sent, and the run stays as it was, exactly as under D-10. The job leaves
+Activity with no message and no announcement, and no sheet opens. The same holds
+when the catalog can't be read at that point.
+
+- Opened again, the results sheet shows the run unchanged. A removal or an
+  address change shows the existing refusal with **Retry Failed** off. A
+  certificate change alone is no refusal: the next **Retry Failed** runs and
+  checks the server as saved.
+- Why no message (judgment): it takes a save in the other window within moments of
+  the press, nothing was sent, and reopening the sheet over the person's work
+  would cost more than it tells.
+
 ## 11. The Import window (R20, AC15)
 
 An asset published from this library to the chosen server's address gets the
@@ -1044,6 +1061,113 @@ library**. A photo both linked and published shows the import tooltip. If a reco
 is written while the window shows that server, the cell updates in place without
 reloading the grid, and a checked photo that becomes marked is unchecked. The
 standalone importer is unchanged.
+
+### 11.1 The saved server changes while it is the source (D-18)
+
+Answers DQ-F2; security N7. The publish sheet's **Edit Server…** can save the
+server the Import window is showing. The window never pairs a key with an address
+or certificate other than the ones saved with it, and it follows the saved
+server.
+
+**The key is read with its row.** Every check the window makes (choosing the
+server, **Rescan**, **Try Again**, the reconnect after an import) reads the key
+together with the row as saved now, as publishing does, and contacts the server
+only if the address and trusted certificate are the ones the window holds. If
+they are not, nothing is sent to the previous address and the window follows. A
+Keychain refusal shows as today. A catalog that can't be read shows what the
+Server sheet shows for that today (the Keychain result, with the catalog's
+message), under **Can't Connect to ‹name›**.
+
+**When it follows.** As soon as a save from the publish sheet has been read, with
+the Import window in front, behind, minimized or closed; otherwise at the next
+check that finds the difference. This keeps II §2.3: the person pressed Save. One
+check per save is enough. The window is not brought forward and the keyboard is
+not moved.
+
+**Address or trusted certificate changed** (no import running). The window does
+what choosing the server does, which is also what a Save from its own Server
+sheet does. No alert and no new string.
+
+| Part | What the person sees |
+|---|---|
+| Grid | **Connecting to ‹name›…**, then the first page, or the existing state for whatever the check finds (II §4.7) |
+| Selection and loaded pages | Cleared. **Import 0 Photos**, dimmed |
+| Album, date range | **All Photos**, no range; an open Date Range popover closes |
+| Project name | The prefill again; a typed name is dropped |
+| In Library marks | Read again for the new address |
+| Inspector, Source pop-up, subtitle | The saved name, address and connection line; an earlier **Imported ‹n› photos** goes |
+| Requests under way | Page and thumbnail requests for the old connection are cancelled |
+| Destination, templates, **Add to**, job code, metadata preset | Unchanged |
+
+A certificate change alone is treated the same: one rule, and the same result as
+trusting it in this window.
+
+**Name only changed.** The window takes the saved name in place (title, Source
+pop-up, inspector, and **Edit Server…** opens on the saved record). Nothing is
+contacted or reloaded; selection, pages, album and range stay. The Project name
+follows only if the person hasn't typed one, as after an album change.
+
+**Key only changed.** Nothing reloads. The next check reads the new key. If the
+server meanwhile rejects the old one, the existing rejected-key state or alert
+shows, and **Try Again** uses the new key.
+
+**Removed** (found by a check): as after **Remove Server…**.
+
+**While an import from that server is running**, nothing in the window changes.
+
+- The import finishes, is stopped or fails exactly as it would have, on the
+  address, key and certificate it was started and checked with. Those belong
+  together, so no key reaches an address it wasn't saved for. It never switches
+  address part way. Its links are recorded under the address the photos came
+  from.
+- The grid, selection, loaded pages, progress, **Stop** and the inspector (still
+  the previous address, which is where the photos are coming from) stay. Further
+  pages and thumbnails come over the same connection.
+- A check made during the run that finds the change (**Try Again**, or a
+  **Rescan** still under way when Import was pressed) sends nothing and leaves the
+  grid, its state and the selection as they were.
+- When the run ends, its alert, Activity message and subtitle are as today. The
+  reconnect that follows every import then goes to the server as saved now: the
+  window follows as above, **keeping the ending subtitle**. A name-only change is
+  taken then too.
+- An alert from the run may name a step that is no longer needed (**Review
+  Certificate…** after the certificate was already trusted from Publish). It is
+  not changed: it says why that run stopped.
+- **Edit Server…** in the publish sheet is not dimmed for a running import. Saving
+  is safe, and the run is not disturbed.
+
+### 11.2 A Server sheet that is behind the saved server (D-19)
+
+Answers DQ-F3; security N7. Two Server sheets for one server can be open, one per
+window. This applies to **Save** with a check and to **Trust Certificate** in Edit
+Server **with the key field empty**, from either host.
+
+- **At the press.** The removal check of D-16 comes first. Then the stored key is
+  read with the row. If the saved address or trusted certificate is no longer the
+  one the sheet opened on, the key is sent nowhere and nothing is written.
+- **At the save, after a passing check.** The row is written only if the saved
+  address and certificate are still those the sheet opened on **and** the stored
+  key is still the one the check used, compared and written as one step with
+  respect to other saves. Otherwise nothing is written. A removal ends as D-16.
+- A check that fails shows its result as usual; the next press ends as above.
+- **What the person sees.** The Server sheet closes, with no alert and no new
+  string, and its host shows the server as saved now. What was typed in this sheet
+  is dropped.
+  - **Publish:** the publish sheet returns with that server chosen and checks it
+    again, keeping every choice and the description (as after a Save of the chosen
+    server). D-15's line is not shown: nothing was being confirmed, and nothing is
+    remembered or published.
+  - **Import:** the window reads its servers and chooses that server as saved now
+    (§11.1's table); the grid takes the keyboard when it appears, as after Save.
+    The publish side is told the servers changed, as after any save here.
+- **A typed key** behaves as before: the key and what the form shows are saved
+  together, so the typed key goes to the address on screen and the last save
+  wins. The other window then follows it (§11.1, or F28 for publishing).
+- A name-only Save (D-16) and **Add** are unaffected.
+- Why closing without a message (judgment, not Apple policy): getting here takes
+  the same person saving the same server in the other window while this sheet is
+  open, D-16 already ends a stale sheet this way, and the host shows the saved
+  values at once.
 
 ## 12. Not in this design
 
@@ -1098,6 +1222,15 @@ sheet's Album and Stacking issues); add it from **Import** (refused; print the
 result); choose the saved server as the Import window's source and print the
 grid's label, description and actions. Also from Publish, a key lacking one of the
 two (refused), and Review Certificate from each host.
+
+For D-18 and D-19, with the fake server reached by two addresses: with photos
+selected in the Import window, save a new address from Publish and print the
+window's server, selection, state and the requests made; the same during a running
+import (requests and progress unchanged until it ends, then the new address, the
+ending subtitle kept); a rename from Publish (selection kept, no request); two
+Server sheets of one server with the key field empty, the later one submitted
+after the earlier Save, and again with that Save landing during its check (no
+request to its address in the first case, no write in either).
 
 For a person (to be numbered in `review.md`): the sheet and both pages at the
 smallest window; keyboard only from ⌥⌘E to Publish; Return in the description
@@ -1205,8 +1338,10 @@ PRD revision 7 ([`code-review.md`](code-review.md)). D-12 and D-13, from the thi
 pass, answer the engineer's DQ-R2-1 and DQ-R2-2 ([`status.md`](status.md));
 neither changes a requirement. D-14, from the fourth pass, rules the two items
 `status.md` lists as known and left. D-15 (code review C11, security finding L2)
-and D-16 take two of D-14's deferred cases back into this feature. The sections
-named carry the full text.
+and D-16 take two of D-14's deferred cases back into this feature. D-17 to D-19
+answer the engineer's DQ-F1 to DQ-F3 from the fix round after QA (security N7);
+none changes a requirement as this document cites it. The sections named carry
+the full text.
 
 | # | Ruling | Where |
 |---|---|---|
@@ -1226,6 +1361,9 @@ named carry the full text.
 | D-14 | Accepted for this feature: an open publish sheet doesn't notice a key-only change; its own **Server** sheet isn't closed when its server is removed; the related narrow cases in §3.3. The last two cases go to a follow-up. Superseded in part by D-15 and D-16: only a key-only change, the Server sheet staying up on removal, and a cancelled Server sheet's earlier check are still accepted | §3.3 |
 | D-15 | The chosen server's address or trusted certificate changed while Publish is being confirmed or Skip or New Copy is up: both are given up, nothing is sent, the server is rechecked with choices kept, and **This server's address or certificate changed. Nothing was published.** shows under Server | §3.3, §8 |
 | D-16 | Save in the Server sheet never recreates a removed server (no row, no key): the sheet closes, and the publish sheet returns in D-13's removed state. A name-only Save changes only the name | §4 |
+| D-17 | (DQ-F1) A retry called off because its server changed as the check started stays silent, as under D-10; the run is unchanged | §10.3 |
+| D-18 | (DQ-F2) The Import window reads the key with its row and follows a changed address or certificate as if the server were chosen again; a rename is taken in place. A running import is left alone and the window follows when it ends | §11.1 |
+| D-19 | (DQ-F3) With the key field empty, a Server sheet behind the saved address or certificate sends and writes nothing: it closes and its host shows the server as saved | §11.2 |
 
 Correction to §3.6 (first pass): Export reports no empty template, so the missing
 watermark image is the only settings issue.
