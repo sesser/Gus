@@ -17,7 +17,10 @@ public struct ServerAlert: Equatable, Identifiable {
 @MainActor
 @Observable
 public final class ServerBrowse {
-    public let service: RemoteServiceRecord
+    /// The server as the window last read it: its address and trusted
+    /// certificate are the ones every check contacts (publishing design D-18);
+    /// a rename saved elsewhere is taken in place.
+    public internal(set) var service: RemoteServiceRecord
     @ObservationIgnored public private(set) var client: (any RemotePhotoSource)?
     public internal(set) var isConnecting = true
     /// Why the server can't be browsed now (any of the check's results).
@@ -133,20 +136,40 @@ extension CardImportModel: ServerSheetHost {
 
     /// The check, then the albums and the first page (Try Again and Rescan
     /// run it too). `keepingSelection`: Rescan keeps photos still listed.
-    public func connectServer(keepingSelection: Bool = false) {
+    /// The key is read with the server's row as saved now, and only a row
+    /// with the window's address and trusted certificate is contacted
+    /// (publishing design D-18, security review N7). Otherwise nothing is
+    /// sent and the window follows the server as saved, or, while an import
+    /// runs, leaves everything as it was until the reconnect after it.
+    /// `keepingSubtitle`: that reconnect keeps the import's ending subtitle.
+    public func connectServer(keepingSelection: Bool = false, keepingSubtitle: Bool = false) {
         guard let browse, let library else { return }
         browse.cancel()
         let kept = keepingSelection ? selection : []
+        let before = (failure: browse.failure, albumGone: browse.albumGone)
         browse.isConnecting = true
         browse.failure = nil
         browse.albumGone = false
         let service = browse.service
         let keys = library.remoteKeyStore
+        let catalog = library.catalog
         browse.connectTask = Task {
-            let outcome = await Self.check(service, keys: keys)
+            let outcome = await RemoteImportConnection.connect(service, catalog: catalog, keys: keys)
             guard !Task.isCancelled, self.browse === browse else { return }
             browse.isConnecting = false
             switch outcome {
+            case .changed(let change):
+                if isImporting {
+                    // The run keeps the connection it was started with; the grid,
+                    // its state and the selection stay as they were (D-18).
+                    browse.failure = before.failure
+                    browse.albumGone = before.albumGone
+                    return
+                }
+                switch change {
+                case .connectionChanged(let now): follow(.chooseAgain(now), keepingSubtitle: keepingSubtitle)
+                case .removed, .unchanged: follow(.leave, keepingSubtitle: keepingSubtitle)
+                }
             case .failed(let result):
                 // No grid will appear: a later one must not take the keyboard (N-4).
                 focusesGridWhenShown = false
@@ -154,7 +177,8 @@ extension CardImportModel: ServerSheetHost {
                 browse.setClient(nil)
                 shots = []
                 selection = []
-            case .ready(let client, let info):
+            case .ready(let client, let info, let saved):
+                if !isImporting { takeSaved(saved) }
                 browse.setClient(client)
                 browse.info = info
                 loadAlbums()
@@ -163,35 +187,37 @@ extension CardImportModel: ServerSheetHost {
         }
     }
 
-    enum CheckOutcome {
-        case ready(any RemotePhotoSource, RemoteServerInfo)
-        case failed(ConnectionCheckResult)
+    /// The server the window shows was saved again (publishing design D-18,
+    /// §11.1). Never brings the window forward or moves the keyboard.
+    func follow(_ follow: RemoteSourceFollow, keepingSubtitle: Bool = false) {
+        switch follow {
+        case .none, .afterImport:
+            break
+        case .takeSaved(let saved):
+            takeSaved(saved)
+        case .chooseAgain(let saved):
+            // As choosing the server: an earlier "Imported n photos" goes,
+            // except after the import that just ended.
+            let done = doneText
+            chooseServer(saved)
+            if keepingSubtitle { doneText = done }
+        case .leave:
+            // As after Remove Server….
+            closeServer()
+            Task { await loadServers() }
+        }
     }
 
-    /// The key from the store, a client, and the check (R2).
-    /// Off the main actor: the Keychain may ask the person (code review C8).
-    nonisolated static func check(_ service: RemoteServiceRecord, keys: any RemoteKeyStore) async -> CheckOutcome {
-        guard let address = service.serverAddress else { return .failed(.notImmich) }
-        let key: String
-        do throws(RemoteKeyStoreError) {
-            guard let stored = try keys.key(account: service.uuid) else {
-                return .failed(.keychain(RemoteKeyStoreError.from(errSecItemNotFound).message))
-            }
-            key = stored
-        } catch {
-            return .failed(.keychain(error.message))
+    /// The same address and certificate saved under another name: taken in
+    /// place; the Project name follows unless the person typed one.
+    private func takeSaved(_ saved: RemoteServiceRecord) {
+        guard let browse, browse.service.id == saved.id, browse.service.name != saved.name else { return }
+        browse.service = saved
+        if !browse.projectNameEdited {
+            let noteWasShown = addsToExistingProject
+            browse.projectName = RemoteProjectName.prefill(connection: saved.name, scope: browse.scopeName)
+            announceProjectNote(wasShown: noteWasShown)
         }
-        let connection = RemoteConnection(address: address, key: key, pinned: service.pinnedFingerprint,
-                                          unencryptedConfirmed: service.allowsUnencrypted)
-        let client: ImmichClient
-        do {
-            client = try ImmichClient(connection: connection)
-        } catch {
-            return .failed(.unreachable(reason: "", isLocalHost: address.isLocalNetworkHost))
-        }
-        let result = await client.check()
-        guard case .passed(let info) = result else { return .failed(result) }
-        return .ready(client, info)
     }
 
     func loadAlbums() {
@@ -442,9 +468,10 @@ extension CardImportModel: ServerSheetHost {
         await library?.didFinishCopyImport(CopyImportResult(project: result.project,
                                                             insertedVersionIDs: result.insertedVersionIDs,
                                                             nextCounter: result.nextCounter))
-        // Marks change: read the server again (design §4.7).
+        // Marks change: read the server again (design §4.7), as saved now:
+        // a server saved again during the run is followed here (D-18).
         let done = doneText
-        connectServer(keepingSelection: false)
+        connectServer(keepingSelection: false, keepingSubtitle: true)
         doneText = done
     }
 
@@ -547,9 +574,15 @@ extension CardImportModel: ServerSheetHost {
         }
     }
 
-    /// The servers again, after Publish added or changed one.
+    /// The servers again, after Publish added or changed one. The server the
+    /// window shows is followed as saved now, whether the window is in front,
+    /// behind, minimized or closed (publishing design D-18): a rename in
+    /// place; another address or certificate as choosing it again; nothing
+    /// while an import from it runs (the reconnect after it follows).
     public func loadServersAfterPublish() async {
         await loadServers()
+        guard let browse, let id = browse.service.id else { return }
+        follow(RemoteSourceFollow.after(held: browse.service, now: servers.first { $0.id == id }, importing: isImporting))
     }
 
     // MARK: Hosting the Server sheet (publishing design §4)

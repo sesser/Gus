@@ -25,6 +25,7 @@ import PhotoUI
 ///     publish stop                        File ▸ Stop Publishing
 ///     publish results [print|retry|close] | results run <n>   (the Run pop-up's item n, latest first)
 ///     publish serversheet add|edit|close|print|submit | field name|address|key <text> | confirm on|off
+///                                         (address `fake`, or `fakehost`: the fake server named localhost)
 ///     publish menu                        what Publish, Publish Results and Stop allow
 ///     publish job                         the Activity job: title, detail, progress, Stop
 ///     publish activity                    the newest Activity message, its Show Results… and when it was posted
@@ -439,7 +440,14 @@ enum DebugPublishCommands {
             let text = rest.dropFirst().joined(separator: " ")
             switch field {
             case "name": sheet.name = text
-            case "address": sheet.address = text == "fake" ? DebugServerCommands.fakeServer?.address ?? "" : text
+            // `fakehost`: the fake server named localhost (D-18, D-19).
+            case "address":
+                let fake = DebugServerCommands.fakeServer?.address ?? ""
+                sheet.address = switch text {
+                case "fake": fake
+                case "fakehost": fake.replacingOccurrences(of: "127.0.0.1", with: "localhost")
+                default: text
+                }
             case "key": sheet.setKey(text == "fake" ? FakeImmichServer.validKey : text)
             default: break
             }

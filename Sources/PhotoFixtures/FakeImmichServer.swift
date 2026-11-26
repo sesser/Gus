@@ -114,6 +114,9 @@ public final class FakeImmichServer: Sendable {
         public var body: Data
         /// The request's `Accept-Encoding`, if it sent one.
         public var acceptEncoding: String?
+        /// The request's `Host`: which of the server's addresses (127.0.0.1 or
+        /// localhost) the client connected to (publishing design D-18, D-19).
+        public var host: String?
 
         public var description: String { "\(method) \(path)" + (query.isEmpty ? "" : "?\(query)") }
     }
@@ -478,7 +481,7 @@ public final class FakeImmichServer: Sendable {
         let snapshot = state.withLock { state -> State in
             state.requests.append(Request(method: request.method, path: request.path, query: request.query,
                                           sentKey: key != nil, body: request.body,
-                                          acceptEncoding: request.headers["accept-encoding"]))
+                                          acceptEncoding: request.headers["accept-encoding"], host: request.headers["host"]))
             return state
         }
         snapshot.onRequest?(request.path)

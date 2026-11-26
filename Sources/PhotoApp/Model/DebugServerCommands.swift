@@ -10,11 +10,12 @@ import PhotoUI
 /// server's key is a fixed test string, and output names keys only as
 /// "entered" or "-".
 ///
-///     import server fake start [<count>] | stop | requests | fault drop|revoke|notimmich|clear
+///     import server fake start [<count>] | stop | requests [since] | mark | fault drop|revoke|notimmich|clear
 ///                  | fault delete|corrupt|truncate|external <index> | fault unavailable <index> <times> | fault slow <ms>
 ///                  | fault permissions <a,b,…>
 ///     import server add <name> <address>|fake [<key>]   (Add Server… with the notice confirmed; waits for the check)
-///     import server sheet add|edit|close|print|remove | field name|address|key <text> | confirm on|off | submit | trust | back
+///     import server sheet add|edit|close|print|remove | field name|address|key <text> | confirm on|off | submit
+///                        | trust [nowait] | back
 ///                        (address `fake`, or `fakehost`: the fake server named localhost)
 ///                        | review [<seed>]   (the Edit sheet's changed-certificate page, a made-up certificate)
 ///     import server list | select <name> (waits) | check | edit | remove [<name>] | confirm yes|no | print
@@ -29,6 +30,8 @@ import PhotoUI
 @MainActor
 enum DebugServerCommands {
     private static var fake: FakeImmichServer?
+    /// The request count `fake mark` saw.
+    private static var requestMark = 0
 
     /// The fake server the script started (publishing's commands use it too).
     static var fakeServer: FakeImmichServer? { fake }
@@ -168,11 +171,19 @@ enum DebugServerCommands {
                       + "name \(upload.fields["filename"] ?? "-") date \(upload.fields["fileCreatedAt"] ?? "-") "
                       + "visibility \(upload.fields["visibility"] ?? "-") bytes \(upload.data.count)")
             }
+        case "mark":
+            // Where `requests since` starts (publishing design D-18, D-19).
+            requestMark = fake?.requests.count ?? 0
+            print("debug-script: import server fake mark \(requestMark)")
         case "requests":
-            for request in fake?.requests ?? [] {
+            let all = fake?.requests ?? []
+            let shown = words.dropFirst().first == "since" ? Array(all.dropFirst(min(requestMark, all.count))) : all
+            for request in shown {
                 print("debug-script: import server request \(request.method) \(request.path) "
-                      + "\(request.query.isEmpty ? "" : "?" + request.query) key \(request.sentKey ? "sent" : "-")")
+                      + "\(request.query.isEmpty ? "" : "?" + request.query) key \(request.sentKey ? "sent" : "-") "
+                      + "host \(request.host ?? "-")")
             }
+            if shown.isEmpty { print("debug-script: import server requests: none") }
         case "fault":
             guard let fake else { return print("debug-script: import server fault: no fake") }
             let rest = Array(words.dropFirst())
@@ -275,7 +286,8 @@ enum DebugServerCommands {
         case "trust":
             guard let sheet = model.serverSheet else { return }
             sheet.trustCertificate()
-            await waitForCheck(sheet)
+            // `nowait`: the script goes on during the check (publishing design D-19).
+            if rest.first != "nowait" { await waitForCheck(sheet) }
         case "back":
             model.serverSheet?.back()
         case "review":
@@ -366,6 +378,11 @@ enum DebugServerCommands {
         parts.append("project '\(browse.projectName)' note \(model.addsToExistingProject ? "shown" : "hidden")"
                      + " done \(model.doneText ?? "-")")
         if let alert = model.serverAlert { parts.append("alert '\(alert.title)' '\(alert.message)'") }
+        // A running import (publishing design D-18: nothing here changes while it runs).
+        if model.isImporting {
+            let progress = model.progress.map { "\($0.filesDone)/\($0.filesTotal)" } ?? "-"
+            parts.append("importing \(progress)")
+        }
         print("debug-script: " + parts.joined(separator: " "))
     }
 

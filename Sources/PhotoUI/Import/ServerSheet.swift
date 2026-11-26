@@ -31,7 +31,11 @@ public protocol ServerSheetHost: AnyObject {
     var serverCatalog: Catalog? { get }
     /// The window the sheet is on (its height bounds the sheet's).
     var serverSheetWindow: NSWindow? { get }
-    /// A server was saved: the sheet closes.
+    /// A server was saved: the sheet closes. Also when a check with the key
+    /// field empty found the server saved again in the other window (another
+    /// address or certificate): nothing was sent or saved, and `service` is
+    /// the server as saved now, which the host shows as after a Save of it
+    /// (publishing design D-19).
     func serverSheetSaved(_ service: RemoteServiceRecord) async
     /// Cancel or Esc: the sheet closes, nothing saved.
     func serverSheetCancelled()
@@ -188,7 +192,9 @@ public final class ServerSheetModel: Identifiable {
     /// changed, then saves the row and the key together. Save never
     /// recreates a server removed in the other window, and a name-only Save
     /// changes only the name of the server as saved now (publishing design
-    /// D-16).
+    /// D-16). With the key field empty, a sheet behind the saved server sends
+    /// the stored key nowhere and writes nothing; it closes, and the host
+    /// shows the server as saved (D-19).
     public func submit() {
         submitted = true
         guard canSubmit, let address = parsedAddress, let host, let catalog = host.serverCatalog else { return }
@@ -221,86 +227,44 @@ public final class ServerSheetModel: Identifiable {
         let enteredKey = keyEntered ? key : nil
         let purpose = self.purpose
         keyCanPublish = false
+        var record = existing ?? RemoteServiceRecord(name: name, address: address.normalized)
+        record.name = name
+        record.address = address.normalized
+        record.allowsUnencrypted = address.scheme == .http
+        record.certificateFingerprint = pin?.hex
+        record.certificateTrustedAt = pin == nil ? nil : pinnedAt
+        let saving = record
         checkTask = Task {
             defer { isChecking = false }
-            // A server removed in the other window is not read from the
-            // Keychain, contacted or written (publishing design D-16).
-            if let existing, let id = existing.id {
-                do {
-                    guard try await catalog.remoteService(id: id) != nil else {
-                        await host.serverSheetFoundRemoved(existing)
-                        return
-                    }
-                } catch {
-                    result = .keychain(error.localizedDescription)
-                    return
-                }
-                guard !Task.isCancelled else { return }
-            }
-            // The Keychain is asked off the main thread: its access prompt
-            // must not block the window (code review C8).
-            let key: String
-            if let enteredKey {
-                key = enteredKey
-            } else {
-                let account = existing?.uuid ?? ""
-                switch await Task.detached(operation: { Self.storedKey(keys, account: account) }).value {
-                case .success(let stored): key = stored
-                case .failure(let error):
-                    result = .keychain(error.message)
-                    return
-                }
-            }
-            let connection = RemoteConnection(address: address, key: key, pinned: pin,
-                                              unencryptedConfirmed: unencryptedConfirmed)
-            let outcome: ConnectionCheckResult
-            var permissions: [String]?
-            do {
-                (outcome, permissions) = await (try ImmichClient(connection: connection))
-                    .checkWithPermissions(requiring: purpose.requiredPermissions, readsAccount: purpose.readsAccount)
-            } catch {
-                outcome = .unreachable(reason: "", isLocalHost: address.isLocalNetworkHost)
-            }
-            guard !Task.isCancelled else { return }
-            if case .missingPermissions = outcome, let permissions {
-                keyCanPublish = ImmichClient.missing(from: permissions, needed: ImmichClient.publishingPermissions).isEmpty
-            }
+            // Off the main actor (the Keychain may ask the person, code review
+            // C8). A server removed in the other window is not read from the
+            // Keychain, contacted or written (publishing design D-16); with the
+            // key field empty, the stored key is read with its row and the row
+            // written only if the server is still saved as this sheet opened on
+            // it (D-19). A typed key is saved with the row (security review F2).
+            let outcome = await RemoteServerSheetCheck.run(
+                saving, address: address, enteredKey: enteredKey, pinned: pin,
+                unencryptedConfirmed: unencryptedConfirmed, requiring: purpose.requiredPermissions,
+                readsAccount: purpose.readsAccount, opened: existing, catalog: catalog, keys: keys)
             switch outcome {
-            case .passed:
-                var record = existing ?? RemoteServiceRecord(name: name, address: address.normalized)
-                record.name = name
-                record.address = address.normalized
-                record.allowsUnencrypted = address.scheme == .http
-                record.certificateFingerprint = pin?.hex
-                record.certificateTrustedAt = pin == nil ? nil : pinnedAt
-                // The key and the row are saved together; a failed save puts
-                // the previous key back, so a key meant for a new address never
-                // stays beside the old one (security review F2).
-                switch await catalog.saveRemoteService(record, key: enteredKey, keys: keys) {
-                case .saved(let saved):
-                    await host.serverSheetSaved(saved)
-                case .keychainRefused(let error):
-                    result = .keychain(error.message)
-                case .catalogFailed(let message):
-                    result = .keychain(message)
-                case .removed:
-                    if let existing { await host.serverSheetFoundRemoved(existing) }
-                }
+            case .saved(let saved):
+                await host.serverSheetSaved(saved)
+            case .removed:
+                if let existing { await host.serverSheetFoundRemoved(existing) }
+            case .changed(let now):
+                // Behind the saved server: no alert; the host shows the server
+                // as saved now, as after a Save of it (D-19).
+                await host.serverSheetSaved(now)
             case .untrustedCertificate(let summary):
                 page = .certificate(summary, changed: false)
-            default:
-                result = outcome
+            case .failed(let failure, let permissions):
+                if case .missingPermissions = failure, let permissions {
+                    keyCanPublish = ImmichClient.missing(from: permissions, needed: ImmichClient.publishingPermissions).isEmpty
+                }
+                result = failure
+            case .cancelled:
+                break
             }
-        }
-    }
-
-    /// The stored key, or the Keychain's refusal (a missing item included).
-    nonisolated static func storedKey(_ keys: any RemoteKeyStore, account: String) -> Result<String, RemoteKeyStoreError> {
-        do throws(RemoteKeyStoreError) {
-            guard let stored = try keys.key(account: account) else { return .failure(.from(errSecItemNotFound)) }
-            return .success(stored)
-        } catch {
-            return .failure(error)
         }
     }
 

@@ -158,6 +158,11 @@ extension Catalog {
         /// written: nothing was written, and no key, typed or earlier, is left
         /// for it (publishing design D-16).
         case removed
+        /// A checked Save with no key typed found the server saved again
+        /// since its sheet opened (another address, trusted certificate or
+        /// key): nothing was written. The connection as saved now
+        /// (publishing design D-19).
+        case changed(RemoteServiceRecord)
     }
 
     /// Saves `service` and, when `key` is given, its key, as one change
@@ -213,6 +218,52 @@ extension Catalog {
                         try? keys.deleteKey(account: account)
                     }
                 }
+                return .catalogFailed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// A checked Save with the key field empty (publishing design D-19): the
+    /// row is written only if the stored key is still `checkedKey`, the one
+    /// the check used, and the row as saved now still has `opened`'s address
+    /// and trusted certificate, the ones the sheet opened on. The key, the
+    /// row and the write are read and made under the account's
+    /// `RemoteKeyGate`, which every Save of a key holds, so no other Save
+    /// lands between the comparison and the write. Otherwise nothing is
+    /// written: `.changed` with the row as saved now, or `.removed` (D-16:
+    /// no key is left for a server no longer saved). The key itself is never
+    /// written here.
+    public func saveRemoteService(_ service: RemoteServiceRecord, checkedWith checkedKey: String,
+                                  opened: RemoteServiceRecord, keys: any RemoteKeyStore) async -> ServiceSaveOutcome {
+        guard let id = service.id, opened.id == id else { return .removed }
+        let account = service.uuid
+        return await RemoteKeyGate.shared.holding(account) { () async -> ServiceSaveOutcome in
+            let stored: String?
+            do throws(RemoteKeyStoreError) {
+                stored = try keys.key(account: account)
+            } catch {
+                return .keychainRefused(error)
+            }
+            let now: RemoteServiceRecord?
+            do {
+                now = try await remoteService(id: id)
+            } catch {
+                return .catalogFailed(error.localizedDescription)
+            }
+            guard let now else {
+                try? keys.deleteKey(account: account)
+                return .removed
+            }
+            guard stored == checkedKey,
+                  PublishServerChange.after(reload: [now], chosenID: id, before: opened) == .unchanged else {
+                return .changed(now)
+            }
+            do {
+                return .saved(try await saveRemoteService(service))
+            } catch RecordError.recordNotFound {
+                try? keys.deleteKey(account: account)
+                return .removed
+            } catch {
                 return .catalogFailed(error.localizedDescription)
             }
         }

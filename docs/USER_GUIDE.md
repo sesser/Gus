@@ -144,7 +144,17 @@ them. Saving only a new name changes the name and nothing else, even if the
 server's address or certificate was changed in another sheet meanwhile. If the
 server you are editing was removed while its sheet was open (from the other
 window), **Save** and **Trust Certificate** save nothing and keep no key for it:
-the sheet closes, and the server stays removed. **Remove Server…** asks first, then deletes the key from the Keychain
+the sheet closes, and the server stays removed. When the server the window
+shows is saved again from **File ▸ Publish…** (its **Edit Server…**), the
+window follows it, whether it is in front, behind or closed: a new name shows
+in place, and a new address or certificate reloads the server as if you had
+chosen it again (the selection, album, date range and a typed project name
+go); a key saved for a new address is never sent to the old one. An import
+running from that server finishes on the address it started with, and the
+window follows when it ends. With two sheets of one server open, one in each
+window, **Save** and **Trust Certificate** with the key field empty send and
+save nothing once the other sheet has saved a new address or certificate: the
+sheet closes and the window shows the server as saved. **Remove Server…** asks first, then deletes the key from the Keychain
 (it still works on the server until you delete it in Immich), along with the
 server's folder map and publishing choices; every photo already imported
 stays, and so does the record of what was published. If the
