@@ -705,10 +705,13 @@ private struct ServerGridArea: View {
                 }
             } actions: {
                 Button("Try Again") { model.rescanSource() }
+                // Dimmed while this server is being published to (publishing design §4, review F14).
                 if case .certificateChanged = result {
                     Button("Review Certificate…") { model.showEditServer(reviewingCertificate: true) }
+                        .disabled(model.serverIsBusyPublishing)
                 } else {
                     Button("Edit Server…") { model.showEditServer() }
+                        .disabled(model.serverIsBusyPublishing)
                 }
             }
         case .noPhotosAll:

@@ -50,7 +50,12 @@ private struct PublishMainPage: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 14)
             Divider()
-            if publish.servers.isEmpty {
+            if publish.servers.isEmpty, publish.isLoading {
+                // The servers are being read: no empty state yet (review F9).
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if publish.servers.isEmpty {
                 ContentUnavailableView {
                     Label(PublishText.noServerTitle, systemImage: "server.rack")
                 } description: {
@@ -60,7 +65,10 @@ private struct PublishMainPage: View {
                 }
                 .frame(maxHeight: .infinity)
             } else {
+                // Nothing in the form changes while Publish is being
+                // confirmed; Cancel stays on (review F1).
                 PublishForm(model: model)
+                    .disabled(publish.isConfirming)
             }
             Divider()
             buttons
@@ -75,18 +83,17 @@ private struct PublishMainPage: View {
                 ProgressView().controlSize(.small)
                 Text("Checking…").font(.system(size: 11)).foregroundStyle(.secondary)
             } else if let issue = publish.startIssue {
-                IssueText(text: issue)
+                AnnouncedIssue(text: issue)
             }
             Spacer()
             Button("Cancel", role: .cancel) { model.showsPublishSheet = false }
                 .keyboardShortcut(.cancelAction)
             Button(PublishText.title(publish.versionIDs.count)) {
-                Task {
-                    if await publish.requestPublish() { model.showsPublishSheet = false }
-                }
+                Task { await publish.confirm() }
             }
             .keyboardShortcut(.defaultAction)
             .disabled(!publish.canPublish)
+            .accessibilityHint(Text(publish.startIssue ?? ""))
         }
     }
 }
@@ -147,6 +154,20 @@ private struct InfoLine: View {
     }
 }
 
+/// An issue under the control it concerns (design §13, review F13): an icon
+/// and text, announced when it appears and when its words change. The one
+/// way the sheet shows an issue, so none is left unannounced; the control it
+/// concerns takes the same text as its hint.
+struct AnnouncedIssue: View {
+    let text: String
+
+    var body: some View {
+        IssueText(text: text)
+            .onAppear { AccessibilityText.announce(text, priority: .medium) }
+            .onChange(of: text) { _, new in AccessibilityText.announce(new, priority: .medium) }
+    }
+}
+
 private struct PublishForm: View {
     let model: LibraryModel
 
@@ -202,7 +223,7 @@ private struct PublishForm: View {
             }
             checkState
             if !publish.missing.server.isEmpty {
-                IssueText(text: PublishText.cantPublish(publish.missing.server))
+                AnnouncedIssue(text: PublishText.cantPublish(publish.missing.server))
             }
             if !publish.missing.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
@@ -216,8 +237,10 @@ private struct PublishForm: View {
         }
     }
 
+    /// The Server section's issue: a failed check, else a missing permission.
     private var serverHint: String {
-        publish.missing.server.isEmpty ? "" : PublishText.cantPublish(publish.missing.server)
+        if case .failed(let result) = publish.check { return PublishText.checkTitle(result, service: publish.service) }
+        return publish.missing.server.isEmpty ? "" : PublishText.cantPublish(publish.missing.server)
     }
 
     @ViewBuilder private var checkState: some View {
@@ -237,6 +260,15 @@ private struct PublishForm: View {
                     Label(PublishText.keyUnreadable, systemImage: "exclamationmark.triangle")
                         .font(.system(size: 13, weight: .semibold))
                     Caption(text: ServerText.keychainDetail(message))
+                } else if case .untrustedCertificate = result {
+                    // Review D-3: the Server sheet shows this on its certificate page.
+                    Label(PublishText.untrustedTitle, systemImage: "exclamationmark.triangle")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(PublishText.untrustedDetail)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else if let text {
                     Label(text.title, systemImage: "exclamationmark.triangle")
                         .font(.system(size: 13, weight: .semibold))
@@ -257,7 +289,13 @@ private struct PublishForm: View {
                 }
             }
             .accessibilityElement(children: .contain)
+            .onAppear { announceCheck(result) }
+            .onChange(of: result) { _, new in announceCheck(new) }
         }
+    }
+
+    private func announceCheck(_ result: ConnectionCheckResult) {
+        AccessibilityText.announce(PublishText.checkTitle(result, service: publish.service), priority: .medium)
     }
 
     // MARK: Album (design §3.4)
@@ -276,16 +314,13 @@ private struct PublishForm: View {
                     }
                 }
             }
-            if !publish.missing.album.isEmpty {
-                IssueText(text: PublishText.albumNeeds(publish.missing.album))
-                    .onAppear { AccessibilityText.announce(PublishText.albumNeeds(publish.missing.album), priority: .medium) }
-            } else if case .failed(let reason) = publish.albumsState {
+            if let issue = albumIssue {
                 VStack(alignment: .leading, spacing: 4) {
-                    IssueText(text: PublishText.albumsFailed(reason))
-                    Button("Try Again") { publish.loadAlbums() }
+                    AnnouncedIssue(text: issue)
+                    if case .failed = publish.albumsState, publish.missing.album.isEmpty {
+                        Button("Try Again") { publish.loadAlbums() }
+                    }
                 }
-            } else if publish.rememberedAlbumGone {
-                IssueText(text: PublishText.albumGone(publish.album.name ?? ""))
             }
             Picker("Show in", selection: Bindable(publish).visibility) {
                 Text("Timeline").tag(PublishVisibility.timeline)
@@ -295,13 +330,21 @@ private struct PublishForm: View {
             .accessibilityHint(Text(archiveCaption ?? ""))
             if let archiveCaption {
                 if publish.stacking {
-                    IssueText(text: archiveCaption)
-                        .onAppear { AccessibilityText.announce(archiveCaption, priority: .medium) }
+                    AnnouncedIssue(text: archiveCaption)
                 } else {
                     Caption(text: archiveCaption)
                 }
             }
         }
+    }
+
+    /// The Album section's one issue (design §3.4, §5): a missing permission,
+    /// else the list failing, else the remembered album gone.
+    private var albumIssue: String? {
+        if !publish.missing.album.isEmpty { return PublishText.albumNeeds(publish.missing.album) }
+        if case .failed(let reason) = publish.albumsState { return PublishText.albumsFailed(reason) }
+        if publish.rememberedAlbumGone { return PublishText.albumGone(publish.album.name ?? "") }
+        return nil
     }
 
     private var archiveCaption: String? {
@@ -322,24 +365,39 @@ private struct PublishForm: View {
         }
     }
 
+    /// None, New Album… and the account's albums as one inline picker, so
+    /// the current choice is ticked (design §3.4, review F12). Only once the
+    /// check has passed and the key lacks album.read are New Album… dimmed
+    /// and the reason shown; the pop-up is dimmed until the check passes.
     private var albumMenu: some View {
-        let canList = publish.serverInfo.map { PublishPermissions.canListAlbums($0.permissions) } ?? false
+        let info = publish.serverInfo
+        let lacksRead = info.map { !PublishPermissions.canListAlbums($0.permissions) } ?? false
+        let selection = Binding<PublishAlbumChoice>(
+            get: { if case .new = publish.album { .new(name: "") } else { publish.album } },
+            set: { choice in
+                if case .new = choice { publish.album = .new(name: publish.newAlbumName) } else { publish.album = choice }
+            })
         return Menu(albumTitle) {
-            Button("None") { publish.album = .none }
-            Button(PublishText.newAlbumItem) { publish.album = .new(name: publish.newAlbumName) }
-                .disabled(!canList)
-            if !canList {
-                Text(PublishText.albumsNeedRead)
-            }
-            if canList, !publish.albums.isEmpty {
-                Divider()
-                ForEach(publish.albums) { album in
-                    Button(ServerText.album(album)) { publish.album = .existing(id: album.id, name: album.name) }
+            Picker("Album", selection: selection) {
+                Text("None").tag(PublishAlbumChoice.none)
+                Text(PublishText.newAlbumItem).tag(PublishAlbumChoice.new(name: ""))
+                    .disabled(lacksRead)
+                if !lacksRead, !publish.albums.isEmpty {
+                    Divider()
+                    ForEach(publish.albums) { album in
+                        Text(ServerText.album(album)).tag(PublishAlbumChoice.existing(id: album.id, name: album.name))
+                    }
                 }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+            if lacksRead {
+                Text(PublishText.albumsNeedRead)
             }
         }
         .fixedSize()
-        .disabled(publish.albumsState == .loading || publish.check == .checking)
+        .disabled(info == nil || publish.albumsState == .loading)
+        .accessibilityHint(Text(albumIssue ?? ""))
     }
 
     // MARK: Stacking (design §3.5)
@@ -348,6 +406,7 @@ private struct PublishForm: View {
         Section("Stacking") {
             Toggle("Stack with original", isOn: Bindable(publish).stacking)
                 .toggleStyle(.checkbox)
+                .accessibilityHint(Text(publish.missing.stacking.isEmpty ? "" : PublishText.stackingNeeds(publish.missing.stacking)))
             Caption(text: PublishText.stackingCaption)
             if publish.stacking {
                 LabeledContent("Folder map") {
@@ -360,14 +419,20 @@ private struct PublishForm: View {
                     InfoLine(text: PublishText.noOriginalYet)
                 }
                 if !publish.missing.stacking.isEmpty {
-                    IssueText(text: PublishText.stackingNeeds(publish.missing.stacking))
-                        .onAppear { AccessibilityText.announce(PublishText.stackingNeeds(publish.missing.stacking), priority: .medium) }
+                    AnnouncedIssue(text: PublishText.stackingNeeds(publish.missing.stacking))
                 }
                 Button("Check Originals") { publish.checkOriginals() }
                     .disabled(!publish.canCheckOriginals)
+                    .accessibilityHint(Text(originalsIssue ?? ""))
                 OriginalsCheckView(publish: publish)
             }
         }
+    }
+
+    /// Check Originals' issue: the check stopped (design §7).
+    private var originalsIssue: String? {
+        if case .failed(let reason) = publish.originals { return PublishText.checkStopped(reason) }
+        return nil
     }
 
     // MARK: Files (design §3.6)
@@ -384,9 +449,10 @@ private struct PublishForm: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Edit Settings…") { publish.showSettingsPage() }
+                        .accessibilityHint(Text(publish.settingsIssue ?? ""))
                 }
             }
-            if let issue = publish.settingsIssue { IssueText(text: issue) }
+            if let issue = publish.settingsIssue { AnnouncedIssue(text: issue) }
             TextField("Description", text: Bindable(publish).description, prompt: Text(PublishText.descriptionPrompt),
                       axis: .vertical)
                 .lineLimit(2...4)
@@ -415,7 +481,7 @@ private struct OriginalsCheckView: View {
                 Button("Stop") { publish.stopOriginalsCheck() }
             }
         case .failed(let reason):
-            IssueText(text: PublishText.checkStopped(reason))
+            AnnouncedIssue(text: PublishText.checkStopped(reason))
         case .result(let result):
             VStack(alignment: .leading, spacing: 4) {
                 Label(PublishText.originalsSummary(found: result.found, of: result.checked),
@@ -446,7 +512,8 @@ private struct PublishSettingsPage: View {
                 .padding(.vertical, 14)
             Divider()
             Form {
-                ExportSettingsSections(editor: publish.editor)
+                // The missing watermark the main page reports shows here too.
+                ExportSettingsSections(editor: publish.editor, watermarkIssue: publish.settingsIssue)
             }
             .formStyle(.grouped)
             Divider()
@@ -467,6 +534,7 @@ private struct PublishSettingsPage: View {
 
 private struct PublishFolderMapPage: View {
     let model: LibraryModel
+    @FocusState private var focusedField: UUID?
 
     private var publish: PublishModel { model.publish }
 
@@ -496,12 +564,24 @@ private struct PublishFolderMapPage: View {
                                 Button("Choose…") { publish.chooseFolder(replacing: mapping.id, in: NSApp.keyWindow) }
                             }
                         }
-                        TextField("On the server", text: Binding(get: { mapping.serverPath },
-                                                                 set: { mapping.serverPath = PublishFolderMapping.serverPathKept($0) }),
-                                  prompt: Text(verbatim: "/mnt/media/photos"))
                         let issues = PublishFolderMapping.issues(of: mapping, in: publish.editingMap)
-                        if issues.contains(.emptyServerPath) { IssueText(text: PublishText.enterServerPath) }
-                        if issues.contains(.duplicateFolder) { IssueText(text: PublishText.folderAlreadyMapped) }
+                        let issueText = [issues.contains(.emptyServerPath) ? PublishText.enterServerPath : nil,
+                                         issues.contains(.duplicateFolder) ? PublishText.folderAlreadyMapped : nil]
+                            .compactMap { $0 }
+                        // As typed: the trailing slash is dropped on Done and
+                        // in matching, never while typing (review F6).
+                        TextField("On the server", text: $mapping.serverPath,
+                                  prompt: Text(verbatim: "/mnt/media/photos"))
+                            .focused($focusedField, equals: mapping.id)
+                            .accessibilityHint(Text(issueText.joined(separator: " ")))
+                            // Add Folder… leaves the new section's server field
+                            // focused (design §6, review F17), once it is in the window.
+                            .onAppear {
+                                guard publish.focusedMapping == mapping.id else { return }
+                                publish.focusedMapping = nil
+                                DispatchQueue.main.async { focusedField = mapping.id }
+                            }
+                        ForEach(issueText, id: \.self) { AnnouncedIssue(text: $0) }
                         if !mapping.serverPath.isEmpty, !mapping.serverPath.hasPrefix("/") {
                             Caption(text: PublishText.pathsStartWithSlash)
                         }

@@ -306,7 +306,7 @@ struct LibraryMenuState: Equatable {
         canPublish = ExportTargets.canExport(model.actionTargets.lazy.map { model.items[$0] },
                                              isExporting: model.publish.isPublishing)
             && !model.otherModalIsUp
-        hasPublishResults = !model.publish.runs.isEmpty
+        hasPublishResults = !model.publish.endedRuns.isEmpty
         publishIsEnding = model.publish.isEnding
     }
 

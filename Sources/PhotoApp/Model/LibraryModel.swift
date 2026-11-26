@@ -237,8 +237,11 @@ final class LibraryModel {
             }
         }
     }
-    /// The Publish sheet is up (`LibraryModal.publish`).
-    var showsPublishSheet = false
+    /// The Publish sheet is up (`LibraryModal.publish`). Closing it by any
+    /// route stops what it asked for (publishing review F1).
+    var showsPublishSheet = false {
+        didSet { if oldValue, !showsPublishSheet { publish.sheetClosed() } }
+    }
     /// The Publish Results sheet is up (`LibraryModal.publishResults`).
     var showsPublishResults = false
     /// The Merge to HDR sheet is up (`LibraryModal.merge`).
@@ -1334,6 +1337,9 @@ final class LibraryModel {
 
     /// The server a publish runs to (the import window dims its Edit and Remove Server…).
     var publishingServerUUID: String? { publish.runningServerUUID }
+
+    /// The import window added, edited or removed a server (publishing review F4).
+    func remoteServersChanged() { publish.serversChanged() }
 
     /// Catalog volumes by identity (the folder map's Mac folders, R12).
     var volumesByIdentity: [String: VolumeRecord] {

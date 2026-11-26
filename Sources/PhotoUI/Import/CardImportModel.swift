@@ -59,6 +59,9 @@ public protocol CardImportLibrary: AnyObject {
     /// The server a publish runs to (issue #28, design §4: its Edit Server…
     /// and Remove Server… are dimmed meanwhile), by its connection's uuid.
     var publishingServerUUID: String? { get }
+    /// A server was added, edited or removed here: publishing reads its
+    /// servers again (publishing review F4).
+    func remoteServersChanged()
 }
 
 /// State of the import window.

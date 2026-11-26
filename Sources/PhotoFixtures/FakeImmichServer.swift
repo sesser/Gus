@@ -137,6 +137,9 @@ public final class FakeImmichServer: Sendable {
         case unavailable(String, times: Int)
         /// Originals are sent in pieces, with this pause between them.
         case slow(Duration)
+        /// `/server/version`, the first request of a check, is answered in
+        /// two pieces with this pause between them (a check caught running).
+        case slowCheck(Duration)
         /// The answer at `path` (without `/api`) is `bytes` long, whatever it
         /// should be.
         case huge(path: String, bytes: Int)
@@ -276,6 +279,11 @@ public final class FakeImmichServer: Sendable {
     }
 
     public func remove(_ fault: Fault) { state.withLock { $0.faults.removeAll { $0 == fault } } }
+
+    /// Ends any `slowCheck`.
+    public func removeSlowCheck() {
+        state.withLock { state in state.faults.removeAll { if case .slowCheck = $0 { true } else { false } } }
+    }
 
     /// Sends the upload answers `holdUploadAnswer` held (to connections the
     /// client may have closed).
@@ -492,6 +500,9 @@ public final class FakeImmichServer: Sendable {
             return
         }
         var response = answer(request, key: key, state: snapshot)
+        if route == "GET /server/version" {
+            for case .slowCheck(let pause) in snapshot.faults { response.pause = pause }
+        }
         let lose = state.withLock { state -> Bool in
             guard let key = state.lostLeft.keys.first(where: { Self.route(route, matches: $0) }),
                   let left = state.lostLeft[key], left > 0 else { return false }

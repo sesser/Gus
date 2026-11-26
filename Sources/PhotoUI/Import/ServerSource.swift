@@ -499,12 +499,14 @@ extension CardImportModel: ServerSheetHost {
             }
             if browse?.service.id == id { closeServer() }
             await loadServers()
+            library.remoteServersChanged()
         }
     }
 
     /// The sheet saved a server: it becomes the source.
     public func serverSheetSaved(_ service: RemoteServiceRecord) async {
         await loadServers()
+        library?.remoteServersChanged()
         serverSheet = nil
         chooseServer(service)
         // The keyboard goes to the grid once it is in the window, after the

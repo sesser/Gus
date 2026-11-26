@@ -16,6 +16,9 @@ struct ActivityJob: Identifiable {
     let stop: (@MainActor () -> Void)?
     /// Stop shown dimmed (an ending publish waits for answers, design §9).
     var stopDisabled = false
+    /// With no progress, the popover shows a small spinner (a publish
+    /// checking or ending, review F15).
+    var spinsWhenIndeterminate = false
 }
 
 /// The toolbar's Activity item (section 1 of docs/UI_REDESIGN.md): the
@@ -122,15 +125,19 @@ struct ActivityToolbarItem: View {
                                     progress: Double(progress.done) / Double(max(progress.total, 1)),
                                     stop: { model.export.cancel() }))
         }
-        // A publish run (issue #28, design §9); ending, an indeterminate spinner and Stop dimmed.
-        if let progress = model.publish.progress {
+        // A publish run (issue #28, design §9). A retry's check: a spinner,
+        // Stop on (review D-2). Ending: a spinner, Stop dimmed until the run
+        // has ended, whatever a photo reports meanwhile (review F2, D-1).
+        if var progress = model.publish.progress {
             let name = model.publish.jobName
-            let ending = progress.phase == .ending
+            let ending = model.publish.isEnding
+            if ending { progress.phase = .ending }
+            let indeterminate = ending || progress.phase == .checking
             jobs.append(ActivityJob(id: "publish", title: PublishText.jobTitle(name),
                                     toolbarTitle: ToolbarMetrics.statusLine(name: name) { PublishText.jobTitle($0) },
                                     detail: PublishText.detail(progress, name: name),
-                                    progress: ending ? nil : Double(progress.done) / Double(max(progress.total, 1)),
-                                    stop: { model.publish.cancel() }, stopDisabled: ending))
+                                    progress: indeterminate ? nil : Double(progress.done) / Double(max(progress.total, 1)),
+                                    stop: { model.publish.cancel() }, stopDisabled: ending, spinsWhenIndeterminate: true))
         }
         // An HDR merge: its steps, weighted, and Stop (hdr-merge design §7.1).
         if let progress = model.merge.progress {
@@ -196,6 +203,8 @@ private struct ActivityPopover: View {
                     }
                     if let progress = job.progress {
                         ProgressView(value: progress)
+                    } else if job.spinsWhenIndeterminate {
+                        ProgressView().controlSize(.small)
                     }
                 }
             }

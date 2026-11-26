@@ -23,6 +23,9 @@ final class ExportSettingsEditor {
 
     /// Told of every change (Export remembers its settings).
     @ObservationIgnored var onChange: ((ExportSettings) -> Void)?
+    /// The host's handling of an image picked with Choose Image… (Export's
+    /// clears its own issue, code review C3); without one, `useWatermark`.
+    @ObservationIgnored var onWatermarkPicked: ((URL) -> Void)?
     /// A rendition of the first photo, for placing the watermark.
     private(set) var previewImage: CGImage?
     private(set) var watermarkImage: CGImage?
@@ -99,7 +102,17 @@ final class ExportSettingsEditor {
         panel.allowedContentTypes = [.png]
         panel.prompt = String(localized: "Use Image", comment: "Open panel button: the watermark")
         panel.message = String(localized: "Choose a PNG image. Transparent areas stay see-through.")
-        ExportModel.run(panel, in: window) { [weak self] url in _ = self?.useWatermark(at: url) }
+        ExportModel.run(panel, in: window) { [weak self] url in self?.watermarkPicked(url) }
+    }
+
+    /// What Choose Image… does with the picked file: the host's handling,
+    /// else `useWatermark`. The debug script picks through here too.
+    func watermarkPicked(_ url: URL) {
+        if let onWatermarkPicked {
+            onWatermarkPicked(url)
+        } else {
+            useWatermark(at: url)
+        }
     }
 
     /// Copies the PNG into the library and draws it with the current

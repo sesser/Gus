@@ -2652,6 +2652,39 @@
         }
       }
     },
+    "already on the server, but not added to “%@” before publishing stopped." : {
+      "comment" : "Publish results: not finished, already there (issue #28, review F16)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "already on the server, but not added to “%@” before publishing stopped."
+          }
+        }
+      }
+    },
+    "already on the server, but not added to “%@” or stacked before publishing stopped." : {
+      "comment" : "Publish results: not finished, already there (issue #28, review F16)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "already on the server, but not added to “%@” or stacked before publishing stopped."
+          }
+        }
+      }
+    },
+    "already on the server, but not stacked before publishing stopped." : {
+      "comment" : "Publish results: not finished, already there (issue #28, review F16)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "already on the server, but not stacked before publishing stopped."
+          }
+        }
+      }
+    },
     "Alt text" : {
       "comment" : "Metadata field: alternative text for accessibility",
       "localizations" : {
@@ -4452,6 +4485,17 @@
         }
       }
     },
+    "macOS doesn't trust the certificate this server presented. Review it before publishing. Nothing was sent to the server." : {
+      "comment" : "Publish sheet: untrusted certificate, detail (issue #28, review D-3)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS doesn't trust the certificate this server presented. Review it before publishing. Nothing was sent to the server."
+          }
+        }
+      }
+    },
     "Masks and spots are placed in the corrected frame, so this photo's can move away from what they cover now. You can undo the change." : {
       "comment" : "Alert message before a lens correction that moves the frame of a photo with masks or spots",
       "localizations" : {
@@ -4658,6 +4702,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Not encrypted (http)"
+          }
+        }
+      }
+    },
+    "not published: the server didn't accept the upload (%lld)." : {
+      "comment" : "Publish results: the upload was refused; the status code, then the server's message in quotes (issue #28, review D-4)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not published: the server didn't accept the upload (%lld)."
           }
         }
       }
@@ -5325,6 +5380,17 @@
         }
       }
     },
+    "Stopping…" : {
+      "comment" : "Activity: a publish is ending, no answer awaited (issue #28, review D-1)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stopping…"
+          }
+        }
+      }
+    },
     "Subject" : {
       "comment" : "Mask detection kind: menu item, row title and a new mask's name",
       "localizations" : {
@@ -5464,6 +5530,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The reasons are listed in Activity in the library window."
+          }
+        }
+      }
+    },
+    "The server answered %lld." : {
+      "comment" : "Publish results: a server's status code; its message follows in quotes (issue #28, review D-4)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server answered %lld."
           }
         }
       }
@@ -5673,6 +5750,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This photo has no color, so the filters change nothing."
+          }
+        }
+      }
+    },
+    "This server's certificate isn't trusted" : {
+      "comment" : "Publish sheet: untrusted certificate, title (issue #28, review D-3)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This server's certificate isn't trusted"
           }
         }
       }

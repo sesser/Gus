@@ -23,6 +23,7 @@ import PhotoUI
 /// (`import scroll <index>|end` is `ImportDebugCommands`'.)
 ///     import server fake … | fault stack refuse|ok | fault lose <METHOD> <path> <times>
 ///                  | fault answer <METHOD> <path> <status> <times> | fault hold on|off|release | uploads
+///                  | fault slowcheck <ms>|0   (each check's first answer takes that long)
 ///     (publishing, issue #28: the fake server's refused stack, lost answers, canned statuses, held upload answers)
 @MainActor
 enum DebugServerCommands {
@@ -191,6 +192,9 @@ enum DebugServerCommands {
                     fake.add(.unavailable(id, times: rest.dropFirst(2).first.flatMap(Int.init) ?? 1))
                 }
             case "slow": fake.add(.slow(.milliseconds(rest.dropFirst().first.flatMap(Int.init) ?? 500)))
+            case "slowcheck":
+                fake.removeSlowCheck()
+                if let ms = rest.dropFirst().first.flatMap(Int.init), ms > 0 { fake.add(.slowCheck(.milliseconds(ms))) }
             case "permissions": fake.setPermissions(rest.dropFirst().first?.split(separator: ",").map(String.init) ?? [])
             case "stack":
                 if rest.dropFirst().first == "refuse" { fake.add(.refuseStack) } else { fake.remove(.refuseStack) }

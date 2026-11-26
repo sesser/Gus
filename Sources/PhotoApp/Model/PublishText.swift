@@ -50,6 +50,28 @@ enum PublishText {
     }
 
     static var keyUnreadable: String { String(localized: "The key couldn't be read", comment: "Publish sheet: Keychain failure") }
+
+    /// A certificate the system doesn't trust, met by the publish sheet's
+    /// check (review D-3).
+    static var untrustedTitle: String {
+        String(localized: "This server's certificate isn't trusted", comment: "Publish sheet: untrusted certificate, title")
+    }
+
+    static var untrustedDetail: String {
+        String(localized: "macOS doesn't trust the certificate this server presented. Review it before publishing. Nothing was sent to the server.",
+               comment: "Publish sheet: untrusted certificate, detail")
+    }
+
+    /// The title of a failed server check, as the sheet shows it.
+    static func checkTitle(_ result: ConnectionCheckResult, service: RemoteServiceRecord?) -> String {
+        switch result {
+        case .keychain: return keyUnreadable
+        case .untrustedCertificate: return untrustedTitle
+        default:
+            return ServerText.result(result, host: service?.serverAddress?.host ?? "", name: service?.name ?? "",
+                                     purpose: .publishing)?.title ?? ""
+        }
+    }
     static var noServerTitle: String { String(localized: "Add a Server to Publish To", comment: "Publish sheet with no saved server") }
     static var noServerDetail: String { String(localized: "Photos are published to an Immich server.", comment: "Publish sheet with no saved server") }
     static var loadingAlbums: String { String(localized: "Loading albums…", comment: "Publish sheet: the album pop-up while albums load") }
@@ -299,14 +321,19 @@ enum PublishText {
 
     static func detail(_ progress: PublishProgress, name: String) -> String {
         switch progress.phase {
+        case .checking:
+            checking(name)
         case .rendering:
             String(localized: "Rendering \(progress.current) of \(progress.total)", comment: "Activity: publishing")
         case .uploading:
             String(localized: "Uploading \(progress.current) of \(progress.total)", comment: "Activity: publishing")
         case .waiting:
             ServerText.waiting(name)
-        case .ending:
+        case .ending where progress.awaitsAnswer:
             String(localized: "Stopping. Waiting for “\(name)” to answer…", comment: "Activity: an ending publish waits for answers")
+        case .ending:
+            // Nothing fully sent is awaited (review D-1).
+            String(localized: "Stopping…", comment: "Activity: a publish is ending, no answer awaited")
         }
     }
 
@@ -321,23 +348,17 @@ enum PublishText {
 
     // MARK: Results (design §10)
 
-    static func stopTitle(_ stop: PublishStop, name: String) -> String {
-        switch stop {
+    static func stopTitle(_ stop: PublishStop, service: RemoteServiceRecord) -> String {
+        let name = service.name
+        return switch stop {
         case .stopped: ""
         case .unreachable: String(localized: "“\(name)” stopped responding", comment: "Server import alert title")
         case .keyRejected: String(localized: "“\(name)” rejected the API key", comment: "Server import alert title")
         case .certificateChanged: String(localized: "The certificate of “\(name)” has changed", comment: "Server import alert title")
         case .missingPermission(let permission):
             String(localized: "The API key is missing \(permission)", comment: "Publish results: a permission stopped the run")
-        }
-    }
-
-    static func stop(for result: ConnectionCheckResult) -> PublishStop {
-        switch result {
-        case .keyRejected, .keychain: .keyRejected
-        case .certificateChanged, .untrustedCertificate: .certificateChanged
-        case .missingPermissions(let names): .missingPermission(names.first ?? "")
-        default: .unreachable
+        // What a retry's check found, in its own title (review D-5).
+        case .checkFailed(let result): checkTitle(result, service: service)
         }
     }
 
@@ -345,14 +366,13 @@ enum PublishText {
     static func activityLines(_ run: PublishRun) -> [String] {
         let counts = run.counts
         var lines: [String] = []
-        let name = run.service.name
         if let stop = run.ending?.stop {
             if stop == .stopped {
                 let done = run.items.filter(\.isAccepted).count
                 lines.append(String(localized: "Publishing stopped after \(done) of \(run.items.count) photos.",
                                     comment: "Publish results: the person stopped"))
             } else {
-                lines.append(String(localized: "Publishing stopped: \(stopTitle(stop, name: name)).",
+                lines.append(String(localized: "Publishing stopped: \(stopTitle(stop, service: run.service)).",
                                     comment: "Publish results: a fault stopped the run"))
             }
         }
@@ -414,13 +434,15 @@ enum PublishText {
         }
     }
 
-    /// A cause in words: the server's own message in quotes, or the system's.
+    /// A cause in words: the server's status and its own message in quotes
+    /// (review D-4), or the system's sentence.
     static func cause(_ cause: PublishCause) -> String {
         switch cause {
-        case .server(let status, let message?):
-            "\(HTTPURLResponse.localizedString(forStatusCode: status)) (\(status)). “\(message)”"
-        case .server(let status, nil):
-            "\(HTTPURLResponse.localizedString(forStatusCode: status)) (\(status))."
+        case .server(let status, let message):
+            String(localized: "The server answered \(status).", comment: "Publish results: a server's status; its message follows")
+                + (message.map { " “\($0)”" } ?? "")
+        case .itemRefused(let message):
+            message.map { "“\($0)”" } ?? ""
         case .unreachable(let reason): reason
         case .certificate: String(localized: "The server's certificate has changed", comment: "Server check: certificate changed")
         case .answerUnreadable:
@@ -441,6 +463,10 @@ enum PublishText {
                 + String(localized: "The watermark image is missing. Choose it again.")
         case .render(let reason):
             return String(localized: "not published: it couldn't be rendered.", comment: "Publish results") + " " + reason
+        case .uploadRefused(.server(let status, let message)):
+            // Design §10.2 as ruled (review D-4).
+            return String(localized: "not published: the server didn't accept the upload (\(status)).", comment: "Publish results")
+                + (message.map { " “\($0)”" } ?? "")
         case .uploadRefused(let cause):
             return String(localized: "not published: the server didn't accept the upload.", comment: "Publish results") + " " + Self.cause(cause)
         case .uploadInterrupted:
@@ -455,7 +481,8 @@ enum PublishText {
             return "\(published) " + String(localized: "the app couldn't tell whether the album “\(album)” was made.", comment: "Publish results")
                 + " " + Self.cause(cause)
         case .addToAlbum(let album, let cause):
-            return "\(published) " + String(localized: "not added to “\(album)”.", comment: "Publish results") + " " + Self.cause(cause)
+            return ["\(published) " + String(localized: "not added to “\(album)”.", comment: "Publish results"), Self.cause(cause)]
+                .filter { !$0.isEmpty }.joined(separator: " ")
         case .findOriginal(let cause):
             return "\(published) " + String(localized: "not stacked: the original couldn't be checked.", comment: "Publish results")
                 + " " + Self.cause(cause)
@@ -469,9 +496,21 @@ enum PublishText {
         }
     }
 
-    /// What is left of an unfinished photo (design §10.2).
-    static func notFinished(_ left: PublishItem.Left, album: String) -> String {
-        switch left {
+    /// What is left of an unfinished photo (design §10.2). `already`: an
+    /// already-there photo, which reads "already on the server, but" (review F16).
+    static func notFinished(_ left: PublishItem.Left, album: String, already: Bool) -> String {
+        if already {
+            return switch left {
+            case .check: String(localized: "already on the server, but not checked before publishing stopped.", comment: "Publish results")
+            case .album:
+                String(localized: "already on the server, but not added to “\(album)” before publishing stopped.", comment: "Publish results")
+            case .stack: String(localized: "already on the server, but not stacked before publishing stopped.", comment: "Publish results")
+            case .albumAndStack:
+                String(localized: "already on the server, but not added to “\(album)” or stacked before publishing stopped.",
+                       comment: "Publish results")
+            }
+        }
+        return switch left {
         case .check: String(localized: "already on the server, but not checked before publishing stopped.", comment: "Publish results")
         case .album: String(localized: "published, but not added to “\(album)” before publishing stopped.", comment: "Publish results")
         case .stack: String(localized: "published, but not stacked before publishing stopped.", comment: "Publish results")

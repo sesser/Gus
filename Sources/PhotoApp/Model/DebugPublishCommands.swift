@@ -25,6 +25,13 @@ import PhotoUI
 ///     publish serversheet add|edit|close|print|submit | field name|address|key <text> | confirm on|off
 ///     publish menu                        what Publish, Publish Results and Stop allow
 ///     publish job                         the Activity job: title, detail, progress, Stop
+///     publish sheet nowait                File ▸ Publish… and print at once, before the check (review F9)
+///     publish press | cancel              Publish N Photos without waiting | the sheet's Cancel (review F1)
+///     publish map type <text>             types into the last pair's server field, a character at a
+///                                         time through the field editor (review F6); map focus prints
+///                                         which field has the keyboard (review F17)
+///     publish originals nowait            starts Check Originals and returns (review F11)
+///     publish servers                     the saved servers as the sheet and Retry Failed know them (review F4)
 @MainActor
 enum DebugPublishCommands {
     static func run(_ words: [String], model: LibraryModel) async {
@@ -33,8 +40,17 @@ enum DebugPublishCommands {
         switch words.first {
         case "sheet":
             publish.begin()
-            await settle(publish)
+            if rest.first != "nowait" { await settle(publish) }
             printSheet(model)
+        case "press":
+            Task { await publish.confirm() }
+            try? await Task.sleep(for: .milliseconds(100))
+            printSheet(model)
+        case "cancel":
+            model.showsPublishSheet = false
+            try? await Task.sleep(for: .milliseconds(300))
+        case "servers":
+            print("debug-script: publish servers \(publish.servers.map { "\($0.name) \($0.address)" })")
         case "print":
             printSheet(model)
         case "server":
@@ -88,11 +104,15 @@ enum DebugPublishCommands {
             case "done":
                 publish.closeFolderMapPage(saving: true)
                 try? await Task.sleep(for: .milliseconds(200))
+            case "type":
+                await typeInLastServerField(rest.dropFirst().joined(separator: " "), model: model)
+            case "focus":
+                printFocus(model)
             case "add":
                 guard rest.count >= 3 else { return }
                 publish.addFolder(URL(fileURLWithPath: (rest[1] as NSString).expandingTildeInPath, isDirectory: true))
                 if let last = publish.editingMap.indices.last {
-                    publish.editingMap[last].serverPath = PublishFolderMapping.serverPathKept(rest.dropFirst(2).joined(separator: " "))
+                    publish.editingMap[last].serverPath = rest.dropFirst(2).joined(separator: " ")
                 }
             default:
                 for mapping in publish.editingMap {
@@ -107,11 +127,11 @@ enum DebugPublishCommands {
             }
         case "originals":
             publish.checkOriginals()
+            if rest.first == "nowait" { return printOriginals(publish) }
             while case .running = publish.originals { try? await Task.sleep(for: .milliseconds(50)) }
             printOriginals(publish)
         case "start":
-            let started = await publish.requestPublish()
-            if started { model.showsPublishSheet = false }
+            let started = await publish.confirm()
             if let question = publish.question {
                 print("debug-script: publish asks '\(PublishText.questionTitle(question.published, server: publish.service?.name ?? ""))' "
                       + "'\(PublishText.questionMessage(published: question.published, total: question.total))'")
@@ -162,7 +182,8 @@ enum DebugPublishCommands {
             let job = ActivityToolbarItem.jobs(model).first { $0.id == "publish" }
             print("debug-script: publish job '\(job?.title ?? "-")' '\(job?.detail ?? "-")' "
                   + "progress \(job?.progress.map { String(format: "%.2f", $0) } ?? "indeterminate") "
-                  + "stop \(job.map { $0.stopDisabled ? "dimmed" : "enabled" } ?? "-")")
+                  + "stop \(job.map { $0.stopDisabled ? "dimmed" : "enabled" } ?? "-") "
+                  + "publishing \(publish.isPublishing) ending \(publish.isEnding)")
             printMenu(model)
         default:
             print("debug-script: unknown publish command")
@@ -201,9 +222,17 @@ enum DebugPublishCommands {
         if !missing.server.isEmpty { lines.append("issue server '\(PublishText.cantPublish(missing.server))'") }
         if !missing.album.isEmpty { lines.append("issue album '\(PublishText.albumNeeds(missing.album))'") }
         if !missing.stacking.isEmpty { lines.append("issue stacking '\(PublishText.stackingNeeds(missing.stacking))'") }
-        let canList = publish.serverInfo.map { PublishPermissions.canListAlbums($0.permissions) } ?? false
-        lines.append("album \(publish.album) items [None, New Album…\(canList ? "" : " (dimmed: \(PublishText.albumsNeedRead))")"
-                     + "\(canList ? publish.albums.map { ", " + ServerText.album($0) }.joined() : "")] "
+        // The picker ticks the current choice (review F12); a gone album ticks nothing.
+        func ticked(_ title: String, _ choice: PublishAlbumChoice) -> String {
+            let current: PublishAlbumChoice = if case .new = publish.album { .new(name: "") } else { publish.album }
+            return (current == choice ? "✓" : "") + title
+        }
+        let lacksRead = publish.serverInfo.map { !PublishPermissions.canListAlbums($0.permissions) } ?? false
+        let albumItems = [ticked("None", .none),
+                          ticked("New Album…", .new(name: "")) + (lacksRead ? " (dimmed: \(PublishText.albumsNeedRead))" : "")]
+            + (lacksRead ? [] : publish.albums.map { ticked(ServerText.album($0), .existing(id: $0.id, name: $0.name)) })
+        lines.append("album \(publish.album) popup \(publish.serverInfo == nil || publish.albumsState == .loading ? "dimmed" : "enabled") "
+                     + "items [\(albumItems.joined(separator: ", "))] "
                      + "state \(publish.albumsState) gone \(publish.rememberedAlbumGone) "
                      + "nameTaken \(publish.newAlbumNameTaken != nil)")
         let archive = publish.visibility == .archive ? (publish.stacking ? PublishText.archiveStacked : PublishText.archivePlain) : "-"
@@ -213,7 +242,8 @@ enum DebugPublishCommands {
         lines.append("settings '\(PublishText.settingsSummary(publish.editor.settings))' issue '\(publish.settingsIssue ?? "-")' "
                      + "description '\(publish.description)' sent \(publish.descriptionIsSent) "
                      + "caption '\(PublishText.filesCaption(publish.editor.settings.metadata))'")
-        lines.append("publish \(publish.canPublish ? "enabled" : "dimmed") confirming \(publish.isConfirming)")
+        lines.append("publish \(publish.canPublish ? "enabled" : "dimmed") confirming \(publish.isConfirming) "
+                     + "loading \(publish.isLoading) originals \(publish.originals) startIssue '\(publish.startIssue ?? "-")'")
         for line in lines { print("debug-script: publish " + line) }
     }
 
@@ -247,7 +277,7 @@ enum DebugPublishCommands {
         for item in run.items {
             var notes: [String] = []
             notes += item.failures.map { PublishText.failure($0, already: item.isDuplicate) }
-            if let left = item.left { notes.append(PublishText.notFinished(left, album: album)) }
+            if let left = item.left { notes.append(PublishText.notFinished(left, album: album, already: item.isDuplicate)) }
             if case .noOriginal(let reason)? = item.stacking { notes.append(PublishText.reason(reason)) }
             if let reason = item.alreadyThere { notes.append(PublishText.alreadyThereReason(reason)) }
             if item.stacking == .stacked { notes.append("stacked") }
@@ -271,6 +301,44 @@ enum DebugPublishCommands {
         print("debug-script: publish menu publish \(state.canPublish ? "enabled" : "dimmed") results "
               + "\(state.hasPublishResults ? "enabled" : "dimmed") stop \(stop) \(stopOn ? "enabled" : "dimmed") "
               + "ending \(state.publishIsEnding)")
+    }
+
+    /// Types `text` into the last folder map pair's server field, a
+    /// character at a time through the sheet's field editor, as keys would
+    /// (review F6), then prints the field and the model.
+    private static func typeInLastServerField(_ text: String, model: LibraryModel) async {
+        let publish = model.publish
+        guard let id = publish.editingMap.last?.id,
+              let sheet = model.window?.attachedSheet else { return print("debug-script: publish map type: no pair or sheet") }
+        publish.focusedMapping = id
+        try? await Task.sleep(for: .milliseconds(300))
+        if !(sheet.firstResponder is NSTextView), let field = lastTextField(in: sheet.contentView) {
+            sheet.makeFirstResponder(field)
+        }
+        for character in text {
+            guard let editor = sheet.firstResponder as? NSTextView else { return print("debug-script: publish map type: no field editor") }
+            editor.insertText(String(character), replacementRange: editor.selectedRange())
+            try? await Task.sleep(for: .milliseconds(120))
+        }
+        let shown = (sheet.firstResponder as? NSTextView)?.string ?? "-"
+        print("debug-script: publish map typed '\(text)' field '\(shown)' model '\(publish.editingMap.last?.serverPath ?? "-")'")
+    }
+
+    private static func lastTextField(in view: NSView?) -> NSTextField? {
+        guard let view else { return nil }
+        for subview in view.subviews.reversed() {
+            if let found = lastTextField(in: subview) { return found }
+        }
+        if let field = view as? NSTextField, field.isEditable { return field }
+        return nil
+    }
+
+    private static func printFocus(_ model: LibraryModel) {
+        guard let sheet = model.window?.attachedSheet else { return print("debug-script: publish focus: no sheet") }
+        let editor = sheet.firstResponder as? NSTextView
+        let field = editor?.delegate as? NSTextField
+        print("debug-script: publish focus \(editor == nil ? "none" : "a text field") "
+              + "placeholder '\(field?.placeholderString ?? "-")' text '\(editor?.string ?? "")'")
     }
 
     // MARK: The Server sheet from Publish (design §4)

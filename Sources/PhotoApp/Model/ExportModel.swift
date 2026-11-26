@@ -98,6 +98,9 @@ final class ExportModel {
         editor.onChange = { settings in
             if let json = try? settings.jsonString() { defaults.set(json, forKey: Keys.settings) }
         }
+        // The shared form's Choose Image… comes here, so a good pick clears
+        // Export's issue as it did before the form was shared (code review C3).
+        editor.onWatermarkPicked = { [weak self] url in self?.useWatermark(at: url) }
     }
 
     var watermarks: WatermarkStore? { editor.watermarks }

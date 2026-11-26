@@ -28,6 +28,8 @@ struct PublishResultsSheet: View {
             }
         }
         .onExitCommand { model.showsPublishResults = false }
+        // Retry Failed's reasons follow the saved servers (review F4).
+        .onAppear { publish.resultsAppeared() }
         .frame(width: 520)
         .frame(minHeight: 360, idealHeight: 520)
         .presentationSizing(.fitted)
@@ -42,9 +44,10 @@ struct PublishResultsSheet: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
-            if publish.runs.count > 1 {
+            // Ended runs only (review F8).
+            if publish.endedRuns.count > 1 {
                 Picker("Run", selection: Binding(get: { run.id }, set: { publish.resultsRunID = $0 })) {
-                    ForEach(publish.runs.reversed()) { candidate in
+                    ForEach(publish.endedRuns.reversed()) { candidate in
                         Text("\((candidate.endedAt ?? candidate.startedAt).formatted(date: .omitted, time: .shortened)), \(candidate.service.name)")
                             .tag(candidate.id)
                     }
@@ -103,7 +106,7 @@ struct PublishResultsSheet: View {
         if !unfinished.isEmpty {
             Section(String(localized: "Not Finished", comment: "Publish results section")) {
                 ForEach(unfinished) { item in
-                    if let left = item.left { line(item.name, PublishText.notFinished(left, album: album)) }
+                    if let left = item.left { line(item.name, PublishText.notFinished(left, album: album, already: item.isDuplicate)) }
                 }
             }
         }
@@ -128,6 +131,7 @@ struct PublishResultsSheet: View {
     private func line(_ name: String, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(name).frame(width: 120, alignment: .leading).lineLimit(1).truncationMode(.middle)
+                .help(name)
             Text(text).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
         .font(.system(size: 11))
@@ -140,7 +144,7 @@ struct PublishResultsSheet: View {
             if run.offersRetry {
                 let refusal = publish.retryRefusal(run)
                 Button(PublishText.retryFailed) { publish.retry(run.id) }
-                    .disabled(refusal != nil)
+                    .disabled(refusal != nil || publish.isRetryPending)
                 if let refusal {
                     Caption(text: PublishText.retryRefusal(refusal))
                 } else if run.retryLeavesOutUnreached {

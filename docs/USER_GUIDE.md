@@ -1253,13 +1253,16 @@ option that needs it, and **Publish** stays dimmed until you add it in Immich
 and choose **Check Again**, or turn the option off.
 
 **Stacking on the original.** For each photo the app looks for its original on
-the server: the photo it was imported from (or that its RAW+JPEG partner, or
-for a copy the photo it was copied from, was imported from); otherwise, through
-the **folder map**, a photo of an Immich external library at the path the
-server sees. The folder map is a list of pairs: a folder on this Mac and the
+the server: the photo it was imported from; for a copy that has no link of its
+own, the photo its original was imported from, so a copy stacks where its
+original does; otherwise the photo its RAW+JPEG partner was imported from.
+Only that one is tried. If the server doesn't return it, or it can't be used,
+the app looks through the **folder map** for a photo of an Immich external
+library at the path the server sees. The folder map is a list of pairs: a folder on this Mac and the
 path the server reads it as (`/mnt/media/photos`, say). When folders overlap,
 the longest one wins; a folder on a disk is still found when the disk mounts
-at another place. Under each pair, the first selected photo in that folder
+at another place. A slash typed at the end of a server path is dropped when you
+press **Done**. Under each pair, the first selected photo in that folder
 shows where it will be looked for. Capital letters count; an accented name is
 found whichever way it is encoded. Only your own photos count as originals,
 never a partner's at the same path, and never one in the trash, hidden or
@@ -1276,7 +1279,9 @@ original in a run all join it, the last in the grid's order on top. When a
 published photo joins a stack, any photo of that stack that is in the server's
 trash drops out of it, and if you restore it, it stays unstacked; the one
 exception is the stack's former top photo, which returns to the stack (not on
-top) when restored. If the server refuses the stack (a locked top photo, say),
+top) when restored, unless a later publication has replaced that stack while
+it was still in the trash, which drops it too. The app makes no request to
+find photos in the trash and reports nothing about them. If the server refuses the stack (a locked top photo, say),
 the photo is still published and the stack is left as it was; that counts as a
 failure that **Retry Failed** finishes.
 
@@ -1297,8 +1302,9 @@ or stack. The server stopping to respond (after three more tries), a rejected
 key, a changed certificate or a missing permission stops the run. When a run
 ends while a file is being uploaded, a file not yet fully sent is abandoned at
 once; for one fully sent the app waits up to 10 seconds for the answer and
-records the photo if it was accepted (Activity says **Stopping. Waiting for
-“‹name›” to answer…** meanwhile). If publishing ends just after a file has
+records the photo if it was accepted. Until the run has ended, Activity says
+**Stopping…** (**Stopping. Waiting for “‹name›” to answer…** while an answer
+is awaited), **Stop** is dimmed, and no other publish can start. If publishing ends just after a file has
 been sent, because you stop, quit or lose the server, the server may keep a
 photo the app has no record of. It isn't marked In Library. Publishing it again
 reports it as already on the server only if the file is identical; otherwise
@@ -1310,12 +1316,14 @@ published because publishing stopped), with **Show Results…**; **File ▸
 Publish Results…** opens the newest run's results, and the **Run** pop-up
 earlier ones. The results list every failed, unfinished and unstacked photo
 with its reason. **Retry Failed** repeats only what did not succeed, with the
-run's server, settings and choices: it uploads no photo twice, makes no second
-album or stack, and finishes the album and stacking of photos already
-uploaded. After a stop caused by the server, it also publishes the photos not
+run's server, settings and choices: it uploads no photo twice (except after a
+lost answer, described above), makes no second album or stack, and finishes
+the album and stacking of photos already uploaded. It first checks the server,
+as part of the run (Activity says **Checking “‹name›”…**, with **Stop**); if the
+check fails, the run reports what it found and sends nothing. After a stop caused by the server, it also publishes the photos not
 reached; after your own Stop it doesn't. It is offered until you quit, and not
 while another publish runs, after the server was removed, or after its address
-changed. Unfinished steps are not kept after you quit. Stack the photo in
+changed (the results say which, and stay open). Unfinished steps are not kept after you quit. Stack the photo in
 Immich, or publish it again as a New Copy. That stacks the existing photo if
 the server finds the file identical; otherwise the first upload stays loose
 beside the new one. The rendered files are temporary and are removed when the
