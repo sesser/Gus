@@ -1991,17 +1991,6 @@
         }
       }
     },
-    "Add %@ to the key in Immich, or create a new key with the five permissions listed above." : {
-      "comment" : "Server check: missing permissions, detail; the missing ones",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add %@ to the key in Immich, or create a new key with the five permissions listed above."
-          }
-        }
-      }
-    },
     "Add %lld Folders" : {
       "comment" : "Activity row title: several folders added without copying",
       "localizations" : {
@@ -3600,17 +3589,6 @@
         }
       }
     },
-    "Create the key in Immich, in your account settings. It needs only these permissions: asset.read, asset.view, asset.download, album.read and user.read." : {
-      "comment" : "Server sheet: key caption; the permission names are not translated",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Create the key in Immich, in your account settings. It needs only these permissions: asset.read, asset.view, asset.download, album.read and user.read."
-          }
-        }
-      }
-    },
     "Date Range" : {
       "comment" : "Import window toolbar: a server's capture date range",
       "localizations" : {
@@ -4849,17 +4827,6 @@
         }
       }
     },
-    "Photos are copied from the server. Nothing on the server is changed." : {
-      "comment" : "Import options: Server section caption",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photos are copied from the server. Nothing on the server is changed."
-          }
-        }
-      }
-    },
     "Positive values lighten the corners; negative values darken them." : {
       "comment" : "Tooltip and VoiceOver help of Lens Vignetting's Amount",
       "localizations" : {
@@ -5380,17 +5347,6 @@
         }
       }
     },
-    "The address starts with http://. Your API key and every photo you import cross your network without encryption, so anyone on it could read them. Use https:// if your server offers it." : {
-      "comment" : "Server sheet: the unencrypted notice",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The address starts with http://. Your API key and every photo you import cross your network without encryption, so anyone on it could read them. Use https:// if your server offers it."
-          }
-        }
-      }
-    },
     "The API key for “%@” is missing a permission" : {
       "comment" : "Server import alert title",
       "localizations" : {
@@ -5398,17 +5354,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The API key for “%@” is missing a permission"
-          }
-        }
-      }
-    },
-    "The API key is deleted from the Keychain. Photos you already imported stay in the library. The key itself still works on the server until you delete it in Immich." : {
-      "comment" : "Remove server alert message",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The API key is deleted from the Keychain. Photos you already imported stay in the library. The key itself still works on the server until you delete it in Immich."
           }
         }
       }
@@ -5695,17 +5640,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This Immich server is too old"
-          }
-        }
-      }
-    },
-    "This key can do more than importing needs. Only reading is used." : {
-      "comment" : "Import options: the key has more permissions than needed",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This key can do more than importing needs. Only reading is used."
           }
         }
       }
@@ -18955,6 +18889,2315 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A merged photo can't be saved beside “%@”. The library's record of its file name or location isn't valid."
+          }
+        }
+      }
+    },
+    "Publish…" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publish…"
+          }
+        }
+      }
+    },
+    "Publish Results…" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publish Results…"
+          }
+        }
+      }
+    },
+    "Stop Publishing" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop Publishing"
+          }
+        }
+      }
+    },
+    "Publish" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publish"
+          }
+        }
+      }
+    },
+    "Publish the selected photos to a server" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publish the selected photos to a server"
+          }
+        }
+      }
+    },
+    "Show Results…" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Results…"
+          }
+        }
+      }
+    },
+    "Publish to “%@”" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publish to “%@”"
+          }
+        }
+      }
+    },
+    "Publish %lld Photos" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Publish %lld Photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Publish %lld Photos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld originals are offline and won't be published." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld original is offline and won't be published."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld originals are offline and won't be published."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld photos have HDR on. Published photos are SDR." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo has HDR on. Published photos are SDR."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos have HDR on. Published photos are SDR."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Not encrypted (http). Your key and photos cross the network unprotected." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not encrypted (http). Your key and photos cross the network unprotected."
+          }
+        }
+      }
+    },
+    "Checking “%@”…" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking “%@”…"
+          }
+        }
+      }
+    },
+    "The key couldn't be read" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The key couldn't be read"
+          }
+        }
+      }
+    },
+    "Add a Server to Publish To" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a Server to Publish To"
+          }
+        }
+      }
+    },
+    "Photos are published to an Immich server." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos are published to an Immich server."
+          }
+        }
+      }
+    },
+    "Loading albums…" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading albums…"
+          }
+        }
+      }
+    },
+    "Choose an Album" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose an Album"
+          }
+        }
+      }
+    },
+    "Albums need album.read on this key" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Albums need album.read on this key"
+          }
+        }
+      }
+    },
+    "Use the Existing Album" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use the Existing Album"
+          }
+        }
+      }
+    },
+    "The server's albums couldn't be listed: %@" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server's albums couldn't be listed: %@"
+          }
+        }
+      }
+    },
+    "An album with this name already exists. A second one will be made." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An album with this name already exists. A second one will be made."
+          }
+        }
+      }
+    },
+    "“%@”, used last time, is no longer on this server. Choose another album or None." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”, used last time, is no longer on this server. Choose another album or None."
+          }
+        }
+      }
+    },
+    "Published photos go to the archive, not the timeline." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Published photos go to the archive, not the timeline."
+          }
+        }
+      }
+    },
+    "Published photos go to the archive, not the timeline. A stacked original leaves the timeline with its edit, and so does the rest of its stack. Their own visibility isn't changed." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Published photos go to the archive, not the timeline. A stacked original leaves the timeline with its edit, and so does the rest of its stack. Their own visibility isn't changed."
+          }
+        }
+      }
+    },
+    "Each photo goes on top of its original in Immich. A photo whose original isn't found is still published, unstacked. Check Originals shows which ones before anything is uploaded." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each photo goes on top of its original in Immich. A photo whose original isn't found is still published, unstacked. Check Originals shows which ones before anything is uploaded."
+          }
+        }
+      }
+    },
+    "No original can be found yet: none of these photos was imported from this server, and no folder is mapped." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No original can be found yet: none of these photos was imported from this server, and no folder is mapped."
+          }
+        }
+      }
+    },
+    "No folders" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No folders"
+          }
+        }
+      }
+    },
+    "%lld folders" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld folder"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld folders"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Leave empty to keep each photo's own" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave empty to keep each photo's own"
+          }
+        }
+      }
+    },
+    "Not sent: Include is set to “%@”." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not sent: Include is set to “%@”."
+          }
+        }
+      }
+    },
+    "Immich is told each file's name and capture date. Ratings, flags and labels are never sent." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immich is told each file's name and capture date. Ratings, flags and labels are never sent."
+          }
+        }
+      }
+    },
+    "Location is included." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location is included."
+          }
+        }
+      }
+    },
+    "JPEG %@" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JPEG %@"
+          }
+        }
+      }
+    },
+    "TIFF %lld-bit" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TIFF %lld-bit"
+          }
+        }
+      }
+    },
+    "Fit %lld × %lld" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit %lld × %lld"
+          }
+        }
+      }
+    },
+    "Long Edge %lld" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Long Edge %lld"
+          }
+        }
+      }
+    },
+    "Short Edge %lld" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Short Edge %lld"
+          }
+        }
+      }
+    },
+    "Template names" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Template names"
+          }
+        }
+      }
+    },
+    "This key can't publish. It is missing %@." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This key can't publish. It is missing %@."
+          }
+        }
+      }
+    },
+    "An album needs %@ on this key. Add it, or choose None." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An album needs %@ on this key. Add it, or choose None."
+          }
+        }
+      }
+    },
+    "An album needs %@ on this key. Add them, or choose None." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An album needs %@ on this key. Add them, or choose None."
+          }
+        }
+      }
+    },
+    "Stacking needs %@ on this key. Add it, or turn off Stack with original." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stacking needs %@ on this key. Add it, or turn off Stack with original."
+          }
+        }
+      }
+    },
+    "Stacking needs %@ on this key. Add them, or turn off Stack with original." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stacking needs %@ on this key. Add them, or turn off Stack with original."
+          }
+        }
+      }
+    },
+    "Add the permissions in Immich, or choose Edit Server… to enter another key." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add the permissions in Immich, or choose Edit Server… to enter another key."
+          }
+        }
+      }
+    },
+    "Folder Map for “%@”" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folder Map for “%@”"
+          }
+        }
+      }
+    },
+    "Tell the app where Immich sees your folders, so it can find originals Immich reads from an external library. Photos imported from this server don't need this. When folders overlap, the longest one wins." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tell the app where Immich sees your folders, so it can find originals Immich reads from an external library. Photos imported from this server don't need this. When folders overlap, the longest one wins."
+          }
+        }
+      }
+    },
+    "Choose a folder Immich reads from an external library." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a folder Immich reads from an external library."
+          }
+        }
+      }
+    },
+    "(not connected)" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(not connected)"
+          }
+        }
+      }
+    },
+    "%@ is looked for at %@" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is looked for at %@"
+          }
+        }
+      }
+    },
+    "No selected photo is in this folder." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No selected photo is in this folder."
+          }
+        }
+      }
+    },
+    "Enter the path on the server, or remove this folder." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter the path on the server, or remove this folder."
+          }
+        }
+      }
+    },
+    "This folder is already in the map." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This folder is already in the map."
+          }
+        }
+      }
+    },
+    "Server paths usually start with /." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Server paths usually start with /."
+          }
+        }
+      }
+    },
+    "Checking originals… %lld of %lld" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking originals… %lld of %lld"
+          }
+        }
+      }
+    },
+    "Originals found for %lld of %lld photos." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Originals found for %lld of %lld photos."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Originals found for %lld of %lld photos."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld photos are offline and wouldn't be published." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo is offline and wouldn't be published."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos are offline and wouldn't be published."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Photos without an original are published unstacked." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos without an original are published unstacked."
+          }
+        }
+      }
+    },
+    "The check stopped: %@" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The check stopped: %@"
+          }
+        }
+      }
+    },
+    "No mapped folder" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No mapped folder"
+          }
+        }
+      }
+    },
+    "Imported original not found" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imported original not found"
+          }
+        }
+      }
+    },
+    "Nothing at the mapped path" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing at the mapped path"
+          }
+        }
+      }
+    },
+    "More than one match" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More than one match"
+          }
+        }
+      }
+    },
+    "Size differs" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Size differs"
+          }
+        }
+      }
+    },
+    "Published from here" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Published from here"
+          }
+        }
+      }
+    },
+    "In the trash" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In the trash"
+          }
+        }
+      }
+    },
+    "Hidden" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hidden"
+          }
+        }
+      }
+    },
+    "Another account's" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another account's"
+          }
+        }
+      }
+    },
+    "Not a photo" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not a photo"
+          }
+        }
+      }
+    },
+    "Capital letters count." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capital letters count."
+          }
+        }
+      }
+    },
+    "not imported from this server, and no mapped folder holds it." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not imported from this server, and no mapped folder holds it."
+          }
+        }
+      }
+    },
+    "the server didn't return the photo it was imported from, and no mapped folder holds it." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the server didn't return the photo it was imported from, and no mapped folder holds it."
+          }
+        }
+      }
+    },
+    "the server didn't return the photo it was imported from, and nothing is at %@." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the server didn't return the photo it was imported from, and nothing is at %@."
+          }
+        }
+      }
+    },
+    "nothing at %@." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nothing at %@."
+          }
+        }
+      }
+    },
+    "more than one photo at %@." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "more than one photo at %@."
+          }
+        }
+      }
+    },
+    "a photo at %@ has a different size." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "a photo at %@ has a different size."
+          }
+        }
+      }
+    },
+    "a photo at %@ was published from your library, and nothing there can be used." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "a photo at %@ was published from your library, and nothing there can be used."
+          }
+        }
+      }
+    },
+    "the photo it was imported from was published from your library." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the photo it was imported from was published from your library."
+          }
+        }
+      }
+    },
+    "its original is in the server's trash." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "its original is in the server's trash."
+          }
+        }
+      }
+    },
+    "its original is hidden on the server." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "its original is hidden on the server."
+          }
+        }
+      }
+    },
+    "a photo at %@ belongs to another account." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "a photo at %@ belongs to another account."
+          }
+        }
+      }
+    },
+    "its original belongs to another account." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "its original belongs to another account."
+          }
+        }
+      }
+    },
+    "an item at %@ isn't a photo." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "an item at %@ isn't a photo."
+          }
+        }
+      }
+    },
+    "its original isn't a photo." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "its original isn't a photo."
+          }
+        }
+      }
+    },
+    "%lld photos were already published to “%@”" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo was already published to “%@”"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos were already published to “%@”"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Skip leaves them as they are on the server. New Copy publishes them again; no photo on the server is replaced, and a file that hasn't changed may be reported as already there." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip leaves them as they are on the server. New Copy publishes them again; no photo on the server is replaced, and a file that hasn't changed may be reported as already there."
+          }
+        }
+      }
+    },
+    "The other %lld photos are published either way." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The other %lld photo is published either way."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The other %lld photos are published either way."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Skip" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip"
+          }
+        }
+      }
+    },
+    "New Copy" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Copy"
+          }
+        }
+      }
+    },
+    "Rendering %lld of %lld" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rendering %lld of %lld"
+          }
+        }
+      }
+    },
+    "Uploading %lld of %lld" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uploading %lld of %lld"
+          }
+        }
+      }
+    },
+    "Stopping. Waiting for “%@” to answer…" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stopping. Waiting for “%@” to answer…"
+          }
+        }
+      }
+    },
+    "Quit While Publishing?" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit While Publishing?"
+          }
+        }
+      }
+    },
+    "Photos already on the server stay there, but unfinished steps can't be retried after quitting. The rest are not published." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos already on the server stay there, but unfinished steps can't be retried after quitting. The rest are not published."
+          }
+        }
+      }
+    },
+    "Keep Publishing" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Publishing"
+          }
+        }
+      }
+    },
+    "The API key is missing %@" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The API key is missing %@"
+          }
+        }
+      }
+    },
+    "Publishing stopped after %lld of %lld photos." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Publishing stopped after %lld of %lld photos."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Publishing stopped after %lld of %lld photos."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Publishing stopped: %@." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publishing stopped: %@."
+          }
+        }
+      }
+    },
+    "Published %lld photos." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Published %lld photo."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Published %lld photos."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "No photos were published." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No photos were published."
+          }
+        }
+      }
+    },
+    "%lld were already on the server." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld was already on the server."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld were already on the server."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld were skipped." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld was skipped."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld were skipped."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld were stacked on their originals." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld was stacked on its original."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld were stacked on their originals."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld are not stacked: no original was found." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld is not stacked: no original was found."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld are not stacked: no original was found."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld videos were left out." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld video was left out."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld videos were left out."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld failed." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld failed."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld failed."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld are on the server but not finished." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld is on the server but not finished."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld are on the server but not finished."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld were not published because publishing stopped." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld was not published because publishing stopped."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld were not published because publishing stopped."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld already there is in the server's trash; nothing else was done with it." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld already there is in the server's trash; nothing else was done with it."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld already there are in the server's trash; nothing else was done with them."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld already there is hidden on the server; nothing else was done with it." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld already there is hidden on the server; nothing else was done with it."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld already there are hidden on the server; nothing else was done with them."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld already there couldn't be read on the server; nothing else was done with it." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld already there couldn't be read on the server; nothing else was done with it."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld already there couldn't be read on the server; nothing else was done with them."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "in the server's trash." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in the server's trash."
+          }
+        }
+      }
+    },
+    "hidden on the server." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hidden on the server."
+          }
+        }
+      }
+    },
+    "couldn't be read on the server." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "couldn't be read on the server."
+          }
+        }
+      }
+    },
+    "In the server's trash" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In the server's trash"
+          }
+        }
+      }
+    },
+    "Hidden on the server" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hidden on the server"
+          }
+        }
+      }
+    },
+    "Couldn't be read on the server" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't be read on the server"
+          }
+        }
+      }
+    },
+    "already on the server, but" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "already on the server, but"
+          }
+        }
+      }
+    },
+    "published, but" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "published, but"
+          }
+        }
+      }
+    },
+    "not published: its original is offline." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not published: its original is offline."
+          }
+        }
+      }
+    },
+    "not published: its original couldn't be read." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not published: its original couldn't be read."
+          }
+        }
+      }
+    },
+    "not published: it couldn't be rendered." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not published: it couldn't be rendered."
+          }
+        }
+      }
+    },
+    "not published: the server didn't accept the upload." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not published: the server didn't accept the upload."
+          }
+        }
+      }
+    },
+    "not published: the upload didn't finish." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not published: the upload didn't finish."
+          }
+        }
+      }
+    },
+    "it was removed from the library before it was published." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "it was removed from the library before it was published."
+          }
+        }
+      }
+    },
+    "already on the server, but the app couldn't check it." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "already on the server, but the app couldn't check it."
+          }
+        }
+      }
+    },
+    "the album “%@” couldn't be made." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the album “%@” couldn't be made."
+          }
+        }
+      }
+    },
+    "the app couldn't tell whether the album “%@” was made." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the app couldn't tell whether the album “%@” was made."
+          }
+        }
+      }
+    },
+    "not added to “%@”." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not added to “%@”."
+          }
+        }
+      }
+    },
+    "not stacked: the original couldn't be checked." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not stacked: the original couldn't be checked."
+          }
+        }
+      }
+    },
+    "not stacked: the server refused the stack." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not stacked: the server refused the stack."
+          }
+        }
+      }
+    },
+    "not stacked." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not stacked."
+          }
+        }
+      }
+    },
+    "the app couldn't record it." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the app couldn't record it."
+          }
+        }
+      }
+    },
+    "already on the server, but not checked before publishing stopped." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "already on the server, but not checked before publishing stopped."
+          }
+        }
+      }
+    },
+    "published, but not added to “%@” before publishing stopped." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "published, but not added to “%@” before publishing stopped."
+          }
+        }
+      }
+    },
+    "published, but not stacked before publishing stopped." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "published, but not stacked before publishing stopped."
+          }
+        }
+      }
+    },
+    "published, but not added to “%@” or stacked before publishing stopped." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "published, but not added to “%@” or stacked before publishing stopped."
+          }
+        }
+      }
+    },
+    "A publish is already running." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A publish is already running."
+          }
+        }
+      }
+    },
+    "This server was removed." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This server was removed."
+          }
+        }
+      }
+    },
+    "This server's address has changed since this run." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This server's address has changed since this run."
+          }
+        }
+      }
+    },
+    "Photos not yet uploaded when you stopped aren't included." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos not yet uploaded when you stopped aren't included."
+          }
+        }
+      }
+    },
+    "Retry Failed" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry Failed"
+          }
+        }
+      }
+    },
+    "Run" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run"
+          }
+        }
+      }
+    },
+    "%@, %@" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@"
+          }
+        }
+      }
+    },
+    "Published" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Published"
+          }
+        }
+      }
+    },
+    "Already on the server" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Already on the server"
+          }
+        }
+      }
+    },
+    "Skipped" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skipped"
+          }
+        }
+      }
+    },
+    "Stacked" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stacked"
+          }
+        }
+      }
+    },
+    "Not stacked" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not stacked"
+          }
+        }
+      }
+    },
+    "Videos left out" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videos left out"
+          }
+        }
+      }
+    },
+    "Failed" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed"
+          }
+        }
+      }
+    },
+    "Not finished" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not finished"
+          }
+        }
+      }
+    },
+    "Not published" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not published"
+          }
+        }
+      }
+    },
+    "Not Finished" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Finished"
+          }
+        }
+      }
+    },
+    "Not Stacked" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Stacked"
+          }
+        }
+      }
+    },
+    "Already There, Nothing Else Done" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Already There, Nothing Else Done"
+          }
+        }
+      }
+    },
+    "Checking…" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking…"
+          }
+        }
+      }
+    },
+    "Check Again" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check Again"
+          }
+        }
+      }
+    },
+    "Show in" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show in"
+          }
+        }
+      }
+    },
+    "Timeline" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timeline"
+          }
+        }
+      }
+    },
+    "Archive" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archive"
+          }
+        }
+      }
+    },
+    "Stacking" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stacking"
+          }
+        }
+      }
+    },
+    "Stack with original" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stack with original"
+          }
+        }
+      }
+    },
+    "Edit Folder Map…" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Folder Map…"
+          }
+        }
+      }
+    },
+    "Check Originals" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check Originals"
+          }
+        }
+      }
+    },
+    "Files" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files"
+          }
+        }
+      }
+    },
+    "Edit Settings…" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Settings…"
+          }
+        }
+      }
+    },
+    "File Settings" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File Settings"
+          }
+        }
+      }
+    },
+    "Choose…" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose…"
+          }
+        }
+      }
+    },
+    "On the server" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On the server"
+          }
+        }
+      }
+    },
+    "Remove Folder" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Folder"
+          }
+        }
+      }
+    },
+    "Add Folder…" : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Folder…"
+          }
+        }
+      }
+    },
+    "Published to “%@” from this library" : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Published to “%@” from this library"
+          }
+        }
+      }
+    },
+    "The API key is deleted from the Keychain, along with this server's folder map and publishing choices. Photos you already imported stay in the library, and the record of what you published is kept. The key itself still works on the server until you delete it in Immich." : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The API key is deleted from the Keychain, along with this server's folder map and publishing choices. Photos you already imported stay in the library, and the record of what you published is kept. The key itself still works on the server until you delete it in Immich."
+          }
+        }
+      }
+    },
+    "Photos are copied from the server. Importing changes nothing on it." : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos are copied from the server. Importing changes nothing on it."
+          }
+        }
+      }
+    },
+    "This key can do more than importing needs. Importing only reads." : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This key can do more than importing needs. Importing only reads."
+          }
+        }
+      }
+    },
+    "The address starts with http://. Your API key and every photo you import or publish cross your network without encryption, so anyone on it could read them. Use https:// if your server offers it." : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The address starts with http://. Your API key and every photo you import or publish cross your network without encryption, so anyone on it could read them. Use https:// if your server offers it."
+          }
+        }
+      }
+    },
+    "Add %@ to the key in Immich, or create a new key with the importing permissions listed above." : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add %@ to the key in Immich, or create a new key with the importing permissions listed above."
+          }
+        }
+      }
+    },
+    "To save a key made only for publishing, choose Publish… in the File menu." : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To save a key made only for publishing, choose Publish… in the File menu."
+          }
+        }
+      }
+    },
+    "Add %@ to the key in Immich, or create a new key that has asset.upload and asset.read." : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add %@ to the key in Immich, or create a new key that has asset.upload and asset.read."
+          }
+        }
+      }
+    },
+    "It runs version %@. Publishing needs version %@ or newer." : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It runs version %@. Publishing needs version %@ or newer."
+          }
+        }
+      }
+    },
+    "Importing needs asset.read, asset.view, asset.download, album.read and user.read." : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importing needs asset.read, asset.view, asset.download, album.read and user.read."
+          }
+        }
+      }
+    },
+    "Publishing needs asset.upload and asset.read. Albums also need album.read and albumAsset.create, and a new album needs album.create. Stacking needs user.read and stack.create." : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publishing needs asset.upload and asset.read. Albums also need album.read and albumAsset.create, and a new album needs album.create. Stacking needs user.read and stack.create."
+          }
+        }
+      }
+    },
+    "Create the key in Immich, in your account settings." : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create the key in Immich, in your account settings."
+          }
+        }
+      }
+    },
+    "Importing from this server needs asset.read, asset.view, asset.download, album.read and user.read." : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importing from this server needs asset.read, asset.view, asset.download, album.read and user.read."
+          }
+        }
+      }
+    },
+    "Photos imported from or published to the old address won't be recognized at the new one." : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos imported from or published to the old address won't be recognized at the new one."
+          }
+        }
+      }
+    },
+    "Can't Import from %@" : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't Import from %@"
+          }
+        }
+      }
+    },
+    "Add %@ to the key in Immich to import from this server, or choose Edit Server… to enter a key that has them." : {
+      "comment" : "Publishing (issue #28): Import window and Server sheet wording",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add %@ to the key in Immich to import from this server, or choose Edit Server… to enter a key that has them."
           }
         }
       }
