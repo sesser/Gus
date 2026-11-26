@@ -790,3 +790,136 @@ anything):
    previous one".
 
 Everything else in the rule is unchanged this round and still holds.
+
+### Seventh pass, 2026-11-26: 586cfd2..206ca8d
+
+Commits: bc23574 (design F30, F31), 662ecf2 (C14), 206ca8d (the N9 sentence
+in comments, the proposed Network rule, the user guide, status). 6587d3f is
+docs only (the sixth passes). No merge of `develop`. Narrow pass: C14, F30,
+F31, the comment and rule wording; the user guide's F32 and F33 are the
+designer's. Build and tests: `swift build --build-tests` clean; `swift test`
+1669 tests in 228 suites passed (103.9 s); `ServerKeyPairingTests` and
+`PublishKeyPairingTests` (15 tests) passed 30 of 30 runs with `--skip-build`.
+The two new tests are also deterministic by structure, which I checked: the
+C14 test is pure value steps on `PublishCheckRecovery` with no task; the F30
+test runs one real check to its end before the rename and then only calls
+value methods. I did not undo the fixes to watch the tests fail (I don't edit
+`Sources/`); status.md records 2 and 4 issues against the old rules, and both
+tests read as ones that fail without their fix.
+
+**Verdict, seventh pass: ready for qa-tester.** C14 is fixed, F30 and F31 are
+built as described, and the corrected comments and rule wording match the
+code. No new findings.
+
+| # | Status | Commit | Note |
+|---|---|---|---|
+| C14 | Fixed | 662ecf2 | My sixth-pass sequence now ends rechecked. At step (4) the check ends `.changed(.connectionChanged)` with the sheet hidden; the list already has the new address (the hidden-sheet reload ran `loadServers`), so `checkFoundChange` records a wait and returns false (nothing contacted while hidden). At step (5), Cancel, then `sheetDidClose` shows the sheet and `sheetShown()` is true, so `recheckSavedServer` reloads the servers and `choose`s the server as saved, choices and D-15's line kept. The other orders, traced below, end the same way. |
+
+#### C14: the recovery's own task
+
+- **It can't loop.** Each recheck starts with `choose`, whose `checkStarted`
+  clears the wait. Its check can end `.changed(.connectionChanged)` again only
+  if `RemoteSavedKey` finds the catalog row's address or certificate unlike
+  `service`. `recheckSavedServer` has just reloaded `servers` from that same
+  catalog, so that takes a new Save between that read and the gate. And a
+  second `.changed` against an unchanged list records a wait (`reloaded` is
+  false) and spawns nothing. So every round needs a real Save by the person;
+  with no new Save, the recheck either passes, fails, or waits for the
+  reload. A removal (`listed == nil`) clears the wait and leaves it to D-13's
+  reload, as before.
+- **It can't take over a chosen server.** `recheckSavedServer` chooses
+  `service`, which is computed from the current `serviceID`, never the record
+  the check held. If the person chose B after A's check ended, the recheck
+  chooses B again with `keepingChoices: true`. B's own `choose` has passed its
+  `serviceID == id` guards and loads B's remembered choices, so they aren't
+  overwritten. At worst B gets one extra check, with the first one cancelled.
+  The serverSheetSaved and Cancel paths can't leave a stale wait behind: the
+  `choose` in `serverSheetSaved` runs `checkStarted` in the same main-actor
+  turn that sets `serverSheet = nil`, which is before `sheetDidClose` can read
+  the wait. `open()` resets the recovery, and a closed sheet is a new
+  `session`, so the check task's guard returns before the switch.
+- **Nothing is contacted while the sheet is hidden, except in the same tiny
+  window every existing recheck has.** The spawn in `runCheck` needs
+  `showsPublishSheet` true, and the spawn in `sheetDidClose` sets it true
+  first. `recheckSavedServer` guards `session` and not `showsPublishSheet`,
+  and `choose` does a few catalog reads (`loadServers`, `publishSettings`,
+  `publishSources`, `ExportJob.items`) before `runCheck`. Edit Server…
+  pressed during those reads lets the check go out with the publish sheet
+  hidden. `serversChanged` (`:269`, a single test of the flag before `choose`)
+  and every plain `choose` have the same window, and a check already running
+  when Edit Server… is pressed keeps running too (`showServerSheet` doesn't
+  cancel it). The request goes only to the chosen server, with the key read
+  with its row under the gate. Residue, not a finding.
+- **Two rechecks at once are harmless.** When another `loadServers` (`open`'s,
+  say) updated the list before a pending `serversChanged` reload ran, the
+  recovery rechecks now and the reload rechecks again. The second `choose`
+  cancels the first check, so one check is left.
+- **Residue that belongs to N9.** With the sheet showing, a `.changed` whose
+  Save came from another process (a second copy of the app on the library)
+  posts no reload here, so the sheet stays at Checking… until it next comes
+  back from its Server sheet or is reopened. This was the same before C14,
+  and it goes away or stays with the owner's N9 decision.
+- `Task { await self.recheckSavedServer() }` from inside the check task is
+  unstructured: it inherits the main actor and not the task's cancellation.
+  That cancellation is what `choose`'s own `checkTask?.cancel()` would cause,
+  so the comment's reason holds.
+
+#### F30 (`RemoteSourceRecord`, `connectServer`)
+
+- `afterCheck` gives `.takeSaved` only when no rename was taken since the
+  check began (`began == revision`) and no import runs. That keeps the old
+  `!isImporting` rule and drops the old-name case. It never gives
+  `.chooseAgain`. That is right: a `.ready` row has the address and
+  certificate of the `service` captured at the start, and the record's
+  address can't change in place (`take` is reached only through
+  `RemoteSourceFollow.after`'s same-address branch or `afterCheck`). A move
+  makes a new `ServerBrowse`, which fails the check task's `browse ===`
+  guard.
+- No lost rename. A check that skips a newer row (the revision moved) leaves
+  the window on the name it took. A later rename saved from Publish has its
+  own `loadServersAfterPublish`, and the window's own Save chooses afresh. So
+  the window always ends on the last name. One check at a time per browse:
+  `connectServer` cancels the previous one (`browse.cancel()`).
+- `ServerBrowse.service` is now read-only from outside PhotoUI. It still
+  builds, so no other module wrote it. `record` is a stored property of the
+  observable `ServerBrowse`, so views that read `service.name` still update.
+- #271's single-window behaviour is unchanged. With no rename from Publish,
+  `revision` stays 0, so `afterCheck` reduces to the old
+  `RemoteSourceFollow.after` with the import guard.
+
+#### F31 (`ImportGrid`)
+
+`configure` reads `browse.service.name` for `ServerMarks`. The new
+`serverName` input (read in the parent's body, so the rename invalidates it)
+refreshes the visible cells when it changes, in both the append path and the
+same-shots path; off-screen cells are configured when they scroll in. The
+first update after a grid is made counts as a rename (nil to the name) and
+refreshes the visible cells once, which costs nothing. Card and folder grids
+pass nil each time. The probe's `tip '…'` and the `import server rescan` word
+are debug-script only.
+
+#### Comments and the proposed Network rule
+
+- The N9 sentence is accurate. `LibraryModel.open` (`:867-875`) opens the
+  catalog when `LibraryLock.acquire` times out after 2 s, as the comment says.
+  `photocli`'s writes refuse while the app holds the lock. The Keychain
+  account is the connection's uuid, so copies of a library name the same
+  item. `RemoteKeyGate`'s comment now says "every save" and that Remove
+  Server… deletes without the gate, as I asked in the sixth pass. "Every read
+  of a saved key" is still true: the three `.key(account:)` calls are
+  unchanged. The three "within this process" additions (`PublishConnection.connect`,
+  `RemoteImportConnection`, `RemoteServerSheetCheck`) are comment-only.
+- The proposed rule (status.md, "Proposed `CLAUDE.md` Network rule") takes
+  both of my sixth-pass wording points word for word in sense ("every save of
+  a key with its row"; "the caller holds … or opened on (the Server sheet,
+  whose check then goes to the address its form shows)"). It now states the
+  gate's reach as one process and its catalog. It matches the code. The
+  owner still approves it before it goes into `CLAUDE.md`.
+
+#### `/security-review`
+
+Not needed for this diff. It adds no parser, subprocess, request kind, file
+writing or network path. The changes in credential code are comments, and
+the C14 recheck goes through the existing `PublishConnection.connect` (key
+read with its row under the gate). N9's fix, when the owner rules on it,
+changes what is stored in the Keychain item and should get one.

@@ -1,8 +1,29 @@
 # Publish to Immich: design review
 
 Issue: #28. Reviewer: apple-ui-designer. Date: 2026-11-26. Branch
-`feature/publishing-engine`. Sixth pass at 586cfd2 (first at b244b48, second at
-a382a7b, third at eb34859, fourth at 41f6d0f, fifth at f5d5f09).
+`feature/publishing-engine`. Seventh pass at 206ca8d (first at b244b48, second
+at a382a7b, third at eb34859, fourth at 41f6d0f, fifth at f5d5f09, sixth at
+586cfd2).
+
+## Seventh pass: F30 to F33 and C14
+
+**F30 to F33 are closed. The C14 fix shows nothing wrong to a person.** No new
+finding. Method: reading the current sources and user guide, and
+[`status.md`](status.md)'s account with its script table. Nothing was built or
+run, no diff was run, and the engineer's script logs and tests were not rerun.
+
+| Finding | Result |
+|---|---|
+| F30 | **Closed.** `connectServer` notes the record's rename count as the check begins, and a passing check's row is taken only if no rename was taken since (`RemoteSourceRecord.afterCheck`). Title, pop-up, inspector, editor and an untyped Project name read that one record. Scripted by the engineer (Attic stays after the held check) |
+| F31 | **Closed.** Both uses of `ImportGridView` pass the server's name, and a change refreshes the cells on screen, the paged-append path included. Scripted by the engineer for one marked cell; M8's hover stays for a person |
+| F32 | **Closed.** The user guide reads as suggested |
+| F33 | **Closed.** Both sentences read as suggested |
+| C14 | **Pass** by reading. A check that ends on a changed server is checked again: at once if the publish sheet shows and has read the change, by the reload if that is still to come, else when the sheet returns from its Server sheet. A Save or a server chosen meanwhile clears the wait, so no second check follows. Choices and description stay, and D-15's line is neither added nor removed, as D-15 and D-19 rule. Nothing is contacted while the sheet is hidden. A removal still ends in D-13's state. Not scripted (status.md), so not seen on screen |
+
+Follow-up 1 below is unchanged by the C14 fix: it concerns a check that had
+**passed** before the change, which nothing records as waiting.
+
+## Sixth pass (586cfd2)
 
 A narrow pass: whether D-17 to D-19 ([`design.md`](design.md) §10.3, §11.1,
 §11.2, §17) are built as ruled, the user guide sentences the engineer wrote for
@@ -13,7 +34,7 @@ looked at). Nothing was built or run, and no diff was run (no shell in this
 review). Test results are as [`status.md`](status.md) records them. Round 6 took
 no snapshots, so how the windows look under D-18 and D-19 rests on reading.
 
-## Verdict
+### Verdict at 586cfd2
 
 **D-17 and D-19 are built as ruled. D-18 is too, except in two rename cases
 (F30, F31).** The publish sheet's failed-check text passes. Four findings, all
@@ -21,6 +42,9 @@ low: two in the UI, two in the user guide. None blocks QA. F30 and F31 change
 source, so they take the code reviewer's second pass.
 
 ## Findings
+
+F30 to F33, from the sixth pass, are closed (seventh pass above); their text is
+kept as found.
 
 **F30 (low, D-18).** A rename saved while the import window is checking that
 server is undone in the window.
@@ -109,9 +133,9 @@ certificate; a saved key never reaching the old address; and the running import.
 | New address: connects again; selection, pages, All Photos, no range, prefilled name; no request to the old address | **Pass** (A) |
 | Date Range popover closes, marks reread, old requests cancelled, earlier **Imported ‹n› photos** goes; destination, templates, Add to, job code, preset stay | **Pass** by reading |
 | Certificate change alone treated the same; removed as after Remove Server… | **Pass** by reading |
-| Name only: in place, nothing contacted, selection, pages, album, range kept | **Pass** (B, B2: no window request); **F30**, **F31** |
-| Project name follows only if not typed | **Pass** (B, B2); **F30** |
-| Title, Source pop-up, inspector, **Edit Server…** take the name | **Pass** by reading; **F30** |
+| Name only: in place, nothing contacted, selection, pages, album, range kept | **Pass** (B, B2: no window request); F30, F31 closed |
+| Project name follows only if not typed | **Pass** (B, B2); F30 closed |
+| Title, Source pop-up, inspector, **Edit Server…** take the name | **Pass** by reading; F30 closed |
 | Key only: nothing reloads, next check reads it | **Pass** by reading |
 | Import running: nothing changes; originals from the old address | **Pass** (C). Source pop-up is dimmed, label unchanged (by reading) |
 | A check during the run that finds the change sends nothing and leaves grid, state and selection | **Pass** by reading |
@@ -181,7 +205,7 @@ Both stand from the fifth pass; neither holds this branch.
 | P10, §10 | Activity row, results, Retry Failed | Pass |
 | §10.3, D-17 | Retry called off silently | Pass by reading |
 | P11, §11 | Import window marks | Pass by reading; M6 |
-| §11.1, D-18 | The window follows the saved server | **F30**, **F31**; otherwise pass; M8 |
+| §11.1, D-18 | The window follows the saved server | Pass (F30, F31 closed); M8 |
 | §11.2, D-19 | A Server sheet behind the saved server | Pass; M8 |
 | P12, P15, P16 | Nothing elsewhere; Archive warns; Already There | Pass |
 | §13 | Keyboard, announcements, plurals | Pass by reading; M2 |
@@ -238,7 +262,7 @@ None for the product manager. No new design ruling.
   “‹name›”…**: the import window doesn't come forward, the library window keeps
   the keyboard, and the import window shows the new address when brought back.
   Save only a new name and hover an **In Library** photo that was already on
-  screen (after F31). Then open Edit Server in both windows, key field empty, save
+  screen: the tooltip names the new name (F31). Then open Edit Server in both windows, key field empty, save
   a new address in one and press **Save** in the other, once each way round: the
   second closes with no alert. From Publish, the publish sheet comes back with the
   server chosen, choices and description kept and no line under Server; from
@@ -246,5 +270,4 @@ None for the product manager. No new design ruling.
 
 ## Follow-up
 
-F1 to F29 are closed. Open: F30 to F33 (low), M1 to M8, and the two follow-ups
-above.
+F1 to F33 are closed. Open: M1 to M8 and the two follow-ups above.
