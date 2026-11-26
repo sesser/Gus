@@ -568,6 +568,49 @@ struct PublishJobTests {
         }
     }
 
+    @Test("Each photo is filed in its album and stacked before the next one's upload: a Stop keeps the completed photo's steps (AC20, R21, QA Q1)")
+    func stepsFollowEachUpload() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await Self.fixture(root, files: ["a.jpg", "b.jpg"])
+            let a = try await f.version("a.jpg"), b = try await f.version("b.jpg")
+            // a has an original to stack on, linked as an import makes it.
+            let original = FakeImmichServer.Asset(fileName: "a.jpg", data: try f.masterData("a.jpg"), takenAt: Date())
+            f.server.addAssets([original])
+            _ = try await f.catalog.database.write { db in
+                try Catalog.insertLink(db, remoteID: original.id, fingerprint: original.checksum,
+                                       link: RemoteLinkTarget(provider: .immich, address: f.address, serviceID: f.service.id),
+                                       versionID: a, at: Date())
+            }
+            let album = FakeImmichServer.Album(name: "Kept", assetCount: 0)
+            f.server.setAlbums([album])
+            let run = try await f.makeRun([a, b], album: .existing(id: album.id, name: "Kept"))
+            // Every upload's answer is held until the test lets it go.
+            f.server.add(.holdUploadAnswer)
+            let task = Task { await f.job(bound: .milliseconds(300), concurrency: 1).run(run) }
+            // a's answer: let go, so a completes.
+            while f.server.heldAnswerCount == 0 { await Task.yield() }
+            f.server.releaseHeldAnswers()
+            // b's answer is held: the run is stopped there.
+            while f.server.heldAnswerCount == 0 { await Task.yield() }
+            #expect(f.server.uploads.count == 2)
+            task.cancel()
+            let ended = await task.value
+
+            #expect(ended.ending == .stopped(.stopped))
+            #expect(ended.items[0].album == .done && ended.items[0].stacking == .stacked)
+            let first = try #require(ended.items[0].assetID)
+            let filed = f.server.albums.first { $0.album.id == album.id }?.assetIDs ?? []
+            #expect(filed.contains(first))
+            #expect(f.server.stack(of: original.id)?.members.contains(first) == true)
+            // b never got past its upload.
+            #expect(ended.items[1].versionID == b)
+            #expect(ended.items[1].album != .done)
+            #expect(filed.count == 1)
+            f.server.releaseHeldAnswers()
+            f.expectOnlyAllowedRequests()
+        }
+    }
+
     @Test("Ending: a fully sent upload answered within the bound is recorded; with no answer the run ends at the bound (AC23)")
     func endingWaitsForFullySent() async throws {
         for answers in [true, false] {
