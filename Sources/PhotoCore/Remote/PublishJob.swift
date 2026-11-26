@@ -33,14 +33,15 @@ public struct PublishJob: Sendable {
     /// Told when an upload's whole body went to the system (tests and the
     /// debug script stop a run at that point, R17, AC23).
     public var onFullySent: (@Sendable () -> Void)?
+    /// Told, with the photo's version, as each accepted upload is recorded
+    /// (the import window marks it In Library at once, design §11).
+    public var onRecorded: (@Sendable (Int64) -> Void)?
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "publish")
 
-    /// The folder every run's temporary folder is made in.
-    public static var defaultTemporaryRoot: URL {
-        FileManager.default.temporaryDirectory.appending(path: "\(AppBranding.bundleIdentifier).publish",
-                                                         directoryHint: .isDirectory)
-    }
+    /// The folder every run's temporary folder is made in: this launch's
+    /// own (`PublishTemporaryFolders`), so no other copy of the app removes it.
+    public static var defaultTemporaryRoot: URL { PublishTemporaryFolders.launchFolder }
 
     public init(catalog: Catalog, renderer: ExportRenderer, destination: any RemotePublishDestination,
                 accountID: String?, folderMap: [PublishFolderMapping], retry: RemoteRetryPolicy = .standard,
@@ -59,10 +60,10 @@ public struct PublishJob: Sendable {
         self.timeZone = timeZone
     }
 
-    /// Removes run folders left by an earlier launch that ended without
-    /// cleaning up (a crash); a run in progress is never older than launch.
-    public static func removeLeftovers(in root: URL = defaultTemporaryRoot) {
-        try? FileManager.default.removeItem(at: root)
+    /// Removes the run folders of launches that have ended without cleaning
+    /// up (a crash); another running copy's are left alone (code review C5).
+    public static func removeLeftovers() {
+        PublishTemporaryFolders.removeLeftovers()
     }
 
     // MARK: Running
@@ -92,10 +93,11 @@ public struct PublishJob: Sendable {
         let state = RunState(run: run)
         let albums = AlbumCoordinator(state: state, destination: destination, retry: retry)
         let sequencer = StackSequencer()
-        let ending = RemoteUploadEnding(bound: endingBound, onFullySent: onFullySent)
         let total = versionIDs.count
         let counter = ProgressCounter(total: total, report: progress)
-        counter.report(.rendering)
+        let ending = RemoteUploadEnding(bound: endingBound, onFullySent: onFullySent,
+                                        onAwaitingChange: { counter.awaiting($0) })
+        counter.step(.rendering)
 
         let indexes = Dictionary(run.items.enumerated().map { ($1.versionID, $0) }, uniquingKeysWith: { first, _ in first })
         let work = versionIDs.compactMap { id in indexes[id].map { (order: $0, id: id) } }
@@ -103,31 +105,37 @@ public struct PublishJob: Sendable {
                                   folder: folder, counter: counter, runDate: run.startedAt,
                                   service: run.service, choices: run.choices, description: run.description)
         var stop: PublishStop?
-        await withTaskGroup(of: PublishStop?.self) { group in
-            var pending = work.makeIterator()
-            var running = 0
-            var sequence = 0
-            func startNext() -> Bool {
-                guard stop == nil, !Task.isCancelled, let next = pending.next() else { return false }
-                sequence += 1
-                let item = (order: next.order, id: next.id, sequence: sequence)
-                let exportItem = exportItems[next.id]
-                let source = sources[next.id]
-                group.addTask { await context.publish(order: item.order, versionID: item.id, sequence: item.sequence,
-                                                      exportItem: exportItem, source: source, retrying: retrying) }
-                running += 1
-                return true
-            }
-            while running < concurrency, startNext() {}
-            while let fault = await group.next() {
-                running -= 1
-                if let fault, stop == nil {
-                    stop = fault
-                    counter.report(.ending)
-                    group.cancelAll()
+        // The person's Stop ends the run as a fault does: every later report
+        // says so (design §9, review F2).
+        await withTaskCancellationHandler {
+            await withTaskGroup(of: PublishStop?.self) { group in
+                var pending = work.makeIterator()
+                var running = 0
+                var sequence = 0
+                func startNext() -> Bool {
+                    guard stop == nil, !Task.isCancelled, let next = pending.next() else { return false }
+                    sequence += 1
+                    let item = (order: next.order, id: next.id, sequence: sequence)
+                    let exportItem = exportItems[next.id]
+                    let source = sources[next.id]
+                    group.addTask { await context.publish(order: item.order, versionID: item.id, sequence: item.sequence,
+                                                          exportItem: exportItem, source: source, retrying: retrying) }
+                    running += 1
+                    return true
                 }
-                _ = startNext()
+                while running < concurrency, startNext() {}
+                while let fault = await group.next() {
+                    running -= 1
+                    if let fault, stop == nil {
+                        stop = fault
+                        counter.stopping()
+                        group.cancelAll()
+                    }
+                    _ = startNext()
+                }
             }
+        } onCancel: {
+            counter.stopping()
         }
         run = await state.run
         if let stop {
@@ -194,16 +202,22 @@ public struct PublishJob: Sendable {
     // MARK: Requests, tried again (R22)
 
     /// `request`, tried again after the policy's delays while it fails for a
-    /// temporary condition. `waiting` is told while it waits.
-    func retrying<T: Sendable>(_ waiting: @Sendable () -> Void = {},
+    /// temporary condition. `waiting` is told true when the first wait
+    /// begins and false when the request is over, however it ends.
+    func retrying<T: Sendable>(_ waiting: @Sendable (Bool) -> Void = { _ in },
                                _ request: @Sendable () async throws(PublishFailure) -> T) async throws(PublishFailure) -> T {
         var attempt = 0
+        var waited = false
+        defer { if waited { waiting(false) } }
         while true {
             do throws(PublishFailure) {
                 return try await request()
             } catch {
                 guard error.isTransient, attempt < retry.delays.count, !Task.isCancelled else { throw error }
-                waiting()
+                if !waited {
+                    waited = true
+                    waiting(true)
+                }
                 do {
                     try await Task.sleep(for: retry.delays[attempt])
                 } catch {
@@ -234,12 +248,24 @@ actor RunState {
     func setAlbum(_ album: PublishAlbumState) { run.album = album }
 }
 
-/// Counts photos whose steps all ended, and reports the phase.
+/// Counts photos whose steps all ended, and reports the phase (design §9):
+/// ending once the run began to end, whatever comes after (review F2);
+/// waiting while any request is being tried again, then back to the step in
+/// hand (review F15); else the newest step reported.
 final class ProgressCounter: Sendable {
     private struct State {
         var done = 0
         var current = 0
-        var phase = PublishProgress.Phase.rendering
+        var step = PublishProgress.Phase.rendering
+        var waiting = 0
+        var ending = false
+        var awaitsAnswer = false
+
+        func progress(total: Int) -> PublishProgress {
+            let phase: PublishProgress.Phase = ending ? .ending : waiting > 0 ? .waiting : step
+            return PublishProgress(done: done, total: total, current: current, phase: phase,
+                                   awaitsAnswer: ending && awaitsAnswer)
+        }
     }
 
     private let total: Int
@@ -251,22 +277,40 @@ final class ProgressCounter: Sendable {
         reportTo = report
     }
 
-    func report(_ phase: PublishProgress.Phase, current: Int? = nil) {
+    private func change(_ body: @Sendable (inout State) -> Void) {
+        let total = self.total
         let progress = state.withLock { state -> PublishProgress in
-            // Once ending, it stays so.
-            if state.phase != .ending { state.phase = phase }
-            if let current { state.current = max(state.current, current) }
-            return PublishProgress(done: state.done, total: total, current: state.current, phase: state.phase)
+            body(&state)
+            return state.progress(total: total)
         }
         reportTo(progress)
     }
 
-    func finished() {
-        let progress = state.withLock { state -> PublishProgress in
-            state.done += 1
-            return PublishProgress(done: state.done, total: total, current: state.current, phase: state.phase)
+    /// A photo's step: rendering or uploading.
+    func step(_ phase: PublishProgress.Phase, current: Int? = nil) {
+        change { state in
+            state.step = phase
+            if let current { state.current = max(state.current, current) }
         }
-        reportTo(progress)
+    }
+
+    /// A request started (true) or stopped (false) being tried again.
+    func waiting(_ isWaiting: Bool) {
+        change { state in state.waiting = max(0, state.waiting + (isWaiting ? 1 : -1)) }
+    }
+
+    /// The run began to end (a fault, or the person's Stop): it stays so.
+    func stopping() {
+        change { state in state.ending = true }
+    }
+
+    /// An answer to a fully sent file is awaited, or no longer.
+    func awaiting(_ isAwaiting: Bool) {
+        change { state in state.awaitsAnswer = isAwaiting }
+    }
+
+    func finished() {
+        change { state in state.done += 1 }
     }
 }
 
@@ -356,7 +400,7 @@ actor AlbumCoordinator {
     }
 
     /// Files `assetID` in the run's album.
-    func add(_ assetID: String, job: PublishJob, waiting: @escaping @Sendable () -> Void) async -> Outcome {
+    func add(_ assetID: String, job: PublishJob, waiting: @escaping @Sendable (Bool) -> Void) async -> Outcome {
         await acquire()
         defer { release() }
         if Task.isCancelled { return .cutOff }
@@ -375,8 +419,7 @@ actor AlbumCoordinator {
                         try await destination.addToAlbum(id, assetIDs: [assetID])
                     }
                     if let error = refused[assetID] {
-                        return .failed(.addToAlbum(album: name, .server(status: 400, message: error.isEmpty ? nil : error)),
-                                       fault: nil)
+                        return .failed(.addToAlbum(album: name, .itemRefused(error.isEmpty ? nil : error)), fault: nil)
                     }
                     return .done
                 case .toMake(let name):
@@ -398,7 +441,8 @@ actor AlbumCoordinator {
                         if creates > job.retry.delays.count {
                             return .failed(.albumUnknown(album: name, PublishCause(error)), fault: .unreachable)
                         }
-                        waiting()
+                        waiting(true)
+                        defer { waiting(false) }
                         do {
                             try await Task.sleep(for: job.retry.delays[creates - 1])
                         } catch {
@@ -458,9 +502,9 @@ struct ItemContext: Sendable {
 
     private var destination: any RemotePublishDestination { job.destination }
 
-    private func waiting() -> @Sendable () -> Void {
+    private func waiting() -> @Sendable (Bool) -> Void {
         let counter = self.counter
-        return { counter.report(.waiting) }
+        return { counter.waiting($0) }
     }
 
     /// One photo, every step that is left. Returns the fault that stops the
@@ -517,6 +561,7 @@ struct ItemContext: Sendable {
         // A record that failed is written again first (R17).
         if let record = item.unrecorded {
             if await Self.record(record, in: job.catalog) == nil {
+                job.onRecorded?(versionID)
                 await state.update(order) {
                     $0.unrecorded = nil
                     $0.recordFailure = nil
@@ -579,7 +624,7 @@ struct ItemContext: Sendable {
 
     /// Renders, uploads and records one photo. Returns a fault that stops the run.
     private func upload(order: Int, sequence: Int, exportItem: ExportItem) async -> PublishStop? {
-        counter.report(.rendering, current: sequence)
+        counter.step(.rendering, current: sequence)
         let itemFolder = folder.appending(path: "\(order)", directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: itemFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: itemFolder) }
@@ -621,7 +666,7 @@ struct ItemContext: Sendable {
             await state.update(order) { $0.upload = .failed(.render(error.localizedDescription)) }
             return nil
         }
-        counter.report(.uploading, current: sequence)
+        counter.step(.uploading, current: sequence)
         let outcome: RemoteUploadOutcome
         do throws(PublishFailure) {
             let ending = self.ending
@@ -649,6 +694,7 @@ struct ItemContext: Sendable {
         // Recorded even when the run is ending (R17): the catalog refuses a
         // write from a cancelled task, so it is made outside the run's task.
         let recordError = await Self.record(record, in: job.catalog)
+        if recordError == nil { job.onRecorded?(exportItem.versionID) }
         await state.update(order) { item in
             item.upload = .accepted(outcome)
             if case .duplicate = outcome { item.check = .pending }

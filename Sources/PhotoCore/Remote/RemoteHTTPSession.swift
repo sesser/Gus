@@ -233,14 +233,30 @@ public final class RemoteHTTPSession: Sendable {
         }
         let task = session.uploadTask(with: request, fromFile: file)
         delegate.register(sink, for: task.taskIdentifier)
+        // Whether this upload's answer is awaited by an ending run: set by the
+        // cancellation, ended once the upload is over, whichever order the
+        // two come in (the handler may run beside the return).
+        enum Wait { case running, awaiting, over }
+        let wait = Mutex(Wait.running)
         let outcome: Result<RemoteAnswer, TaskFailure> = await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 sink.start(continuation)
                 task.resume()
             }
         } onCancel: {
-            RemoteUploadEnding.end(task, by: ending.deadline())
+            let waits = RemoteUploadEnding.end(task, by: ending.deadline())
+            let began = wait.withLock { state -> Bool in
+                guard waits, state == .running else { return false }
+                state = .awaiting
+                return true
+            }
+            if began { ending.beganAwaiting() }
         }
+        let wasAwaited = wait.withLock { state -> Bool in
+            defer { state = .over }
+            return state == .awaiting
+        }
+        if wasAwaited { ending.endedAwaiting() }
         delegate.unregister(task.taskIdentifier)
         switch outcome {
         case .success(let answer):
@@ -538,17 +554,44 @@ public struct RemoteAnswer: Sendable, Hashable {
 public final class RemoteUploadEnding: Sendable {
     public let bound: Duration
     private let started = Mutex<ContinuousClock.Instant?>(nil)
+    /// Uploads fully sent when the run began to end, still waiting for their answer.
+    private let awaiting = Mutex(0)
     /// Told on the session's delegate queue when an upload's whole body went
     /// to the system (tests and the debug script stop a run there).
     private let onFullySent: (@Sendable () -> Void)?
+    /// Told when the first answer starts being awaited (true) and when the
+    /// last one awaited has come or been given up (false): the run's
+    /// "Waiting for … to answer" (publishing design §9, review D-1).
+    private let onAwaitingChange: (@Sendable (Bool) -> Void)?
 
-    public init(bound: Duration = .seconds(10), onFullySent: (@Sendable () -> Void)? = nil) {
+    public init(bound: Duration = .seconds(10), onFullySent: (@Sendable () -> Void)? = nil,
+                onAwaitingChange: (@Sendable (Bool) -> Void)? = nil) {
         self.bound = bound
         self.onFullySent = onFullySent
+        self.onAwaitingChange = onAwaitingChange
     }
 
     func didSendAll() {
         onFullySent?()
+    }
+
+    /// An ending run waits for at least one answer to a fully sent file.
+    public var isAwaitingAnswers: Bool { awaiting.withLock { $0 > 0 } }
+
+    func beganAwaiting() {
+        let count = awaiting.withLock { count -> Int in
+            count += 1
+            return count
+        }
+        if count == 1 { onAwaitingChange?(true) }
+    }
+
+    func endedAwaiting() {
+        let count = awaiting.withLock { count -> Int in
+            count = max(0, count - 1)
+            return count
+        }
+        if count == 0 { onAwaitingChange?(false) }
     }
 
     /// The deadline, set by the first call.
@@ -566,15 +609,18 @@ public final class RemoteUploadEnding: Sendable {
 
     /// A body not fully sent is cancelled now; one fully sent is left to
     /// answer until `deadline`, then cancelled (a no-op once it has ended).
-    static func end(_ task: URLSessionTask, by deadline: ContinuousClock.Instant) {
+    /// True when it is left to answer.
+    @discardableResult
+    static func end(_ task: URLSessionTask, by deadline: ContinuousClock.Instant) -> Bool {
         guard isFullySent(sent: task.countOfBytesSent, expected: task.countOfBytesExpectedToSend) else {
             task.cancel()
-            return
+            return false
         }
         Task.detached {
             try? await Task.sleep(until: deadline, clock: .continuous)
             task.cancel()
         }
+        return true
     }
 
     /// The whole body was handed to the system. An unknown length is never

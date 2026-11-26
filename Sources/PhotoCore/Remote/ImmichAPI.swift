@@ -162,9 +162,18 @@ public enum RemoteRequestAllowlist {
         entries.filter { $0.method != "GET" && $0.pattern != #"^/search/metadata$"# }
     }
 
-    /// `path` is relative to the API root.
+    /// `path` is relative to the API root. Matched by ICU itself
+    /// (`NSRegularExpression`), whose `$` also matches before a final line
+    /// terminator (a newline, U+2028, U+2029), so the match must cover the
+    /// whole path (security review N1). `String.range(of:options:)` agrees
+    /// on some macOS releases and not others; this answers alike on all.
     public static func permits(method: String, path: String) -> Bool {
-        entries.contains { $0.method == method && path.range(of: $0.pattern, options: .regularExpression) != nil }
+        let whole = NSRange(path.startIndex..<path.endIndex, in: path)
+        return entries.contains { entry in
+            guard entry.method == method, let expression = try? NSRegularExpression(pattern: entry.pattern),
+                  let match = expression.firstMatch(in: path, range: whole) else { return false }
+            return match.range == whole
+        }
     }
 }
 
@@ -302,6 +311,8 @@ extension ImmichDTO.Asset {
         // A name that could name a place, not just a file, is not listed
         // (security review F1).
         guard RemoteAsset.isPlainFileName(originalFileName) else { return nil }
+        // Its id goes into the thumbnail's and the original's paths (security review N1).
+        guard RemoteAsset.isServerID(id) else { return nil }
         guard let kind = FileKind(pathExtension: (originalFileName as NSString).pathExtension), kind != .video else {
             return nil
         }

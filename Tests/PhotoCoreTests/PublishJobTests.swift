@@ -45,6 +45,30 @@ struct PublishJobTests {
             try Data(contentsOf: folder.appending(path: fileName))
         }
 
+        /// Links `versionID` to the server's `remoteID`, as an import from it would.
+        func link(_ versionID: Int64, to remoteID: String) async throws {
+            let address = self.address
+            let serviceID = service.id
+            _ = try await catalog.database.write { db in
+                try Catalog.insertLink(db, remoteID: remoteID, fingerprint: "x",
+                                       link: RemoteLinkTarget(provider: .immich, address: address, serviceID: serviceID),
+                                       versionID: versionID, at: Date())
+            }
+        }
+
+        /// The name a version's file is uploaded under with `settings`.
+        func uploadName(_ versionID: Int64, settings: ExportSettings = ExportSettings()) async throws -> String {
+            let item = try #require(try await ExportJob(catalog: catalog, renderer: ExportRenderer()).items(for: [versionID]).first)
+            return ExportNaming.fileName(for: item.templateContext(sequence: 1, exportDate: Date()), settings: settings)
+        }
+
+        /// The asset ids a stack create named, in order, for each create sent.
+        var stackCreates: [[String]] {
+            server.requests.filter { $0.method == "POST" && $0.path == "/api/stacks" }.compactMap {
+                (try? JSONSerialization.jsonObject(with: $0.body) as? [String: [String]])?["assetIds"]
+            }
+        }
+
         func job(stacking: Bool = true, map: [PublishFolderMapping] = [], retry: RemoteRetryPolicy = .none,
                  bound: Duration = .seconds(2), concurrency: Int = 1) -> PublishJob {
             PublishJob(catalog: catalog, renderer: ExportRenderer(), destination: client,
@@ -651,5 +675,218 @@ struct PublishJobTests {
         #expect(try await catalog.publishSettings(serviceID: id) == RemotePublishSettings(choices: choices, folderMap: map))
         try await catalog.deleteRemoteService(id: id)
         #expect(try await catalog.publishSettings(serviceID: id) == RemotePublishSettings())
+    }
+
+    // MARK: Review fixes
+
+    @Test("Both halves of a pair linked: the pair and a copy of its RAW stack on the RAW's asset, the JPEG's untouched (AC7, R11)")
+    func pairBothLinkedAndCopy() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await Self.fixture(root, files: ["p.DNG", "p.jpg"])
+            let raw = try await f.version("p.DNG"), jpeg = try await f.version("p.jpg")
+            let rawAsset = FakeImmichServer.Asset(fileName: "p.DNG", data: Data([1]), takenAt: Date())
+            let jpegAsset = FakeImmichServer.Asset(fileName: "p.jpg", data: Data([2]), takenAt: Date())
+            f.server.addAssets([rawAsset, jpegAsset])
+            try await f.link(raw, to: rawAsset.id)
+            try await f.link(jpeg, to: jpegAsset.id)
+            let copy = try #require(try await f.catalog.duplicateVersions(ids: [raw]).first?.copyVersionID)
+            try await f.catalog.setEditStack(Self.edit(0.5), forVersion: copy, historyLabel: "Exposure")
+            // The copy takes its original's link, before the pair partner's (R11).
+            let sources = try await f.catalog.publishSources(versionIDs: [raw, copy], address: f.address)
+            #expect(sources[raw]?.linkedAssetIDs.first == rawAsset.id)
+            #expect(sources[copy]?.linkedAssetIDs.first == rawAsset.id)
+            let run = await f.job().run(try await f.makeRun([raw, copy]))
+            #expect(run.items.allSatisfy { $0.stacking == .stacked })
+            let first = try #require(run.items[0].assetID), second = try #require(run.items[1].assetID)
+            let stack = try #require(f.server.stack(of: rawAsset.id))
+            #expect(stack.primary == second)
+            #expect(Set(stack.members) == [rawAsset.id, first, second])
+            // Only that one link is tried: nothing asks about the JPEG's asset.
+            #expect(f.server.asset(jpegAsset.id)?.stackID == nil)
+            #expect(!f.server.requests.contains { $0.path.contains(jpegAsset.id) || String(decoding: $0.body, as: UTF8.self).contains(jpegAsset.id) })
+            f.expectOnlyAllowedRequests()
+        }
+    }
+
+    @Test("Only the JPEG of a pair linked: the pair and a copy of its RAW both stack on the JPEG's asset (AC7, R11)")
+    func pairJPEGLinkedAndCopy() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await Self.fixture(root, files: ["p.DNG", "p.jpg"])
+            let raw = try await f.version("p.DNG"), jpeg = try await f.version("p.jpg")
+            let jpegAsset = FakeImmichServer.Asset(fileName: "p.jpg", data: Data([2]), takenAt: Date())
+            f.server.addAssets([jpegAsset])
+            try await f.link(jpeg, to: jpegAsset.id)
+            let copy = try #require(try await f.catalog.duplicateVersions(ids: [raw]).first?.copyVersionID)
+            try await f.catalog.setEditStack(Self.edit(0.5), forVersion: copy, historyLabel: "Exposure")
+            let run = await f.job().run(try await f.makeRun([raw, copy]))
+            #expect(run.items.allSatisfy { $0.stacking == .stacked })
+            let first = try #require(run.items[0].assetID), second = try #require(run.items[1].assetID)
+            let stack = try #require(f.server.stack(of: jpegAsset.id))
+            #expect(stack.primary == second)
+            #expect(Set(stack.members) == [jpegAsset.id, first, second])
+        }
+    }
+
+    @Test("Two edits of one original: the later in grid order is primary whichever upload finishes first (AC10, code review C6)")
+    func stackOrderWhicheverUploadFinishesFirst() async throws {
+        for laterFinishesFirst in [false, true] {
+            try await RepositoryFiles.withTemporaryDirectory { root in
+                let f = try await Self.fixture(root)
+                let a = try await f.version("a.jpg")
+                let original = FakeImmichServer.Asset(fileName: "a.jpg", data: try f.masterData("a.jpg"), takenAt: Date())
+                f.server.addAssets([original])
+                try await f.link(a, to: original.id)
+                let copy = try #require(try await f.catalog.duplicateVersions(ids: [a]).first?.copyVersionID)
+                try await f.catalog.setEditStack(Self.edit(0.5), forVersion: copy, historyLabel: "Exposure")
+                let names = (earlier: try await f.uploadName(a), later: try await f.uploadName(copy))
+                #expect(names.earlier != names.later)
+                // Both uploads reach the server and wait for their answers.
+                f.server.add(.holdUploadAnswer)
+                let recorded = AsyncStream<Int64>.makeStream()
+                var job = f.job(concurrency: 2)
+                job.onRecorded = { recorded.continuation.yield($0) }
+                let run = try await f.makeRun([a, copy])
+                let task = Task { await job.run(run) }
+                while f.server.heldAnswerCount < 2 { await Task.yield() }
+                // One upload is answered and recorded before the other is answered at all.
+                let (firstName, firstID, secondName) = laterFinishesFirst ? (names.later, copy, names.earlier)
+                    : (names.earlier, a, names.later)
+                #expect(f.server.releaseHeldAnswer(fileName: firstName))
+                for await id in recorded.stream where id == firstID { break }
+                #expect(f.server.releaseHeldAnswer(fileName: secondName))
+                let ended = await task.value
+                #expect(ended.items.allSatisfy { $0.stacking == .stacked }, "\(laterFinishesFirst)")
+                let earlier = try #require(ended.items[0].assetID), later = try #require(ended.items[1].assetID)
+                let stack = try #require(f.server.stack(of: original.id))
+                #expect(stack.primary == later, "later finishes first: \(laterFinishesFirst)")
+                #expect(Set(stack.members) == [original.id, earlier, later])
+                // One at a time: the later create names the earlier edit as the primary it read.
+                #expect(f.stackCreates == [[earlier, original.id], [later, earlier, original.id]])
+            }
+        }
+    }
+
+    @Test("A trashed primary is named in the create and, restored before any later publication, is in the new stack, not as primary (R14, AC10, RI-E1)")
+    func trashedPrimaryNamedAndRestored() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await Self.fixture(root)
+            let a = try await f.version("a.jpg")
+            var primary = FakeImmichServer.Asset(fileName: "p.jpg", data: Data([1]), takenAt: Date())
+            primary.isTrashed = true
+            let original = FakeImmichServer.Asset(fileName: "a.jpg", data: Data([2]), takenAt: Date())
+            let member = FakeImmichServer.Asset(fileName: "m.jpg", data: Data([3]), takenAt: Date())
+            f.server.addAssets([primary, original, member])
+            f.server.makeStack([primary.id, original.id, member.id])
+            try await f.link(a, to: original.id)
+            let run = await f.job().run(try await f.makeRun([a]))
+            let edit = try #require(run.items[0].assetID)
+            #expect(run.items[0].stacking == .stacked)
+            #expect(f.stackCreates == [[edit, primary.id, original.id]])
+            // In the trash it isn't listed; nothing reports it.
+            #expect(Set(try #require(f.server.stack(of: original.id)).members) == [edit, original.id, member.id])
+            #expect(run.counts.failed == 0 && run.counts.stacked == 1)
+            f.server.update(primary.id) { $0.isTrashed = false }
+            let restored = try #require(f.server.stack(of: original.id))
+            #expect(restored.primary == edit)
+            #expect(Set(restored.members) == [edit, primary.id, original.id, member.id])
+        }
+    }
+
+    @Test("A later publication that replaces the stack while the former primary is still in the trash drops it (R14, RI-E1)")
+    func laterPublicationDropsTrashedPrimary() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await Self.fixture(root)
+            let a = try await f.version("a.jpg")
+            var primary = FakeImmichServer.Asset(fileName: "p.jpg", data: Data([1]), takenAt: Date())
+            primary.isTrashed = true
+            let original = FakeImmichServer.Asset(fileName: "a.jpg", data: Data([2]), takenAt: Date())
+            let member = FakeImmichServer.Asset(fileName: "m.jpg", data: Data([3]), takenAt: Date())
+            f.server.addAssets([primary, original, member])
+            f.server.makeStack([primary.id, original.id, member.id])
+            try await f.link(a, to: original.id)
+            let first = try #require(await f.job().run(try await f.makeRun([a])).items[0].assetID)
+            // Published again (New Copy of a re-edited photo) while it is still in the trash.
+            try await f.catalog.setEditStack(Self.edit(0.4), forVersion: a, historyLabel: "Exposure")
+            let second = try #require(await f.job().run(try await f.makeRun([a])).items[0].assetID)
+            #expect(f.stackCreates.last == [second, first, original.id], "the primary as read: the first edit")
+            f.server.update(primary.id) { $0.isTrashed = false }
+            let stack = try #require(f.server.stack(of: original.id))
+            #expect(stack.primary == second)
+            #expect(Set(stack.members) == [second, first, original.id, member.id])
+            #expect(f.server.asset(primary.id)?.stackID == nil)
+        }
+    }
+
+    @Test("After the person's Stop every report says ending, and says while an answer is awaited (review F2, D-1)")
+    func stopKeepsEndingInEveryReport() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await Self.fixture(root, files: ["a.jpg", "b.jpg", "c.jpg"])
+            let ids = [try await f.version("a.jpg"), try await f.version("b.jpg"), try await f.version("c.jpg")]
+            f.server.add(.holdUploadAnswer)
+            let reports = Mutex<[PublishProgress]>([])
+            // Stopped when a file is fully sent; whichever of the callback and
+            // the assignment comes second cancels, and says so.
+            let stop = Mutex<(task: Task<PublishRun, Never>?, asked: Bool)>((nil, false))
+            let cancelled = AsyncStream<Void>.makeStream()
+            var job = f.job(stacking: false, concurrency: 2)
+            job.onFullySent = {
+                stop.withLock { state in
+                    state.asked = true
+                    if let task = state.task {
+                        task.cancel()
+                        cancelled.continuation.yield()
+                    }
+                }
+            }
+            let run = try await f.makeRun(ids, stacking: false)
+            let task = Task { await job.run(run) { progress in reports.withLock { $0.append(progress) } } }
+            stop.withLock { state in
+                state.task = task
+                if state.asked {
+                    task.cancel()
+                    cancelled.continuation.yield()
+                }
+            }
+            for await _ in cancelled.stream { break }
+            // The fully sent file reaches the server, which answers now, while the run ends.
+            while f.server.heldAnswerCount == 0 { await Task.yield() }
+            f.server.releaseHeldAnswers()
+            let ended = await task.value
+            #expect(ended.ending == .stopped(.stopped))
+            let all = reports.withLock { reports -> [PublishProgress] in reports }
+            let stoppedAt = try #require(all.firstIndex { $0.phase == .ending }, "the Stop is reported")
+            let after = all[stoppedAt...]
+            #expect(after.allSatisfy { $0.phase == .ending }, "\(after.map(\.phase))")
+            #expect(after.contains { $0.awaitsAnswer })
+            #expect(after.last?.awaitsAnswer == false)
+        }
+    }
+
+    @Test("An album a run made is remembered, and nothing else of that run's choices (review F18)")
+    func madeAlbumRememberedAlone() async throws {
+        let catalog = try Catalog.makeInMemory()
+        let service = try await catalog.saveRemoteService(RemoteServiceRecord(name: "S", address: "https://s.example"))
+        let id = try #require(service.id)
+        // What a newer run left: Archive, stacking off, quality 70%.
+        var settings = ExportSettings()
+        settings.jpegQuality = 0.7
+        let newer = PublishChoices(settings: settings, album: .none, visibility: .archive, stacking: false)
+        try await catalog.savePublishChoices(newer, serviceID: id)
+        try await catalog.rememberMadeAlbum(id: "made", name: "Trip", serviceID: id)
+        var expected = newer
+        expected.album = .existing(id: "made", name: "Trip")
+        #expect(try await catalog.publishSettings(serviceID: id).choices == expected)
+    }
+
+    @Test("An id the server gives that isn't plain ASCII is never put in a path (security review N1)")
+    func strangeIDsNeverRequested() async throws {
+        let server = try await FakeImmichServer()
+        server.setPermissions(Self.publishing)
+        let client = try RemoteConnectionTests.client(server)
+        for id in ["abc\u{2028}", "abc\u{2029}", "é"] {
+            #expect(try await client.asset(id: id) == nil)
+            await #expect(throws: PublishFailure.self) { _ = try await client.addToAlbum(id, assetIDs: ["a"]) }
+        }
+        #expect(server.requests.isEmpty)
     }
 }

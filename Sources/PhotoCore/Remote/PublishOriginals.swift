@@ -164,7 +164,8 @@ public enum OriginalRules {
 
 /// What the library knows about one photo for finding its original: its
 /// files on the Mac (the raw first for a pair) and the assets it is linked to
-/// on this server (itself, its pair partner, the photo a copy was made from).
+/// on this server (itself, the photo a copy was made from, its pair partner;
+/// only the first is tried, R11).
 public struct PublishSource: Hashable, Sendable {
     public struct File: Hashable, Sendable {
         public var volumeIdentity: String
@@ -235,12 +236,17 @@ extension Catalog {
                     partnerDefault = try Int64.fetchOne(db, sql: "SELECT id FROM version WHERE imageId = ? AND isDefault",
                                                         arguments: [partnerImage])
                 }
+                // A copy's original is its master's default version (virtual
+                // copies); a copy is never half of a pair, so its partner is
+                // its original's, found by the shared image.
                 let ownDefault = version.isDefault ? nil
                     : try Int64.fetchOne(db, sql: "SELECT id FROM version WHERE imageId = ? AND isDefault",
                                          arguments: [version.imageId])
+                // R11: its own, then for a copy its original's, then the pair
+                // partner's, so a copy takes the link its original takes.
                 var links: [String] = []
-                for id in [try link(versionID: versionID), try link(versionID: partnerDefault),
-                           try link(versionID: ownDefault)].compactMap({ $0 }) where !links.contains(id) {
+                for id in [try link(versionID: versionID), try link(versionID: ownDefault),
+                           try link(versionID: partnerDefault)].compactMap({ $0 }) where !links.contains(id) {
                     links.append(id)
                 }
                 sources[versionID] = PublishSource(versionID: versionID, imageID: version.imageId, files: files,

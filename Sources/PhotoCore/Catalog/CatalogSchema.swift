@@ -468,10 +468,6 @@ enum CatalogSchema {
         }
     }
 
-    /// Issue #282: each version's HDR choice, a copy of its edit stack's
-    /// (`EditStack.hdrChoice`), written with the stack (`setEditStacks`), so
-    /// the loupe knows it from the item without reading the stack. No stack
-    /// written before this migration holds the choice, so every row starts off.
     /// Publishing to a server (issue #28). `remotePublication` records each
     /// upload a server accepted (R17): keyed by provider, normalized address
     /// and remote id like `remoteLink`, so records outlive a removed
@@ -508,6 +504,10 @@ enum CatalogSchema {
         }
     }
 
+    /// Issue #282: each version's HDR choice, a copy of its edit stack's
+    /// (`EditStack.hdrChoice`), written with the stack (`setEditStacks`), so
+    /// the loupe knows it from the item without reading the stack. No stack
+    /// written before this migration holds the choice, so every row starts off.
     private static func addHDRChoice(_ db: Database) throws {
         try db.alter(table: "version") { t in
             t.add(column: "hdr", .boolean).notNull().defaults(to: false)

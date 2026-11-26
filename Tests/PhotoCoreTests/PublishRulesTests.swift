@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 @testable import PhotoCore
 
@@ -264,5 +265,136 @@ struct PublishRulesTests {
         run.ending = .stopped(.unreachable)
         #expect(run.retryCandidates == [2, 4, 5, 6])
         #expect(counts.isWarning(ending: run.ending))
+    }
+
+    // MARK: Review fixes
+
+    @Test("A server path is matched and saved without its trailing slash, but kept as typed while it is typed (review F6)")
+    func serverPathAsTyped() {
+        var mapping = PublishFolderMapping(volumeIdentity: "uuid:1", folderPath: "Photos", lastKnownPath: "/V/Photos",
+                                           serverPath: "/mnt")
+        // Typing "/mnt/media" passes through "/mnt/": the field keeps the slash.
+        mapping.serverPath = "/mnt/"
+        #expect(mapping.serverPath == "/mnt/")
+        #expect(mapping.serverPath(volumeIdentity: "uuid:1", relativePath: "Photos/a.jpg") == "/mnt/a.jpg")
+        #expect(mapping.kept.serverPath == "/mnt")
+        mapping.serverPath = "/mnt/media/"
+        #expect(mapping.serverPath(volumeIdentity: "uuid:1", relativePath: "Photos/2024/a.jpg") == "/mnt/media/2024/a.jpg")
+        #expect(PublishFolderMapping.winning([mapping], volumeIdentity: "uuid:1", relativePath: "Photos/a.jpg")?.path
+            == "/mnt/media/a.jpg")
+        mapping.serverPath = "/"
+        #expect(mapping.serverPath(volumeIdentity: "uuid:1", relativePath: "Photos/a.jpg") == "/a.jpg")
+    }
+
+    @Test("Only ASCII ids of letters, digits and hyphens reach a path; a trailing line terminator never passes (security review N1)")
+    func serverIDsAndAnchoredAllowlist() {
+        for id in ["0f3c8e2a-1b2c-4d5e-8f90-abcdef012345", "abc", "A-1"] {
+            #expect(RemoteAsset.isServerID(id), "\(id)")
+            #expect(RemoteRequestAllowlist.permits(method: "GET", path: "/assets/\(id)"))
+        }
+        for id in ["", "abc\u{2028}", "abc\u{2029}", "abc\n", "abc\r", "abc\u{85}", "é", "abc/def", "a.b", "a b",
+                   String(repeating: "a", count: 65), "\u{FF21}"] {
+            #expect(!RemoteAsset.isServerID(id), "\(id.unicodeScalars.map(\.value))")
+        }
+        // ICU's `$` matches before a final line terminator; the whole path must match.
+        for path in ["/assets/abc\u{2028}", "/assets/abc\u{2029}", "/assets/abc\n", "/stacks\u{2028}",
+                     "/albums/abc/assets\u{2029}", "/assets/abc/thumbnail\n", "/server/version\r\n"] {
+            #expect(!RemoteRequestAllowlist.permits(method: path.hasPrefix("/albums/") ? "PUT" : (path.hasPrefix("/stacks") ? "POST" : "GET"),
+                                                    path: path), "\(path.unicodeScalars.map(\.value))")
+        }
+    }
+
+    @Test("Progress: ending once stopped, whatever comes after; waiting only while a request is tried again (review F2, F15, D-1)")
+    func progressCounter() {
+        let reports = Mutex<[PublishProgress]>([])
+        let counter = ProgressCounter(total: 2) { progress in reports.withLock { $0.append(progress) } }
+        counter.step(.uploading, current: 1)
+        let last = { reports.withLock { reports -> PublishProgress.Phase? in reports.last?.phase } }
+        counter.waiting(true)
+        #expect(last() == .waiting)
+        // The retried request succeeded: back to the step in hand.
+        counter.waiting(false)
+        #expect(last() == .uploading)
+        counter.stopping()
+        let stoppedAt = reports.withLock { reports -> Int in reports.count }
+        // A photo still reporting after the stop doesn't bring the run back.
+        counter.step(.rendering, current: 2)
+        counter.waiting(true)
+        counter.awaiting(true)
+        counter.finished()
+        counter.awaiting(false)
+        counter.finished()
+        let after = reports.withLock { reports -> [PublishProgress] in Array(reports.dropFirst(stoppedAt - 1)) }
+        #expect(after.allSatisfy { $0.phase == .ending })
+        #expect(after.map(\.awaitsAnswer) == [false, false, false, true, true, false, false])
+        #expect(after.last?.done == 2)
+        // The app keeps ending for a report that left before the stop and arrives after it.
+        let ending = PublishProgress(done: 0, total: 2, current: 1, phase: .ending)
+        #expect(ending.followed(by: PublishProgress(done: 1, total: 2, current: 2, phase: .uploading)).phase == .ending)
+        #expect(PublishProgress(done: 0, total: 2, current: 1, phase: .rendering)
+            .followed(by: PublishProgress(done: 0, total: 2, current: 1, phase: .uploading)).phase == .uploading)
+    }
+
+    @Test("One publish at a time: a second start is refused from the first claim until the run has ended (code review C2)")
+    func oneAtATime() {
+        var slot = PublishSlot()
+        let first = UUID(), second = UUID()
+        let claimed = slot.claim(first)
+        let claimedAgain = slot.claim(second)
+        #expect(claimed && !claimedAgain)
+        #expect(slot.isBusy && !slot.isStopping)
+        slot.stop()
+        slot.release(second)
+        #expect(slot.holder == first && slot.isStopping, "another run's end changes nothing")
+        slot.release(first)
+        #expect(!slot.isBusy && !slot.isStopping)
+        let next = slot.claim(second)
+        #expect(next)
+        slot.stop()
+        #expect(slot.isStopping)
+    }
+
+    @Test("An album a run made is remembered only while no later run to that server has started (review F18)")
+    func albumRememberedOnlyByTheLatest() {
+        let home = RemoteServiceRecord(name: "Home", address: "https://h.example")
+        let other = RemoteServiceRecord(name: "Other", address: "https://o.example")
+        let choices = PublishChoices(settings: ExportSettings(), album: .new(name: "Trip"))
+        let older = PublishRun(service: home, choices: choices, description: nil, items: [],
+                               startedAt: Date(timeIntervalSince1970: 100))
+        let newer = PublishRun(service: home, choices: choices, description: nil, items: [],
+                               startedAt: Date(timeIntervalSince1970: 200))
+        let elsewhere = PublishRun(service: other, choices: choices, description: nil, items: [],
+                                   startedAt: Date(timeIntervalSince1970: 300))
+        #expect(!older.mayRememberItsAlbum(among: [older, newer, elsewhere]))
+        #expect(newer.mayRememberItsAlbum(among: [older, newer, elsewhere]))
+        #expect(older.mayRememberItsAlbum(among: [older, elsewhere]))
+    }
+
+    @Test("A launch removes only the temporary folders of launches that have ended (code review C5, security review L1)")
+    func temporaryFoldersPerLaunch() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { base in
+            let manager = FileManager.default
+            // Another copy of the app, running: its lock is held.
+            let running = PublishTemporaryFolders.makeLaunch(in: base)
+            #expect(running.descriptor >= 0)
+            try Data([1]).write(to: running.folder.appending(path: "body.multipart"))
+            // A copy that has quit: its lock file is there, no one holds it.
+            let ended = PublishTemporaryFolders.makeLaunch(in: base)
+            try Data([2]).write(to: ended.folder.appending(path: "body.multipart"))
+            close(ended.descriptor)
+            // A run folder of the earlier layout, with no lock file.
+            let stray = base.appending(path: UUID().uuidString)
+            try manager.createDirectory(at: stray, withIntermediateDirectories: true)
+            PublishTemporaryFolders.removeLeftovers(in: base)
+            #expect(manager.fileExists(atPath: running.folder.appending(path: "body.multipart").path))
+            #expect(!manager.fileExists(atPath: ended.folder.path))
+            #expect(!manager.fileExists(atPath: ended.folder.path + PublishTemporaryFolders.lockSuffix))
+            #expect(!manager.fileExists(atPath: stray.path))
+            close(running.descriptor)
+            // Once it has quit too, the next launch removes it.
+            PublishTemporaryFolders.removeLeftovers(in: base)
+            #expect(!manager.fileExists(atPath: running.folder.path))
+            #expect(try manager.contentsOfDirectory(atPath: base.path).isEmpty)
+        }
     }
 }

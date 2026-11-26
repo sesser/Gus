@@ -195,7 +195,8 @@ public final class FakeImmichServer: Sendable {
         var onAnswered: (@Sendable (String) -> Void)?
         var lostLeft: [String: Int] = [:]
         var answerLeft: [String: Int] = [:]
-        var held: [@Sendable () -> Void] = []
+        /// Held upload answers, with the uploaded file's name.
+        var held: [(fileName: String, send: @Sendable () -> Void)] = []
         var uploads: [Upload] = []
         /// Stack id to its primary.
         var stacks: [String: String] = [:]
@@ -281,13 +282,29 @@ public final class FakeImmichServer: Sendable {
     public func releaseHeldAnswers() {
         let held = state.withLock { state -> [@Sendable () -> Void] in
             defer { state.held = [] }
-            return state.held
+            return state.held.map(\.send)
         }
         for send in held { send() }
     }
 
+    /// Sends the held answer to the upload of the file named `fileName` (its
+    /// `filename` field), so a test decides the order uploads finish in.
+    /// False when none is held.
+    @discardableResult
+    public func releaseHeldAnswer(fileName: String) -> Bool {
+        let send = state.withLock { state -> (@Sendable () -> Void)? in
+            guard let index = state.held.firstIndex(where: { $0.fileName == fileName }) else { return nil }
+            return state.held.remove(at: index).send
+        }
+        send?()
+        return send != nil
+    }
+
     /// Answers held now.
     public var heldAnswerCount: Int { state.withLock { $0.held.count } }
+
+    /// The file names of the uploads whose answers are held, in arrival order.
+    public var heldFileNames: [String] { state.withLock { $0.held.map(\.fileName) } }
 
     /// Every upload the server carried out, in order.
     public var uploads: [Upload] { state.withLock { $0.uploads } }
@@ -486,8 +503,10 @@ public final class FakeImmichServer: Sendable {
             let answered = snapshot.onAnswered
             let path = request.path
             let held = response
+            let assetID = (try? JSONSerialization.jsonObject(with: response.body) as? [String: Any])?["id"] as? String
             state.withLock { state in
-                state.held.append { [weak self] in self?.send(held, on: connection) { answered?(path) } }
+                let fileName = state.uploads.last { $0.assetID == assetID }?.fields["filename"] ?? ""
+                state.held.append((fileName, { [weak self] in self?.send(held, on: connection) { answered?(path) } }))
             }
             return
         }

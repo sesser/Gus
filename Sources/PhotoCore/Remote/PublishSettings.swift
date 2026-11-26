@@ -72,8 +72,20 @@ public struct PublishFolderMapping: Codable, Hashable, Sendable, Identifiable {
     /// The folder's absolute path when it was chosen, for showing while its
     /// volume is away.
     public var lastKnownPath: String
-    /// As typed, without a trailing slash; case counts.
+    /// As typed (case counts). Kept without a trailing slash once saved; while
+    /// the page is open it holds what is typed, and matching uses
+    /// `keptServerPath` (review F6).
     public var serverPath: String
+
+    /// The server path as matched and saved: `serverPathKept(serverPath)`.
+    public var keptServerPath: String { Self.serverPathKept(serverPath) }
+
+    /// The pair as saved: the server path as kept.
+    public var kept: PublishFolderMapping {
+        var kept = self
+        kept.serverPath = keptServerPath
+        return kept
+    }
 
     public init(id: UUID = UUID(), volumeIdentity: String, folderPath: String, lastKnownPath: String,
                 serverPath: String) {
@@ -115,7 +127,8 @@ public struct PublishFolderMapping: Codable, Hashable, Sendable, Identifiable {
             below = Substring(String(String.UnicodeScalarView(scalars.dropFirst(prefix.count))))
         }
         guard !below.isEmpty else { return nil }
-        return serverPath == "/" ? "/" + below : serverPath + "/" + below
+        let server = keptServerPath
+        return server == "/" ? "/" + below : server + "/" + below
     }
 
     /// The pair that covers the master, the longest Mac folder winning (R12).

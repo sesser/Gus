@@ -12,6 +12,9 @@ public enum PublishCause: Hashable, Sendable {
     case answerUnreadable
     /// A failure here (rendering, the disk, the catalog): the system's sentence.
     case system(String)
+    /// The server turned down one photo inside an answer that succeeded (an
+    /// album add's per-photo result): its words only, no status (review F16).
+    case itemRefused(String?)
 
     public init(_ failure: PublishFailure) {
         switch failure {
@@ -302,11 +305,13 @@ public struct PublishCounts: Hashable, Sendable {
 /// Where a run is (design §9).
 public struct PublishProgress: Hashable, Sendable {
     public enum Phase: Hashable, Sendable {
+        /// A retry's server check, before anything is sent (review D-2).
+        case checking
         case rendering
         case uploading
         /// A request is being tried again.
         case waiting
-        /// Stopping: waiting for answers to fully sent files.
+        /// Stopping: once set, it stays until the run has ended (review F2).
         case ending
     }
 
@@ -315,11 +320,67 @@ public struct PublishProgress: Hashable, Sendable {
     /// The newest photo started, 1-based.
     public var current: Int
     public var phase: Phase
+    /// Ending, with an answer to a fully sent file awaited (review D-1).
+    public var awaitsAnswer: Bool
 
-    public init(done: Int, total: Int, current: Int, phase: Phase) {
+    public init(done: Int, total: Int, current: Int, phase: Phase, awaitsAnswer: Bool = false) {
         self.done = done
         self.total = total
         self.current = current
         self.phase = phase
+        self.awaitsAnswer = awaitsAnswer
+    }
+
+    /// `next`, kept ending once this is ending (a report sent before the
+    /// stop may arrive after it).
+    public func followed(by next: PublishProgress) -> PublishProgress {
+        guard phase == .ending, next.phase != .ending else { return next }
+        var kept = next
+        kept.phase = .ending
+        return kept
+    }
+}
+
+/// One publish at a time (R21, code review C2): a run, or a retry, holds the
+/// slot from the moment it is started, through a retry's server check, until
+/// it has ended. Nothing else starts while it is held, and once Stop is asked
+/// the slot stays stopping until the run has ended (review F2).
+public struct PublishSlot: Hashable, Sendable {
+    /// The run holding the slot.
+    public private(set) var holder: UUID?
+    /// Stop was asked of the holder.
+    public private(set) var isStopping = false
+
+    public init() {}
+
+    public var isBusy: Bool { holder != nil }
+
+    /// Takes the slot for `run`; false while another holds it.
+    public mutating func claim(_ run: UUID) -> Bool {
+        guard holder == nil else { return false }
+        holder = run
+        isStopping = false
+        return true
+    }
+
+    /// The holder was asked to stop; nothing undoes it but `release`.
+    public mutating func stop() {
+        if holder != nil { isStopping = true }
+    }
+
+    /// `run` has ended; another run's release changes nothing.
+    public mutating func release(_ run: UUID) {
+        guard holder == run else { return }
+        holder = nil
+        isStopping = false
+    }
+}
+
+extension PublishRun {
+    /// An album this run made may be remembered for its server (R7) only if
+    /// no later run to that server has started since (review F18): a retry
+    /// of an older run never changes what a newer one remembered.
+    public func mayRememberItsAlbum(among runs: [PublishRun]) -> Bool {
+        !runs.contains { $0.id != id && $0.service.uuid == service.uuid && $0.startedAt > startedAt }
     }
 }

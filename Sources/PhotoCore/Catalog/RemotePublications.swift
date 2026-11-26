@@ -169,6 +169,21 @@ extension Catalog {
         }
     }
 
+    /// An album a run made, remembered as an existing album (R7), changing
+    /// nothing else that is remembered: a retry of an older run must not put
+    /// back that run's settings over a newer run's (review F18). Read and
+    /// written in one transaction; nothing when no choices are remembered.
+    public func rememberMadeAlbum(id: String, name: String, serviceID: Int64) async throws {
+        try await database.write { db in
+            guard let text = try String.fetchOne(db, sql: "SELECT choices FROM remotePublishSettings WHERE serviceId = ?",
+                                                 arguments: [serviceID]),
+                  var choices = try? JSONDecoder().decode(PublishChoices.self, from: Data(text.utf8)) else { return }
+            choices.album = .existing(id: id, name: name)
+            try db.execute(sql: "UPDATE remotePublishSettings SET choices = ? WHERE serviceId = ?",
+                           arguments: [try Self.json(choices), serviceID])
+        }
+    }
+
     /// The folder map, saved on Done (design §6).
     public func saveFolderMap(_ map: [PublishFolderMapping], serviceID: Int64) async throws {
         let json = try Self.json(map)

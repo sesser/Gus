@@ -103,13 +103,16 @@ public enum PublishFailure: Error, Equatable, Sendable {
 }
 
 /// Why a run stopped before its end (R22, design §10.1).
-public enum PublishStop: Hashable, Sendable, Codable {
+public enum PublishStop: Hashable, Sendable {
     /// The person's Stop (or Stop and Quit).
     case stopped
     case unreachable
     case keyRejected
     case certificateChanged
     case missingPermission(String)
+    /// A retry's server check failed before anything was sent; what it found
+    /// (review D-5).
+    case checkFailed(ConnectionCheckResult)
 
     public var isFault: Bool { self != .stopped }
 }
@@ -285,7 +288,7 @@ extension ImmichClient: RemotePublishDestination {
     }
 
     public func asset(id: String) async throws(PublishFailure) -> RemoteAssetInfo? {
-        guard RemoteAsset.isPlainFileName(id) else { return nil }
+        guard RemoteAsset.isServerID(id) else { return nil }
         let answer = try await answer(.asset(id: id))
         // A missing asset and one the key may not see answer alike (status.md, item 6).
         if answer.status == 400 || answer.status == 404 { return nil }
@@ -342,7 +345,7 @@ extension ImmichClient: RemotePublishDestination {
     }
 
     public func addToAlbum(_ albumID: String, assetIDs: [String]) async throws(PublishFailure) -> [String: String] {
-        guard RemoteAsset.isPlainFileName(albumID) else { throw .refused(status: 400, message: nil) }
+        guard RemoteAsset.isServerID(albumID) else { throw .refused(status: 400, message: nil) }
         let body: Data
         do {
             body = try JSONSerialization.data(withJSONObject: ["ids": assetIDs], options: [.sortedKeys])

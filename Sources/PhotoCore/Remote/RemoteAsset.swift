@@ -52,6 +52,22 @@ public struct RemoteAsset: Hashable, Sendable, Identifiable {
         return !name.unicodeScalars.contains { $0 == "/" || $0 == "\\" || $0.properties.generalCategory == .control }
     }
 
+    /// An id the server gave that the app may put in a request's path (an
+    /// asset's or an album's; security review N1): 1 to 64 ASCII letters,
+    /// digits and hyphens, nothing else. No other script, no line separator
+    /// (U+2028, U+2029) and no control character can pass, so no id reaches
+    /// a URL's path unencoded.
+    public static func isServerID(_ id: String) -> Bool {
+        let scalars = id.unicodeScalars
+        guard (1...64).contains(scalars.count) else { return false }
+        return scalars.allSatisfy { scalar in
+            switch scalar {
+            case "0"..."9", "a"..."z", "A"..."Z", "-": true
+            default: false
+            }
+        }
+    }
+
     /// The largest original a server may report or send: 64 GiB. A size
     /// outside 0...this is not believed (code review C3, C4).
     public static let maximumSize: Int64 = 64 << 30
