@@ -104,17 +104,29 @@ public final class RemoteHTTPSession: Sendable {
     public func data(_ endpoint: ImmichEndpoint) async throws(RemoteError) -> Data {
         let request = try makeRequest(method: endpoint.method, path: endpoint.path, query: endpoint.queryItems,
                                       body: endpoint.body, sendsKey: endpoint.sendsKey)
-        return try await perform(request, limit: endpoint.maximumResponseSize)
+        return try await perform(request, limit: endpoint.maximumResponseSize, anyStatus: false).body
+    }
+
+    /// Sends `endpoint` and returns its answer whatever the status: a 2xx
+    /// body up to the endpoint's cap, any other status's body up to
+    /// `RemoteAnswer.errorBodyLimit` (publishing reports the server's own
+    /// words, R23). Throws only when no HTTP answer came (or it was refused at
+    /// its head: encoded, over the cap).
+    public func exchange(_ endpoint: ImmichEndpoint) async throws(RemoteError) -> RemoteAnswer {
+        let request = try makeRequest(method: endpoint.method, path: endpoint.path, query: endpoint.queryItems,
+                                      body: endpoint.body, sendsKey: endpoint.sendsKey)
+        return try await perform(request, limit: endpoint.maximumResponseSize, anyStatus: true)
     }
 
     /// Any method and path: refused unless the allowlist has it. Exists so
     /// tests can show that nothing outside the allowlist is ever sent (AC5).
     func send(method: String, path: String) async throws(RemoteError) -> Data {
-        try await perform(try makeRequest(method: method, path: path, query: [], body: nil, sendsKey: true), limit: 1 << 16)
+        try await perform(try makeRequest(method: method, path: path, query: [], body: nil, sendsKey: true),
+                          limit: 1 << 16, anyStatus: false).body
     }
 
-    func makeRequest(method: String, path: String, query: [URLQueryItem], body: Data?, sendsKey: Bool)
-        throws(RemoteError) -> URLRequest {
+    func makeRequest(method: String, path: String, query: [URLQueryItem], body: Data?, sendsKey: Bool,
+                     contentType: String = "application/json") throws(RemoteError) -> URLRequest {
         guard RemoteRequestAllowlist.permits(method: method, path: path) else {
             throw .notAllowed(method: method, path: path)
         }
@@ -136,7 +148,9 @@ public final class RemoteHTTPSession: Sendable {
         request.setValue(ContentCoding.identity, forHTTPHeaderField: "Accept-Encoding")
         if let body {
             request.httpBody = body
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        if body != nil || method != "GET" {
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
         if sendsKey { request.setValue(connection.key, forHTTPHeaderField: "x-api-key") }
         return request
@@ -152,11 +166,11 @@ public final class RemoteHTTPSession: Sendable {
     /// than the request timeout (every thread of the shared pool busy) got
     /// "The request timed out." in place of the answer or `tooLarge` (CI on
     /// PR #278, status.md).
-    private func perform(_ request: URLRequest, limit: Int) async throws(RemoteError) -> Data {
-        let sink = MemorySink(limit: limit)
+    private func perform(_ request: URLRequest, limit: Int, anyStatus: Bool) async throws(RemoteError) -> RemoteAnswer {
+        let sink = MemorySink(limit: limit, anyStatus: anyStatus)
         let task = session.dataTask(with: request)
         delegate.register(sink, for: task.taskIdentifier)
-        let outcome: Result<Data, TaskFailure> = await withTaskCancellationHandler {
+        let outcome: Result<RemoteAnswer, TaskFailure> = await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 sink.start(continuation)
                 task.resume()
@@ -196,6 +210,42 @@ public final class RemoteHTTPSession: Sendable {
         var text = error.localizedDescription
         if let url = error.failingURL?.absoluteString { text = text.replacingOccurrences(of: url, with: "") }
         return text
+    }
+
+    // MARK: Uploads (publishing, R17)
+
+    /// Streams `file` as the body of `endpoint` (publishing's upload: the
+    /// multipart body `PublishUploadBody` wrote), never holding it in memory,
+    /// and returns the answer whatever its status.
+    ///
+    /// Cancelling the calling task ends the upload by R17's rule: a body not
+    /// yet fully sent is cancelled at once; a body fully sent (handed to the
+    /// system; status.md, task 5) waits for its answer until `ending`'s
+    /// deadline, which the first cancellation of the run sets, and is
+    /// cancelled then. "Fully sent" is read when the cancellation comes, not
+    /// from a callback that may not have arrived.
+    public func upload(_ endpoint: ImmichEndpoint, fromFile file: URL, contentType: String,
+                       ending: RemoteUploadEnding) async throws(RemoteError) -> RemoteAnswer {
+        let request = try makeRequest(method: endpoint.method, path: endpoint.path, query: endpoint.queryItems,
+                                      body: nil, sendsKey: endpoint.sendsKey, contentType: contentType)
+        let sink = MemorySink(limit: endpoint.maximumResponseSize, anyStatus: true)
+        let task = session.uploadTask(with: request, fromFile: file)
+        delegate.register(sink, for: task.taskIdentifier)
+        let outcome: Result<RemoteAnswer, TaskFailure> = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                sink.start(continuation)
+                task.resume()
+            }
+        } onCancel: {
+            RemoteUploadEnding.end(task, by: ending.deadline())
+        }
+        delegate.unregister(task.taskIdentifier)
+        switch outcome {
+        case .success(let answer):
+            return answer
+        case .failure(let failure):
+            throw mapped(failure)
+        }
     }
 
     // MARK: Downloads
@@ -346,18 +396,22 @@ final class MemorySink: TaskSink {
     private struct State {
         var data = Data()
         var status = 0
+        var limit: Int
         var refusal: RemoteError?
     }
 
-    private let limit: Int
-    private let state = Mutex(State())
-    private let handoff = ResultHandoff<Result<Data, TaskFailure>>()
+    /// A non-2xx answer is kept, with at most `RemoteAnswer.errorBodyLimit`
+    /// bytes of its body (`exchange`); otherwise it is refused at its head.
+    private let anyStatus: Bool
+    private let state: Mutex<State>
+    private let handoff = ResultHandoff<Result<RemoteAnswer, TaskFailure>>()
 
-    init(limit: Int) {
-        self.limit = limit
+    init(limit: Int, anyStatus: Bool = false) {
+        self.anyStatus = anyStatus
+        state = Mutex(State(limit: limit))
     }
 
-    func start(_ continuation: CheckedContinuation<Result<Data, TaskFailure>, Never>) {
+    func start(_ continuation: CheckedContinuation<Result<RemoteAnswer, TaskFailure>, Never>) {
         handoff.wait(continuation)
     }
 
@@ -368,19 +422,28 @@ final class MemorySink: TaskSink {
                 return false
             }
             state.status = http.statusCode
-            guard (200..<300).contains(http.statusCode) else {
-                state.refusal = .status(http.statusCode)
-                return false
+            if !(200..<300).contains(http.statusCode) {
+                guard anyStatus else {
+                    state.refusal = .status(http.statusCode)
+                    return false
+                }
+                state.limit = min(state.limit, RemoteAnswer.errorBodyLimit)
             }
             guard ContentCoding.isIdentity(http) else {
                 state.refusal = .malformed
                 return false
             }
-            guard response.expectedContentLength <= Int64(limit) else {
+            guard response.expectedContentLength <= Int64(state.limit) else {
+                // An error's body is only words for a report: an overlong
+                // one is dropped, the status kept.
+                if !(200..<300).contains(http.statusCode) {
+                    state.limit = 0
+                    return true
+                }
                 state.refusal = .tooLarge
                 return false
             }
-            state.data.reserveCapacity(max(0, min(Int(response.expectedContentLength), limit)))
+            state.data.reserveCapacity(max(0, min(Int(response.expectedContentLength), state.limit)))
             return true
         }
     }
@@ -388,7 +451,11 @@ final class MemorySink: TaskSink {
     func received(_ data: Data) -> Bool {
         state.withLock { state in
             guard state.refusal == nil else { return false }
-            guard state.data.count + data.count <= limit else {
+            guard state.data.count + data.count <= state.limit else {
+                if !(200..<300).contains(state.status) {
+                    // Words past the error cap are not read; the status stands.
+                    return false
+                }
                 state.refusal = .tooLarge
                 state.data = Data()
                 return false
@@ -399,19 +466,98 @@ final class MemorySink: TaskSink {
     }
 
     func finished(_ error: (any Error)?, takeRefused: () -> TrustDecision?) {
-        let result = state.withLock { state -> Result<Data, TaskFailure> in
+        let result = state.withLock { state -> Result<RemoteAnswer, TaskFailure> in
             defer { state.data = Data() }
             if let refusal = state.refusal {
                 return .failure(.remote(refusal))
+            } else if state.status != 0, !(200..<300).contains(state.status) {
+                // An error answer stopped at the cap reads as what arrived.
+                return .success(RemoteAnswer(status: state.status, body: state.data))
             } else if let error {
                 return .failure(.transport(error, refused: state.status == 0 ? takeRefused() : nil))
             } else if state.status == 0 {
                 return .failure(.remote(.malformed))
             } else {
-                return .success(state.data)
+                return .success(RemoteAnswer(status: state.status, body: state.data))
             }
         }
         handoff.deliver(result)
+    }
+}
+
+/// An HTTP answer: its status and body (`RemoteHTTPSession.exchange`).
+public struct RemoteAnswer: Sendable, Hashable {
+    public var status: Int
+    public var body: Data
+
+    public init(status: Int, body: Data) {
+        self.status = status
+        self.body = body
+    }
+
+    public var isSuccess: Bool { (200..<300).contains(status) }
+
+    /// The most of a non-2xx answer's body that is read: its message is all
+    /// publishing uses (R23).
+    public static let errorBodyLimit = 64 << 10
+
+    /// The server's `message`, if the body is Immich's error JSON (`{"message":
+    /// "…"}`, or a list of messages), cut at 200 characters (design §10.2).
+    public var serverMessage: String? {
+        guard let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return nil }
+        let text: String? = if let message = object["message"] as? String {
+            message
+        } else if let messages = object["message"] as? [String] {
+            messages.joined(separator: "; ")
+        } else {
+            nil
+        }
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return trimmed.count > 200 ? String(trimmed.prefix(200)) : trimmed
+    }
+}
+
+/// When a stopped run's uploads give up (R17, design §9): the first
+/// cancellation of the run sets the deadline, `bound` after it; nothing
+/// restarts or extends it.
+public final class RemoteUploadEnding: Sendable {
+    public let bound: Duration
+    private let started = Mutex<ContinuousClock.Instant?>(nil)
+
+    public init(bound: Duration = .seconds(10)) {
+        self.bound = bound
+    }
+
+    /// The deadline, set by the first call.
+    public func deadline() -> ContinuousClock.Instant {
+        started.withLock { started in
+            if let started { return started + bound }
+            let now = ContinuousClock.now
+            started = now
+            return now + bound
+        }
+    }
+
+    /// When the run began to end, if it has.
+    public var endedAt: ContinuousClock.Instant? { started.withLock { $0 } }
+
+    /// A body not fully sent is cancelled now; one fully sent is left to
+    /// answer until `deadline`, then cancelled (a no-op once it has ended).
+    static func end(_ task: URLSessionTask, by deadline: ContinuousClock.Instant) {
+        guard isFullySent(sent: task.countOfBytesSent, expected: task.countOfBytesExpectedToSend) else {
+            task.cancel()
+            return
+        }
+        Task.detached {
+            try? await Task.sleep(until: deadline, clock: .continuous)
+            task.cancel()
+        }
+    }
+
+    /// The whole body was handed to the system. An unknown length is never
+    /// fully sent.
+    static func isFullySent(sent: Int64, expected: Int64) -> Bool {
+        expected > 0 && sent >= expected
     }
 }
 

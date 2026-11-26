@@ -22,6 +22,7 @@ enum CatalogSchema {
         migrator.registerMigration("v15", migrate: addMaskRasters)
         migrator.registerMigration("v16", migrate: addRemoteServices)
         migrator.registerMigration("v17", migrate: addHDRChoice)
+        migrator.registerMigration("v18", migrate: addPublishing)
         return migrator
     }
 
@@ -471,6 +472,42 @@ enum CatalogSchema {
     /// (`EditStack.hdrChoice`), written with the stack (`setEditStacks`), so
     /// the loupe knows it from the item without reading the stack. No stack
     /// written before this migration holds the choice, so every row starts off.
+    /// Publishing to a server (issue #28). `remotePublication` records each
+    /// upload a server accepted (R17): keyed by provider, normalized address
+    /// and remote id like `remoteLink`, so records outlive a removed
+    /// connection and apply to one added again at the same address; one
+    /// version may have several (each New Copy), and they go with their
+    /// version (`ON DELETE CASCADE`). `answer` is `created` or `duplicate`
+    /// (R19); the three digests tell later whether the picture or the metadata
+    /// sent changed. `remotePublishSettings` holds a connection's remembered
+    /// choices (R7) and folder map (R12) and goes with it. Nothing here names
+    /// the product or holds a key.
+    private static func addPublishing(_ db: Database) throws {
+        try db.create(table: "remotePublication") { t in
+            t.autoIncrementedPrimaryKey("id")
+            t.column("provider", .text).notNull()
+            t.column("address", .text).notNull()
+            t.column("remoteId", .text).notNull()
+            t.column("versionId", .integer).notNull().indexed()
+                .references("version", onDelete: .cascade)
+            t.column("serviceId", .integer).indexed()
+                .references("remoteService", onDelete: .setNull)
+            t.column("answer", .text).notNull()
+            t.column("pictureDigest", .text).notNull()
+            t.column("metadataDigest", .text).notNull()
+            t.column("fileDigest", .text).notNull()
+            t.column("publishedAt", .datetime).notNull()
+        }
+        try db.create(index: "remotePublication_remote", on: "remotePublication",
+                      columns: ["provider", "address", "remoteId"])
+        try db.create(table: "remotePublishSettings") { t in
+            t.primaryKey("serviceId", .integer)
+                .references("remoteService", onDelete: .cascade)
+            t.column("choices", .text)
+            t.column("folderMap", .text).notNull().defaults(to: "[]")
+        }
+    }
+
     private static func addHDRChoice(_ db: Database) throws {
         try db.alter(table: "version") { t in
             t.add(column: "hdr", .boolean).notNull().defaults(to: false)

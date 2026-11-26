@@ -79,7 +79,7 @@ public final class ImmichClient: RemotePhotoSource {
     /// second page).
     public static let pageSize = 250
 
-    private let http: RemoteHTTPSession
+    let http: RemoteHTTPSession
     public var connection: RemoteConnection { http.connection }
 
     public init(connection: RemoteConnection, requestTimeout: TimeInterval = RemoteHTTPSession.requestTimeout)
@@ -88,14 +88,23 @@ public final class ImmichClient: RemotePhotoSource {
     }
 
     /// The missing permissions of a key whose list is `permissions`.
-    public static func missing(from permissions: [String]) -> [String] {
+    public static func missing(from permissions: [String], needed: [String] = neededPermissions) -> [String] {
         guard !permissions.contains("all") else { return [] }
-        return neededPermissions.filter { !permissions.contains($0) }
+        return needed.filter { !permissions.contains($0) }
     }
 
     // MARK: The check (R2)
 
+    /// Import's check: its five permissions and the account.
     public func check() async -> ConnectionCheckResult {
+        await check(requiring: Self.neededPermissions, readsAccount: true)
+    }
+
+    /// The check, requiring `needed` and reading the account only when
+    /// `readsAccount` (publishing R1: the Server sheet opened from Publish
+    /// requires `asset.upload` and `asset.read` and reads no account). A pass
+    /// that did not read the account has an empty `ownerID`.
+    public func check(requiring needed: [String], readsAccount: Bool) async -> ConnectionCheckResult {
         let isLocal = connection.address.isLocalNetworkHost
         func failure(_ error: RemoteError) -> ConnectionCheckResult {
             switch error {
@@ -130,8 +139,11 @@ public final class ImmichClient: RemotePhotoSource {
         } catch {
             return failure(error)
         }
-        let missing = Self.missing(from: permissions)
+        let missing = Self.missing(from: permissions, needed: needed)
         guard missing.isEmpty else { return .missingPermissions(missing) }
+        guard readsAccount else {
+            return .passed(RemoteServerInfo(version: version, permissions: permissions, ownerID: ""))
+        }
         // 3. The account's id: only its own photos are listed (R9, RI-E1).
         // There is no fallback that guesses it.
         let owner: String
