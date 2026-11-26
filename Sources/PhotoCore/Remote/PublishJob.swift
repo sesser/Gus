@@ -89,13 +89,13 @@ public struct PublishJob: Sendable {
     private func perform(_ run: PublishRun, retrying: Bool,
                          progress: @escaping @Sendable (PublishProgress) -> Void) async -> (run: PublishRun, calledOff: Bool) {
         var run = run
-        var versionIDs = retrying ? run.retryCandidates : run.items.map(\.versionID)
+        var versionIDs = run.items.map(\.versionID)
         if retrying {
-            // A photo not uploaded that a later run published is left out (R23).
-            let notUploaded = run.items.filter { !$0.isAccepted }.map(\.versionID)
-            let later = (try? await catalog.versionsPublished(address: run.service.address, after: run.startedAt,
-                                                              among: notUploaded)) ?? []
-            versionIDs.removeAll(where: later.contains)
+            // A photo not uploaded that a later run published is left out
+            // (R23), by the rule Retry Failed's button follows (review D-12).
+            // A catalog that can't be read leaves nothing out.
+            let later = (try? await catalog.laterPublications(of: run)) ?? []
+            versionIDs = run.retryVersionIDs(laterPublished: later)
         }
         let folder = temporaryRoot.appending(path: UUID().uuidString, directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

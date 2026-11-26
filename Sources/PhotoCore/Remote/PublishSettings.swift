@@ -230,3 +230,27 @@ public enum PublishPermissions {
         permissions.contains("all") || permissions.contains("album.read")
     }
 }
+
+/// What a reload of the saved servers means for the server the publish
+/// sheet has chosen (design §3.3).
+public enum PublishServerChange: Equatable, Sendable {
+    /// Still saved, and connected to as before: nothing to do.
+    case unchanged
+    /// Removed in the import window: the sheet keeps nothing of it and
+    /// chooses no other by itself (review D-13).
+    case removed
+    /// Its address or trusted certificate changed: it is checked again,
+    /// the person's choices kept (review F28).
+    case connectionChanged(RemoteServiceRecord)
+
+    /// `before` is the chosen record as the sheet held it, `servers` the
+    /// saved servers as read again; nil `chosenID` is no server chosen.
+    public static func after(reload servers: [RemoteServiceRecord], chosenID: Int64?,
+                             before: RemoteServiceRecord?) -> PublishServerChange {
+        guard let chosenID else { return .unchanged }
+        guard let now = servers.first(where: { $0.id == chosenID }) else { return .removed }
+        guard let before, before.id == chosenID else { return .unchanged }
+        let connects = now.address != before.address || now.certificateFingerprint != before.certificateFingerprint
+        return connects ? .connectionChanged(now) : .unchanged
+    }
+}

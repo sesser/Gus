@@ -100,4 +100,37 @@ struct PublishBoundaryTests {
             #expect(record.pictureDigest == PublishJob.pictureDigest(item, settings: first.choices.settings))
         }
     }
+
+    @Test("When a later run has published every photo a retry would cover, Retry Failed is not offered and the counts stay (review D-12)")
+    func retryNothingLeftAfterLaterRun() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await PublishJobTests.fixture(root, files: ["a.jpg", "b.jpg", "c.jpg"])
+            let a = try await f.version("a.jpg"), b = try await f.version("b.jpg"), c = try await f.version("c.jpg")
+            // a uploads; b meets a server error and the run stops; c is not reached.
+            f.server.onUploadReceived { _ in
+                f.server.add(.answer(method: "POST", path: "/assets", status: 503, times: 1))
+            }
+            let first = await f.job(stacking: false).run(try await f.makeRun([a, b, c], stacking: false))
+            #expect(first.ending == .stopped(.unreachable) && first.retryCandidates == [b, c])
+            f.server.onUploadReceived(nil)
+            // Before any later run, both are left to send.
+            #expect(try await f.catalog.laterPublications(of: first).isEmpty)
+            #expect(first.offersRetry(laterPublished: []))
+            // A later run publishes c: b is still left.
+            _ = await f.job(stacking: false).run(try await f.makeRun([c], stacking: false))
+            var later = try await f.catalog.laterPublications(of: first)
+            #expect(later == [c], "a's own record is not a later publication")
+            #expect(first.retryVersionIDs(laterPublished: later) == [b] && first.offersRetry(laterPublished: later))
+            // Another publishes b: nothing is left, and the run reads as before.
+            _ = await f.job(stacking: false).run(try await f.makeRun([b], stacking: false))
+            later = try await f.catalog.laterPublications(of: first)
+            #expect(later == [b, c])
+            #expect(!first.offersRetry(laterPublished: later) && first.retrySentByLaterRuns(laterPublished: later))
+            #expect(first.counts.failed == 1 && first.counts.notPublished == 1)
+            // The job applies the same rule: a retry started anyway sends nothing.
+            let before = f.server.uploads.count
+            _ = await f.job(stacking: false).run(first, retrying: true)
+            #expect(f.server.uploads.count == before)
+        }
+    }
 }

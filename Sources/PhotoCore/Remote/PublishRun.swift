@@ -245,8 +245,38 @@ public struct PublishRun: Sendable, Identifiable {
         }.map(\.versionID)
     }
 
-    /// Retry Failed is offered (design §10.3).
+    /// The run has photos a retry covers (R23). Whether Retry Failed is
+    /// offered also depends on later runs: `offersRetry(laterPublished:)`.
     public var offersRetry: Bool { !retryCandidates.isEmpty }
+
+    /// The photos not uploaded: the only ones a later run's publication
+    /// leaves out of a retry (R23). The run's own uploads have records made
+    /// after it started too, so they are never asked about.
+    public var notUploadedVersionIDs: [Int64] {
+        items.filter { !$0.isAccepted }.map(\.versionID)
+    }
+
+    /// What a retry sends or finishes (R23): the candidates, less the photos
+    /// not uploaded that a later run has published (`laterPublished`, read by
+    /// `Catalog.laterPublications(of:)`). The job and Retry Failed's button
+    /// both apply it (design §10.3, review D-12).
+    public func retryVersionIDs(laterPublished: Set<Int64>) -> [Int64] {
+        let notUploaded = Set(notUploadedVersionIDs)
+        return retryCandidates.filter { !(notUploaded.contains($0) && laterPublished.contains($0)) }
+    }
+
+    /// Retry Failed is offered: something is left to send or finish (design
+    /// §10.3, review D-12).
+    public func offersRetry(laterPublished: Set<Int64>) -> Bool {
+        !retryVersionIDs(laterPublished: laterPublished).isEmpty
+    }
+
+    /// Every photo a retry would cover was published by a later run: no
+    /// Retry Failed, and the sheet's caption says why (review D-12). The
+    /// counts and lists stay as the run recorded them.
+    public func retrySentByLaterRuns(laterPublished: Set<Int64>) -> Bool {
+        offersRetry && !offersRetry(laterPublished: laterPublished)
+    }
 
     /// After the person's own Stop, photos not yet uploaded are left out of
     /// a retry, and the sheet says so.

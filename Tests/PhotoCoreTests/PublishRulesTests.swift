@@ -267,6 +267,69 @@ struct PublishRulesTests {
         #expect(counts.isWarning(ending: run.ending))
     }
 
+    @Test("Retry Failed is not offered when a later run published every photo it would cover; a photo to finish keeps it (review D-12)")
+    func retryNothingLeftRule() {
+        var run = PublishRun(service: RemoteServiceRecord(name: "S", address: "https://s"),
+                             choices: PublishChoices(settings: ExportSettings(), album: .new(name: "A"), stacking: false),
+                             description: nil,
+                             items: (1...4).map { PublishItem(versionID: Int64($0), name: "\($0)", album: true, stacking: false) })
+        // 1 uploaded, its album step unfinished; 2 failed; 3 not reached; 4 uploaded and done.
+        run.items[0].upload = .accepted(.created("a"))
+        run.items[1].upload = .failed(.uploadInterrupted)
+        run.items[3].upload = .accepted(.created("d"))
+        run.items[3].album = .done
+        run.ending = .stopped(.unreachable)
+        #expect(run.retryCandidates == [1, 2, 3])
+        #expect(run.notUploadedVersionIDs == [2, 3])
+        // Nothing published later: everything is covered.
+        #expect(run.retryVersionIDs(laterPublished: []) == [1, 2, 3])
+        #expect(run.offersRetry(laterPublished: []) && !run.retrySentByLaterRuns(laterPublished: []))
+        // 2 and 3 published later: 1 is still to finish, so the button stays.
+        #expect(run.retryVersionIDs(laterPublished: [2, 3]) == [1])
+        #expect(run.offersRetry(laterPublished: [2, 3]) && !run.retrySentByLaterRuns(laterPublished: [2, 3]))
+        // An uploaded photo's own record is never a later publication.
+        #expect(run.retryVersionIDs(laterPublished: [1, 2, 3]) == [1])
+        // With 1 finished, nothing is left: no button, the caption instead.
+        run.items[0].album = .done
+        #expect(run.offersRetry, "the counts still record a failed and an unreached photo")
+        #expect(run.retryVersionIDs(laterPublished: [2, 3]).isEmpty)
+        #expect(!run.offersRetry(laterPublished: [2, 3]) && run.retrySentByLaterRuns(laterPublished: [2, 3]))
+        #expect(run.counts.failed == 1 && run.counts.notPublished == 1)
+        // One of the two left: the button stays, for that one.
+        #expect(run.retryVersionIDs(laterPublished: [2]) == [3])
+        #expect(run.offersRetry(laterPublished: [2]) && !run.retrySentByLaterRuns(laterPublished: [2]))
+        // A run with nothing to retry shows neither the button nor the caption.
+        run.items[1].upload = .accepted(.created("b"))
+        run.items[1].album = .done
+        run.ending = .stopped(.stopped)
+        #expect(!run.offersRetry && !run.offersRetry(laterPublished: []) && !run.retrySentByLaterRuns(laterPublished: [3]))
+    }
+
+    @Test("A reload of the saved servers: the chosen one removed, or its address or certificate changed, or neither (review D-13, F28)")
+    func chosenServerChange() {
+        let home = RemoteServiceRecord(id: 1, name: "Home", address: "https://home.example")
+        let other = RemoteServiceRecord(id: 2, name: "Other", address: "https://other.example")
+        // Removed while chosen, another still saved: no other is chosen by itself.
+        #expect(PublishServerChange.after(reload: [other], chosenID: 1, before: home) == .removed)
+        #expect(PublishServerChange.after(reload: [], chosenID: 1, before: home) == .removed)
+        // Another server removed, or none chosen: nothing.
+        #expect(PublishServerChange.after(reload: [home], chosenID: 1, before: home) == .unchanged)
+        #expect(PublishServerChange.after(reload: [other], chosenID: nil, before: nil) == .unchanged)
+        // Renamed only: nothing to check again.
+        var renamed = home
+        renamed.name = "Cellar"
+        #expect(PublishServerChange.after(reload: [renamed, other], chosenID: 1, before: home) == .unchanged)
+        // A new address, or a certificate trusted or changed: checked again.
+        var moved = home
+        moved.address = "https://new.example"
+        #expect(PublishServerChange.after(reload: [moved], chosenID: 1, before: home) == .connectionChanged(moved))
+        var trusted = home
+        trusted.certificateFingerprint = String(repeating: "a", count: 64)
+        #expect(PublishServerChange.after(reload: [trusted], chosenID: 1, before: home) == .connectionChanged(trusted))
+        // A record held for another id (chosen since) is no comparison.
+        #expect(PublishServerChange.after(reload: [moved, other], chosenID: 1, before: other) == .unchanged)
+    }
+
     // MARK: Review fixes
 
     @Test("A server path is matched and saved without its trailing slash, but kept as typed while it is typed (review F6)")

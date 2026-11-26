@@ -130,6 +130,14 @@ extension Catalog {
         }
     }
 
+    /// The photos of `run` not uploaded that a later run to its server has
+    /// published since it started (R23): left out of its retry, and when they
+    /// are all it would cover, Retry Failed is not offered (review D-12).
+    public func laterPublications(of run: PublishRun) async throws -> Set<Int64> {
+        try await versionsPublished(provider: run.service.provider, address: run.service.address, after: run.startedAt,
+                                    among: run.notUploadedVersionIDs)
+    }
+
     /// The library holds publish records or import links for the server at
     /// `address` (R26: changing the address warns).
     public func hasRecordsOrLinks(provider: RemoteProvider = .immich, address: String) async throws -> Bool {
