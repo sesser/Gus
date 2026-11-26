@@ -12,7 +12,7 @@ issues and design questions are ruled (PRD revisions 3 and 4, design §16).
 
 ## Progress
 
-Built so far (each step committed on the branch):
+Built (each step committed on the branch):
 
 1. **Connection layer** (`Sources/PhotoCore/Remote/`): `ImmichEndpoint` gains
    `asset(id:)`, `ownAlbumsHolding`, and publishing's four writes (`upload`,
@@ -20,13 +20,15 @@ Built so far (each step committed on the branch):
    exactly those four writes plus `GET /assets/{id}` (`RemoteRequestAllowlist.writes`).
    `RemoteHTTPSession.exchange` returns any status with at most 64 KiB of an
    error body (the server's words, R23); `RemoteHTTPSession.upload` streams the
-   multipart body from a file and ends by R17's rule (`RemoteUploadEnding`).
-   `ImmichClient.check(requiring:readsAccount:)` serves both Server sheet hosts
-   (R1). `ImmichPublishing.swift`: `RemotePublishDestination`,
-   `PublishFailure`, `PublishStop`, `PublishUploadBody`.
+   multipart body from a file and ends by R17's rule (`RemoteUploadEnding`,
+   which also hears URLSession's `didSendBodyData`). `ImmichClient.check(requiring:readsAccount:)`
+   and `checkWithPermissions` serve both Server sheet hosts (R1).
+   `ImmichPublishing.swift`: `RemotePublishDestination`, `PublishFailure`,
+   `PublishStop`, `PublishUploadBody`.
 2. **Catalog**: migration v18, `remotePublication` (records, R17) and
    `remotePublishSettings` (remembered choices and folder map per server, R7,
-   R12; removed with the server). `Catalog/RemotePublications.swift`.
+   R12; removed with the server). `Catalog/RemotePublications.swift`;
+   `Catalog.publishSources` (`PublishOriginals.swift`).
 3. **Rules** (`PublishOriginals.swift`, `PublishSettings.swift`):
    `OriginalRules` (R11 to R13, R15, design §7.1 as pure functions),
    `OriginalFinder` (the one function Check Originals and the run share,
@@ -44,37 +46,29 @@ Built so far (each step committed on the branch):
    primary only, trashed members dropped, a named trashed primary kept),
    partners and unshared accounts, and faults (`refuseStack`, `loseAnswer`,
    `answer`, `holdUploadAnswer`, `stallUploadBody`).
-6. **Tests**: `PublishRulesTests` (14), `PublishJobTests` (20).
+6. **App** (`Sources/PhotoApp`): `PublishModel` (the sheet, check, albums,
+   pages, Check Originals, the question, runs, results, Retry Failed, hosting
+   the Server sheet), `PublishText`, `PublishSheet` (main page, File Settings,
+   folder map), `PublishResultsSheet`; File ▸ Publish… (⌥⌘E), Publish
+   Results…, Stop Publishing; the toolbar's Publish (`paperplane`); the
+   context menu's Publish…; Activity's job row and Show Results…
+   (`ActivityLog.Message.actionID`); the quit case (`QuitConfirmation.publishing`).
+   Export's settings state moved to `ExportSettingsEditor` and its form to
+   `ExportSettingsSections` and `ExportPresetRow`, shared by both sheets.
+7. **Server sheet** (`Sources/PhotoUI/Import/ServerSheet.swift`):
+   `ServerSheetHost` and `ServerSheetPurpose` (R1, design §4): required
+   permissions, captions, results and Remove Server… by host; the address
+   warning (R26). The Import window: published assets In Library with their
+   own tooltip, updated in place (R20); "Can't Import from ‹name›"; the
+   inspector captions; the Remove Server alert. `Info.plist`'s local network
+   text (R27).
+8. **Debug script**: `publish …` (`DebugPublishCommands.swift`) and the fake
+   server's publishing faults (`import server fake fault stack|lose|answer|hold`,
+   `import server fake uploads`).
+9. **User guide**: the server import section's read-only wording, and a new
+   section "Publishing to an Immich server".
 
-Left, in order: the publish sheet and its pages, the Server sheet's host
-interface and wording (R1, R27), the results sheet and Retry Failed in the
-app, menus, toolbar and context menu, Activity's Show Results… action, the
-quit case, the Import window's In Library for published assets (R20), the
-address warning (R26), debug-script commands, the String Catalog, the user
-guide, then the full test run, the bundle and the CI toolchain build.
-
-Decisions made in building (none changes the spec):
-
-- **The original is looked for before the upload** (fresh runs), so stacks
-  for one original go in grid order whatever order uploads finish in (R14).
-  A failed look does not stop the upload: the stacking step counts as failed
-  (R15), and Retry Failed looks again.
-- **An album create is never retried blindly.** A lost answer goes to
-  `PublishAlbumState.unknown` with the ids of the account's albums of that name
-  read just before the create; the next attempt first lists the account's
-  albums holding the run's first photo and adopts one of that name not in that
-  set (verified live, below); only when there is none is the create sent
-  again. The cycle is bounded by the retry policy.
-- **Records are written outside the run's cancellation** (GRDB refuses a
-  write from a cancelled task), so an upload accepted while the run ends is
-  recorded (R17, AC23).
-- **The upload's dates.** `fileCreatedAt` and `fileModifiedAt` are both the
-  capture's wall-clock time labelled UTC (R4); with no capture date, the
-  original's modification time as local wall-clock time (the PRD's unconfirmed
-  assumption).
-- **Temporary files** go in a per-run folder under
-  `<temporary directory>/<bundle id>.publish/`, removed when the run ends
-  (R24); the whole folder is removed at launch too, for a crash.
+Left: see **State** at the top and the checks below.
 
 ## Immich verification (2026-11-25)
 

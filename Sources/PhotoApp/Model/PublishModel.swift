@@ -112,6 +112,8 @@ final class PublishModel: ServerSheetHost {
     @ObservationIgnored private var originalsTask: Task<Void, Never>?
     /// Publish was pressed: permissions confirmed again and records looked up.
     private(set) var isConfirming = false
+    /// The sheet is reading its servers and the chosen one's choices.
+    private(set) var isLoading = false
     var question: Question?
     /// A problem found when Publish was pressed, shown in the sheet.
     private(set) var startIssue: String?
@@ -175,12 +177,19 @@ final class PublishModel: ServerSheetHost {
         isConfirming = false
         editor.library = library
         editor.show(first: targets.first { !$0.isVideo }, versionID: versionIDs.first)
+        isLoading = true
         Task {
+            defer { isLoading = false }
             await refreshPresets()
             await loadServers()
+            // The server last published to, else the first by name (design §3.3).
             let remembered = defaults.string(forKey: Self.lastServerKey)
-            let chosen = servers.first { $0.uuid == remembered } ?? (servers.count == 1 ? servers.first : servers.first)
-            if let chosen { await choose(chosen) } else { serviceID = nil }
+            if let chosen = servers.first(where: { $0.uuid == remembered }) ?? servers.first {
+                await choose(chosen)
+            } else {
+                serviceID = nil
+                check = .idle
+            }
         }
         library.showsPublishSheet = true
     }

@@ -248,7 +248,7 @@ enum DebugServerCommands {
             switch field {
             case "name": sheet.name = text
             case "address": sheet.address = text == "fake" ? fake?.address ?? "" : text
-            case "key": sheet.setKey(text)
+            case "key": sheet.setKey(text == "fake" ? FakeImmichServer.validKey : text)
             default: print("debug-script: import server sheet field: unknown")
             }
             try? await Task.sleep(for: .milliseconds(150))

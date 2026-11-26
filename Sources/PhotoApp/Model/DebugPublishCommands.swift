@@ -24,6 +24,7 @@ import PhotoUI
 ///     publish results [print|retry|close]
 ///     publish serversheet add|edit|close|print|submit | field name|address|key <text> | confirm on|off
 ///     publish menu                        what Publish, Publish Results and Stop allow
+///     publish job                         the Activity job: title, detail, progress, Stop
 @MainActor
 enum DebugPublishCommands {
     static func run(_ words: [String], model: LibraryModel) async {
@@ -138,8 +139,14 @@ enum DebugPublishCommands {
         case "results":
             switch rest.first {
             case "retry":
-                if let run = publish.resultsRun { publish.retry(run.id) }
-                try? await Task.sleep(for: .milliseconds(300))
+                guard let run = publish.resultsRun else { return }
+                let before = run.endedAt
+                publish.retry(run.id)
+                // Until the retry runs, or ends at once (a refused start).
+                for _ in 0..<200 {
+                    try? await Task.sleep(for: .milliseconds(25))
+                    if publish.isPublishing || publish.runs.first(where: { $0.id == run.id })?.endedAt != before { break }
+                }
             case "close":
                 model.showsPublishResults = false
             default:
@@ -151,6 +158,12 @@ enum DebugPublishCommands {
             await serverSheet(rest, publish: publish)
         case "menu":
             printMenu(model)
+        case "job":
+            let job = ActivityToolbarItem.jobs(model).first { $0.id == "publish" }
+            print("debug-script: publish job '\(job?.title ?? "-")' '\(job?.detail ?? "-")' "
+                  + "progress \(job?.progress.map { String(format: "%.2f", $0) } ?? "indeterminate") "
+                  + "stop \(job.map { $0.stopDisabled ? "dimmed" : "enabled" } ?? "-")")
+            printMenu(model)
         default:
             print("debug-script: unknown publish command")
         }
@@ -160,7 +173,7 @@ enum DebugPublishCommands {
     private static func settle(_ publish: PublishModel) async {
         for _ in 0..<200 {
             try? await Task.sleep(for: .milliseconds(50))
-            if publish.check != .checking, publish.albumsState != .loading { break }
+            if !publish.isLoading, publish.check != .checking, publish.albumsState != .loading { break }
         }
     }
 
@@ -279,7 +292,7 @@ enum DebugPublishCommands {
             let text = rest.dropFirst().joined(separator: " ")
             switch field {
             case "name": sheet.name = text
-            case "address": sheet.address = text
+            case "address": sheet.address = text == "fake" ? DebugServerCommands.fakeServer?.address ?? "" : text
             case "key": sheet.setKey(text == "fake" ? FakeImmichServer.validKey : text)
             default: break
             }
