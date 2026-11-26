@@ -248,3 +248,92 @@ No key goes anywhere new, but a removal the person confirmed doesn't stop the ke
 | D-16 | No finding | 8/10 | `Catalog.saveRemoteService`, `removeRemoteService`, `renameRemoteService`, `ServerSheetModel.submit` | No row recreated, no key left in any interleaving that reaches the row write; name-only Save can't write back a stale address or pin |
 | N7 | Info (key to previous address, narrow race) | 6/10 facts, 2/10 reachable | `PublishModel.requestPublish`, `PublishConnection.connect` | Stale in-memory record plus the Keychain's new key at the check; re-read the row after the key |
 | N8 | Info (pre-existing) | 7/10 facts, 1/10 security | `ServerSheetModel.submit`, `CardImportModel.removeServer` | A sheet or Remove alert already up when a run starts isn't checked again; Remove doesn't stop the run's use of the key |
+
+## Fourth review, 2026-11-26
+
+Scope: `git diff bc54ded..586cfd2 -- Sources Tests` (commits 1c84496 to 586cfd2). The security-relevant changes are 1c84496 (publishing reads a key with its row, `RemoteKeyGate`) and e840ec9 (the import window and the Server sheet do the same, D-18 and D-19). The QA fixes in a04d1ee, 82339ab, 35ec122 and 944982c were read for anything that sends, logs or writes, and touch none of it.
+
+The method is that of `/security-review`, read only. Nothing was built, run or sent to a server. The Keychain, Docker and the owner's library were not touched. A code reviewer was building in the same checkout, so the tests named here (`PublishKeyPairingTests`, `ServerKeyPairingTests`) were read, not run.
+
+**Verdict: nothing meets the bar for High or Medium.** N7 is closed for every path that reads a saved key, within one app process on one catalog. That covers publishing (the sheet's check, Publish, the Skip or New Copy question, Retry Failed), the import window (every check, and the thumbnails, pages, albums and running import that reuse a passed check's client), and the Server sheet with its key field empty, from both hosts. N8 is unchanged and was left on purpose. Two new notes follow:
+- **N9 (Low):** the pairing rests on a gate that works only inside one process and on that process's own catalog. A copy of the library, a second copy of the app on the same library, or a failed rollback can still pair the new key with the previous address.
+- **N10 (Info):** a typed key from a stale Server sheet goes to the address that sheet shows. D-19 accepts this.
+
+### Where a key is read, and where it can go
+
+| Read (file:line) | Reached from | Where the key can go |
+| --- | --- | --- |
+| `RemoteSavedKey.read` (`Remote/RemoteKeyPairing.swift:102`), under the account's gate, with the row read in the same hold | `PublishConnection.connect` (`PublishRetry.swift:28`): `PublishModel.runCheck` (the sheet's check), `requestPublish` (Publish; its client then serves the run or the question's `answer(skip:)`), `retryRun` (Retry Failed, after `retryRefusal` and with the record from that reload) | Only the address of the row as saved now, and only if that row's address and fingerprint equal the caller's record (`PublishServerChange.after`). The pin and the http confirmation come from the same row. Afterwards the `ImmichClient` built from that pair carries the key on every request of the check, the run and its retries: upload, album, stack, asset `GET`s and the path search. All of them go through `makeRequest`'s host check (unchanged). |
+| same | `RemoteImportConnection.connect` (`RemoteServerChecks.swift:27`): `CardImportModel.connectServer` (choosing the server, Rescan, Try Again, the reconnect after an import, `follow(.chooseAgain)`) | The same rule. `browse.client` (that pair) then serves albums, pages, thumbnails (`remoteThumbnail`) and `RemoteImporter`'s downloads until the next check or `closeServer`. `takeSaved` changes only the name, so `browse.address`, which the links are written under, always matches the client's host. |
+| same | `RemoteServerSheetCheck.key(entered: nil, opened:)` (`RemoteServerChecks.swift:139`): `ServerSheetModel.submit` and `trustCertificate`, both hosts | The key saved with `opened`'s address, only while the row still has that address and fingerprint. It is sent to the address typed in the form: the saved one, or a new one on Save (N4, unchanged and accepted), with the form's pin (`ServerFormRules.pin`) and its http confirmation. The check's client is then discarded. |
+| `Catalog.saveRemoteService(_:key:keys:)` (`RemoteServices.swift:201`) | A Save with a typed key, and Add | Nowhere: the previous key is read only to put it back if the row write fails (F2), under the gate. |
+| `Catalog.saveRemoteService(_:checkedWith:opened:keys:)` (`RemoteServices.swift:243`) | A checked Save or Trust Certificate with the key field empty (D-19) | Nowhere: it is only compared with the key the check used, under the gate. |
+| (not read: typed) `ServerSheetModel.key` | Add, or Save with a key typed | The address on screen, in the check, then the Keychain with the row (`RemoteServerSheetCheck.save`). The key appears in no log or debug output: the script prints `key entered/-`, and the fake server's request list prints `key sent/-` and the `Host` header. |
+
+`grep` finds no other `key(account:)`, `RemoteConnection(` or `ImmichClient(connection:)` in `Sources`. `setKey` and `deleteKey` are called only from `RemoteServices.swift`. Nothing in this diff changes `RemoteHTTPSession`, `ImmichAPI`, the allowlist, transport policy or pinning.
+
+### N7: status
+
+| Item | Result |
+| --- | --- |
+| (1) A record held since before a Save | **Closed.** All three readers compare the row they read under the gate with the record they hold. A changed address or fingerprint, or a removal, gives `.changed`, and nothing is built or sent. `allowsUnencrypted` is derived from the address scheme on every Save (`ServerSheet.swift:233`), so comparing addresses covers it. The id is an autoincrement key that is never reused, and an update keeps the uuid, so reading the key by `service.uuid` and the row by `service.id` name one server. Covered by `PublishKeyPairingTests.staleRecordNeverPaired` and `ServerKeyPairingTests.importCheckWithSavedRow` and `sheetBehindAtPress`. |
+| (2) Between a Save's key write and its row write | **Closed in-process.** `saveRemoteService(_:key:keys:)` holds the account's gate from reading the previous key, through the row write and a failed row's restore (`:197`). Readers wait (`waitsForTheRow`, `importCheckWaitsForTheRow`, `checkDuringSave`, `saveHoldsTheGate`). The gate also closes a case the third review didn't name: two Saves with typed keys from two sheets used to be able to interleave as key a, key b, row b, row a, leaving key b with row a. They are now serialized. Across processes, see N9. |
+| Certificate pinning paired with address and key | **Paired.** The pin comes from the same row as the address and is read in the same hold as the key. A pin saved alone is a change for every reader: publishing gives up, the import window chooses the server again, and a stale sheet gets `.changed`. Trust Certificate with the key field empty writes the pin through the guarded `checkedWith` Save, which never touches the key. |
+| The import window during an import | `.changed` found by a check while an import runs leaves the grid, its state, the selection and `browse.client` alone (`ServerSource.swift:161-172`). The import keeps the address, key and pin it was checked with, which belong together. The reconnect after it (`finishServerImport`, with `importTask` already nil) follows the server as saved. Publish's Edit Server stays enabled during an import by design (§11.1), and nothing reaches a new address. |
+| Save and Save (gate) | Serialized per account, so each reader sees one Save whole. A `checkedWith` Save compares the stored key and the row with what it checked, then writes, all in one hold, so no Save in this process lands in between (`sheetBehindAtSave`, `sheetKeyChangedAtSave`). |
+| Save and Remove (Remove is not gated) | Remove only deletes (key, row, key). Its interleavings with a typed-key Save are as in the third review, and the gate doesn't change their order. With a `checkedWith` Save: if Remove's first delete lands before the stored-key read, the Save finds the key differs and returns `.changed` (no write; the host's next check then finds no key or no row). If both deletes land before the row read, the Save returns `.removed` and deletes the key. If they land after the comparison, the update finds no row, and the Save deletes the key and returns `.removed`. A reader that read the key before Remove and the row before its row delete sends the key to its own saved address after the person confirmed Remove. That is N8's kind (a removal doesn't stop a use already under way), not a new address. |
+| Save and rename (not gated) | A rename writes only the name. A gated Save landing after it writes its own record's name. Benign. |
+| The gate itself | FIFO hand-off under a `Mutex`. Bodies never take a gate again (they call only the ungated `remoteService(id:)` and `saveRemoteService(_:)`), so there is no self-deadlock. `Catalog` is a non-actor class and `RemoteSavedKey.read` is a nonisolated static, so `#isolation` is nil and the Keychain calls run off the main actor. Waiting can't be cancelled: a check cancelled while it waits still reads its pair when the gate frees, and anything it sends goes to the address saved with that key. A Keychain prompt holds the account's gate until answered, as documented (reliability only). |
+| Retry Failed (D-17) | `retry` reloads, `retryRefusal` refuses a removal or an address change, and the connect uses the reloaded record. A Save landing after that reload gives `.changed`, and the retry is called off with nothing sent (`PublishRetryOutcome.calledOff`). |
+
+### Scope checks (what changed)
+
+| Item | Result |
+| --- | --- |
+| Logging, Activity, debug output | Nothing new is logged. A catalog error read under the gate is shown as `.keychain(message)` or the start issue. That is GRDB's text, which holds no key (the catalog has none). The new debug words (`fake mark`, `requests since`, `trust nowait`, `fakehost`, `importing n/m`) print request lines, hosts and counts, never a key. |
+| SQL | The only new query is `remoteService(id:)`, a keyed fetch. `checkedWith` reuses the bound `update`. |
+| Server text | Unchanged. `PublishText.checkDetail` routes the same strings the sheet already showed. |
+| `OriginalsTally`, `PublishSheet`, `closeSheetsForQuit` | Bookkeeping and UI. No request, file or key. |
+
+### Notes
+
+#### N9 (Low): the key and its row are paired only within one process and one catalog (confidence 8/10 in the facts; reachable 3/10 for (a), 1/10 for (b) and (c))
+
+The Keychain item is named by `<bundle id>.servers` and the connection's uuid (`RemoteKeyStore.swift`, `query(_:)`), and holds nothing about the address it was saved for. `RemoteKeyGate` lives in one process. `RemoteSavedKey.read` compares with the row of the catalog that process opened. So the new key can still reach the previous address three ways:
+
+- **(a) A copy of the library.** Copying the library folder copies `remoteService.uuid`, and the last-server preference is per bundle identifier, so both copies name the same Keychain item when run from a bundle with the release identifier without `--debug-script` (`RemoteKeyStores.forLaunch`). Suppose Edit Server in one copy saves address B with a new key. The other copy's row still says A. Its next check reads the new key beside row A, which equals the record it holds, and sends the key to A, under A's pin and http confirmation. Opening Publish is enough: it checks the remembered server at once (`PublishModel.swift:226-228`). No race is needed, and the state lasts. Likewise, Remove Server in one copy deletes the other copy's key, and Edit replaces it (an integrity issue for the other library's setup). WORKFLOW's sign-off lets the owner use their real library, and trying a branch with migrations on a copy of it is the natural way to do that.
+- **(b) Two app processes on one library.** `LibraryModel.open` opens anyway when another process holds the library lock (`LibraryModel.swift:866-875`: "a second copy of the app, open anyway"). The gate's doc comment, `status.md`'s N7 row and the proposed Network rule all say the lock keeps a second copy off the catalog. It does not. Between processes, the milliseconds between a Save's key write and its row write are open again (the third review's second window). D-19's compare-and-write is also not atomic against the other process's Save: it can write its row (address A, or a new C) right after the other process stored its key for B, leaving that key beside A or C.
+- **(c) A failed rollback.** Suppose the row write fails after the new key is stored: a catalog error, or the sheet's task cancelled by Esc just after the check passed. GRDB's async write throws `CancellationError` before writing (#271's C1). The previous key is then put back with `try?` (`RemoteServices.swift:214-219`). If that Keychain write is refused too, for example on a second access prompt for an item an older build stored, the new key stays beside the previous row, and every later read pairs them. The gate only hides the half Save while it is under way.
+
+Each case needs the owner to copy a library, run two copies of the app, or have a Keychain write refused right after one succeeded. The key goes only to an address the owner saved for that server before, under that address's pin and transport policy. It matters when that address now belongs to someone else: a reassigned LAN address reached in the clear, or a lapsed domain. That is N7's own concern.
+
+Fix (one change closes all three): make the pair check itself.
+- Store the normalized address the key was saved for in the Keychain item, in the same `SecItemAdd` or `SecItemUpdate` as the key (`kSecAttrGeneric` or `kSecAttrComment`).
+- Have `key(account:)` return it, and have `RemoteSavedKey.read` give the key only when it equals the row's address and the caller's.
+- A key-field-empty Save that changes the address (N4) then rewrites the item's address under the gate, with F2's rollback.
+- An item stored before the change has no address. Either take the row's once and write it, or ask for the key again (the owner's call).
+- Keep the gate for ordering.
+
+Copies would still share one item per address (Remove in one copy still removes the other's key). Separating copies would need a per-library part in the account, and the key entered again in a copy. Whether or not the fix is taken, correct the sentence about the library lock in `RemoteKeyGate`'s comment, `status.md` and the proposed Network rule. Without the fix, the rule's "a key saved for a new address never reaches the previous one" also needs "within one process and one library".
+
+#### N10 (Info): a typed key from a stale Server sheet goes to the address that sheet shows (confidence 7/10 in the facts, 1/10 that it matters)
+
+The sheet starts from the record it opened on, its http confirmation included (`ServerSheet.swift:111`). With a key typed, the press checks only that the server still exists (`RemoteServerSheetCheck.key`, `:125-134`). Suppose the other window moved the server from `http://A` to `https://A`, or to another address, while this sheet was open, and the person types only a new key here. The new key then crosses the network in the clear to `http://A` in the check, and the Save writes `http://A` and its confirmation back over the other window's choice.
+
+The person sees that address and the Not encrypted notice in the form, and D-19's "A typed key" bullet accepts last-save-wins, so this stays Info. Hardening, if the owner wants it (either one):
+- On a typed-key press, compare `opened` with the row as the empty-field path does, and end with `.changed`. The person then types the key again in the refreshed sheet.
+- At least drop a pre-filled http confirmation when the row's address no longer equals `opened`'s.
+
+#### N8 and N4: unchanged
+
+N8 is still as the third review describes it: `ServerSheetModel.submit` and `removeServer` don't check `publishingServerUUID` again. It was left on purpose, and this diff adds no path to it. N4 (Edit Server sends the saved key to a newly typed address on Save) still holds: D-19 now reads that key with `opened`'s row, so it is the key saved for the address the sheet opened on.
+
+### Summary of fourth-review findings
+
+| ID | Severity | Confidence | Where | Short |
+| --- | --- | --- | --- | --- |
+| N7 | Fixed (in-process) | 8/10 | `RemoteSavedKey.read`, `RemoteKeyGate`, `PublishConnection.connect`, `RemoteImportConnection.connect`, `RemoteServerSheetCheck`, `Catalog.saveRemoteService(_:checkedWith:…)` | Every key read is paired with its row under the account's gate and given only to the caller's address and pin; Saves are serialized; a stale sheet writes nothing |
+| N9 | Low (key to a previous address) | 8/10 facts; 3/10 (a), 1/10 (b), (c) | `KeychainKeyStore` item naming, `RemoteKeyGate` (per process), `LibraryModel.open` (lock not enforced), F2's `try?` restore | Library copies share the item; a second app process bypasses the gate; a failed restore makes the half Save stick. Store the saved-for address in the Keychain item and require it to match; correct the "library lock" sentence |
+| N10 | Info | 7/10 facts, 1/10 matters | `ServerSheetModel.init`, `RemoteServerSheetCheck.key` (typed key) | A stale sheet's typed key goes to its own, possibly `http://`, address and writes it back (accepted by D-19) |
+| N8 | Info (pre-existing, left on purpose) | unchanged | `ServerSheetModel.submit`, `CardImportModel.removeServer` | Unchanged |
+| N4 | Info (from #271, accepted) | unchanged | `RemoteServerSheetCheck.key` | Unchanged; the key sent is now the one saved with `opened`'s address |

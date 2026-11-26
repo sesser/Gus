@@ -569,3 +569,224 @@ Read only `git diff f5d5f09..ce41e92 -- Sources Tests`; no build or tests
 | # | Result | Commit | Note |
 |---|---|---|---|
 | C13 | Fixed | ce41e92 | The diff under `Sources/` and `Tests/` is the doc comment of `PublishTemporaryFolders` (:12-17) and nothing else. It now says the lock is asked for in the same `open` that makes the file (`O_EXLOCK`), that making and locking are not atomic, and that a launch whose lock fails tries a new name (`lockAttempts`). That matches `Launch.make` (:58-80: `O_CREAT \| O_EXCL \| O_EXLOCK \| O_NONBLOCK`, `continue` on failure, up to `lockAttempts` names) and `lockAttempts`' own comment (:38-40). |
+
+### Sixth pass, 2026-11-26: bc54ded..586cfd2
+
+Commits: 1c84496 (N7 for publishing), a04d1ee (Q1), 82339ab (Q2), 35ec122
+(Q3, Q4), 944982c (status, CI toolchain fix to the N7 tests), aa3216e (design
+D-17 to D-19), e840ec9 (the import window and the Server sheet), 586cfd2
+(status). ce41e92..bc54ded is docs only (QA's file and the fifth pass). No
+merge of `develop`. Build and tests: `swift build --build-tests` clean; `swift
+test` 1667 tests in 228 suites passed (98.2 s); `ServerKeyPairingTests`,
+`PublishKeyPairingTests`, `PublishJobTests` and `RemoteConnectionTests` (62
+tests in 5 suites) passed 30 of 30 runs with `--skip-build`. That rules out a
+per-run flake rate of about 1 in 10 or more (at about 95%). For rarer ones I
+accept status.md's structural argument, which I checked. The sheet tests put
+the other window's Save at a fixed point in one task (`key`, `check` and
+`save` called in turn). The two "waits for the row" tests hold the gate
+themselves and spin on `Task.yield()` only until the check either waits
+(`waiters`) or has finished, so without the gate they fail rather than hang.
+Each test uses its own uuid on the shared `RemoteKeyGate`, so parallel tests
+never meet on one account. I did not revert fixes to re-run the "fails
+without" checks (I don't edit `Sources/`). status.md records that the engineer
+did, and each test reads as one that would fail without its fix.
+
+**Verdict, sixth pass: ready for qa-tester.** N7 is closed on both sides, and
+D-17 to D-19 are built as ruled. I found no deadlock, no lost wake-up, no path
+that blocks the main actor, and no order that loses a key or leaves one with
+no row. #271's import behaviour is unchanged when only one window saves. One
+new nit (C14: the publish sheet can be left at "Checking…") and two wording
+points on the proposed Network rule.
+
+#### `RemoteKeyGate` (`Remote/RemoteKeyPairing.swift`)
+
+- **Correct as a lock.** `acquire` inserts into `held` or queues its
+  continuation in one critical section, so a release can't fall between the
+  test and the queueing (no lost wake-up). `release` hands the gate straight
+  to the first waiter without clearing `held`, so a newcomer queues behind it
+  (FIFO). Continuations are resumed outside the `Mutex`. `holding` releases on
+  both the return and the throw path, and a cancelled body still releases.
+- **Never on the main actor.** `holding` runs its body in the caller's
+  isolation (`#isolation`). Its three callers, `RemoteSavedKey.read` and the
+  two keyed `Catalog.saveRemoteService`, are nonisolated `async` functions on
+  a `Sendable` enum or class. The package sets no `NonisolatedNonsendingByDefault`
+  and no default isolation (Package.swift has neither), so they run on the
+  global executor. App code reaches them only through `PublishConnection.connect`,
+  `RemoteImportConnection.connect` and `RemoteServerSheetCheck.run`, which are
+  also nonisolated. The Keychain call and its possible prompt block a pool
+  thread, as before (C8), never the main thread.
+- **No deadlock or re-entrancy.** No body takes the gate again: bodies call
+  only the key store and `Catalog` reads and writes. `KeychainKeyStore` never
+  calls back, and the tests' hooks that start a check do it in a new `Task`.
+  GRDB's write closures are synchronous, so no database work can wait on the
+  gate while a holder waits on the database. `removeRemoteService` doesn't
+  take the gate, and doesn't need to: a reader that races it gets no key or no
+  row, never a key beside another address.
+- **Across a Keychain prompt.** The gate is held until the person answers it.
+  Meanwhile only key reads and saves of the same server wait, suspended, not
+  blocking a thread: the import window shows Connecting…, and the publish
+  sheet shows Checking…. Documented in the type and in status.md. Nothing that
+  Quit waits for waits on the gate. The import window's Quit wait is for
+  `importTask`, which reads no key, and publishing's is for a run, bounded by
+  its timeout.
+- **Waiters can't be cancelled** (residue, not a finding): `acquire` has no
+  cancellation handler. A check cancelled while queued behind a prompt runs its
+  own Keychain read once it gets the gate, which can prompt once more if the
+  person picked Allow rather than Always Allow. The old code had the same
+  read, unordered, and dropped the result the same way (`guard
+  !Task.isCancelled` at each caller), so nothing regressed. A `guard
+  !Task.isCancelled` after `acquire` in `RemoteSavedKey.read` would avoid that
+  extra read.
+
+#### Saves and rollback (`Catalog/RemoteServices.swift`)
+
+- **F2's order is kept inside the gate:** read the previous key, write the new
+  one, write the row; if the row fails, put the previous key back, or delete
+  the new one when there was none; `recordNotFound` deletes the key (D-16).
+  D-16's removal check still runs before the gate. It needn't be inside: my
+  fourth-pass trace of S against r1, r2 and r3 still holds, since only S's
+  steps moved under the gate, in the same order.
+- **Guarded save (D-19).** The key read, the row read, the comparison (stored
+  key against the one the check used, plus address and certificate through
+  `PublishServerChange.after`, the same rule `RemoteSavedKey` uses) and the
+  write all happen under the gate. A keyed save of the same account can't land
+  between them, in either order:
+  - G before S: S writes over G (the last save wins with its key).
+  - S before G: G sees the other key or address, and `.changed` writes
+    nothing.
+
+  A removal: if the row is gone, G deletes the key and returns `.removed`. If
+  r1 ran but not r2, G sees no key, returns `.changed`, and the host chooses a
+  server whose next check ends `.removed`. The reload that follows the removal
+  then clears it. The guarded save never writes a key, so it can't leave one
+  behind. A rename racing G loses to G's form name: the design accepts that
+  (only the address, the certificate and the key are compared).
+- **No caller passes `key: nil` to the keyed save any more.** `save` uses the
+  guarded save whenever `enteredKey` is nil and the sheet was opened on a
+  server, and `submit` refuses Add without a key.
+
+#### Every key read
+
+`grep -rn "\.key(account:" Sources` finds three, as status.md lists:
+`RemoteSavedKey.read` (gated, returns a key only with a row that has the
+caller's address and certificate) and the two saves (gated, never sent). Every
+check goes through `RemoteSavedKey`: publishing's sheet check, Publish and
+Retry Failed (`PublishConnection.connect`), the import window's choose, Rescan,
+Try Again and reconnect (`RemoteImportConnection.connect`), and the Server
+sheet with an empty key field (`RemoteServerSheetCheck.key`). The deleted
+`CardImportModel.check` and `ServerSheetModel.storedKey` were the last reads by
+uuid alone. `setKey` and `deleteKey` appear only in `RemoteServices.swift`.
+Runs already under way use their check's client and read no key.
+
+#### Import window (#271 behaviour, D-18)
+
+- **One window, nothing changed.** The import check reads the same key and
+  contacts the same address, now with the row's pin and plain-http flag,
+  which `RemoteSavedKey` has just shown to equal the window's. The error
+  results and focus handling (`focusesGridWhenShown = false` on failure) are
+  as before. The new failure (catalog unreadable) shows as the Keychain title
+  with the catalog's message, as the Server sheet already did. `takeSaved`
+  acts only when the name differs, which a single window never causes: its own
+  Save goes through `serverSheetSaved` and `chooseServer`, as before.
+- **Running import.** Nothing can rechoose the server during an import:
+  `chooseServer`, album, range, Rescan, Edit and Remove are all guarded by
+  `!isImporting`. `connectServer`'s `.changed` branch puts `failure` and
+  `albumGone` back while importing. `loadServersAfterPublish` gives
+  `.afterImport`, which does nothing. The importer keeps the client and
+  `RemoteLinkTarget` it was started with, so links stay under the source
+  address.
+- **Reconnect after an import.** `importTask` is set to nil before
+  `finishServerImport`, so `isImporting` is false when the reconnect lands.
+  A rename is taken (`takeSaved`), and a move follows (`chooseAgain`). That
+  goes through `chooseServer`, which clears `doneText`, and `follow` puts it
+  back when `keepingSubtitle`. This matches scripted check C.
+- **Rename.** In place: `browse.service` updates, and the project prefill
+  follows unless the person typed a name. Selection, pages, album and range
+  stay.
+- **Removal.** `.leave` does what `removeServer` does after a removal
+  (`closeServer`, `loadServers`). A removal can't start during an import: the
+  import window's Remove is guarded, and publishing's `serverSheetRemove` is a
+  no-op.
+- **Following while the window is closed.** Closing the import window keeps
+  `browse`, so a Save from Publish with the window closed reconnects there
+  (check, albums, first page). design §11.1 rules this ("in front, behind,
+  minimized or closed"). Noted only so QA expects the requests.
+- **Residue, not a finding.** A Rescan cancels any page in flight
+  (`browse.cancel()`), and that page task returns before resetting
+  `isLoadingPage`. The old `.ready` path cleared the flag with
+  `reloadPhotos`. Suppose Import is pressed while that Rescan connects (the
+  old client is still set), and the Rescan then finds `.changed`. The flag
+  stays true, so no further page loads until the import ends and the
+  reconnect reloads. That takes a page in flight, a Rescan, Import pressed
+  during it, and a Save in the other window, all within one check.
+
+#### Server sheet (D-19)
+
+`submit` builds the record before the task, from the same values as before,
+and `RemoteServerSheetCheck.run` keeps the old steps in order: the D-16
+removal check, the cancel check, the key, the cancel check, the check, the
+cancel check, then the save. Page 2, the permissions note (`keyCanPublish`),
+the error results and Cancel behave as before. A typed key and a name-only Save
+take the old paths. On `.changed`, both hosts call `serverSheetSaved(now)`:
+publishing returns to its sheet and rechecks with choices kept, and import
+chooses the server as saved. That matches §11.2. In Edit with a new address
+typed and the key field empty, the stored key still goes to the typed address,
+as in #271. `RemoteSavedKey` compares the row with the opened record, not with
+the form, so that case is unchanged.
+
+#### Publishing (N7, Q1 to Q4)
+
+- `PublishConnection.connect` uses the row's pin and flag. On `.changed`, the
+  sheet check waits for the reload, Publish shows D-15's line or leaves the
+  removal to D-13, and Retry Failed is called off silently (D-17). On
+  `.unreadable`, the sheet and Publish show the start issue, and the retry is
+  called off. C14 below covers the one case where the reload doesn't come.
+- Q1 (`stepsFollowEachUpload`) and Q2 (`OriginalsTally`). The tally keeps the
+  old loop's rules: offline photos are counted and not looked for, a photo
+  with no source is counted in neither found nor a group, the first failure
+  throws, and a cancel gives nil. The one change, progress counting a photo
+  with no source, is the one status.md names. `==` now compares the reasons
+  too.
+- Q3: `closeSheetsForQuit` is debug-script only. Q4: the sheet and `publish
+  print` draw from the same `checkTitle` and `checkDetail`, with the same
+  styles.
+
+#### New findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C14 | Nit | `Sources/PhotoApp/Model/PublishModel.swift:365-369` (`runCheck`, `case .changed: break`), with `:266` (`serversChanged` rechecks only `if library?.showsPublishSheet == true`) and `:1112-1116` (`serverSheetCancelled`) | The sheet check's `.changed` leaves `check` at `.checking` and relies on the reload to check again. But that reload rechecks only while the publish sheet is showing, and the sheet is hidden while its own Server sheet is up. | (1) In the import window, Edit Server… saves Home with a new address and key, and the Keychain asks (an ad-hoc build): the Save holds Home's gate. (2) File ▸ Publish… opens on Home, and its check queues behind the gate. (3) Edit Server… in the publish sheet: the publish sheet hides. (4) The person answers the Keychain prompt. The Save writes its row, `serversChanged` finds `.connectionChanged`, but the sheet is hidden, so there is no `choose`. The check then gets the gate and returns `.changed`, and `break` leaves it there. (5) Cancel in the publish Server sheet: `serverBeforeSheet == serviceID`, so there is no `choose`. The publish sheet comes back showing the spinner and "Checking Home…" for good, with Publish off and no Try Again. Recovery: close and reopen the sheet, or Save in Edit Server…. Before this round the check went ahead, which was N7 itself, so this is new but much narrower. Fix: on `.changed(.connectionChanged(let now))`, call `choose(now, keepingChoices: true)` when the sheet is hidden. Or have `sheetDidClose` rerun a check left at `.checking` with no task. | Correctness (a state with no way forward in the sheet); design §3.3 |
+
+#### `/security-review`
+
+Yes, scoped to this round. A security review is already running in parallel.
+This round changes every credential read and the checked save: the
+`RemoteKeyGate` ordering, `RemoteSavedKey.read`, the guarded
+`saveRemoteService(_:checkedWith:opened:keys:)`, and the import window's and
+Server sheet's key paths (`RemoteServerChecks.swift`). It should confirm N7's
+import side against e840ec9. I found nothing wrong there. No new parser,
+subprocess, request kind or file writing. The allowlist, the request gates and
+the temporary folders are unchanged. The fake server only records `Host` as
+well.
+
+#### `CLAUDE.md` Network rule (status.md)
+
+The new sentence matches the code, with two wording points (neither blocks
+anything):
+
+1. "every write of a key with its row go through the account's
+   `RemoteKeyGate`" is true of the two saves. Remove Server… also deletes keys
+   (key, row, key again), outside the gate, and that is safe. To keep a later
+   reader from adding a gate there, or from assuming one exists, write "every
+   save of a key with its row".
+2. "only a row with the address and trusted certificate the caller holds is
+   contacted" is right for publishing and the import window. For the Server
+   sheet, the read passes only while the row still has the address and
+   certificate the sheet opened on, and the check then goes to the address the
+   form shows. That can be a new address the person typed, which takes the
+   stored key with it, as in #271. Suggested: "...and a key is given only
+   while the row still has the address and trusted certificate the caller
+   opened or holds, so a key saved for a new address never reaches the
+   previous one".
+
+Everything else in the rule is unchanged this round and still holds.

@@ -1,97 +1,164 @@
 # Publish to Immich: design review
 
 Issue: #28. Reviewer: apple-ui-designer. Date: 2026-11-26. Branch
-`feature/publishing-engine`. Fifth pass at f5d5f09 (first at b244b48, second at
-a382a7b, third at eb34859, fourth at 41f6d0f).
+`feature/publishing-engine`. Sixth pass at 586cfd2 (first at b244b48, second at
+a382a7b, third at eb34859, fourth at 41f6d0f, fifth at f5d5f09).
 
-A narrow pass: whether D-15 and D-16 ([`design.md`](design.md) §3.3, §4, §8,
-§17) are built as ruled, the user guide lines changed for them, and the two
-follow-ups from the fourth round in [`status.md`](status.md). Method: reading the
-current sources and the engineer's snapshots 30 to 32 (`round4/shots`, each
-looked at). Nothing was built or run, and no diff against 41f6d0f was run (no
-shell in this review). Scripted results not shown by a snapshot (`s33`, `s34`)
-and test results are as `status.md` records them.
+A narrow pass: whether D-17 to D-19 ([`design.md`](design.md) §10.3, §11.1,
+§11.2, §17) are built as ruled, the user guide sentences the engineer wrote for
+them in the import section, and the QA-round change to the publish sheet's
+failed-check text. Method: reading the current sources, the engineer's script
+logs A to F with their scripts (`round6`), and one snapshot (`round5/q4-Gus.png`,
+looked at). Nothing was built or run, and no diff was run (no shell in this
+review). Test results are as [`status.md`](status.md) records them. Round 6 took
+no snapshots, so how the windows look under D-18 and D-19 rests on reading.
 
 ## Verdict
 
-**Approved, with one small user guide fix (F29).** D-15 and D-16 are built as
-ruled. No finding against the UI is open. F29 is one phrase in the user guide.
-What else is left is the manual checks and the two follow-ups below.
-
-## D-15: address or certificate changed during Publish
-
-| Ruled (§3.3, §8) | Result |
-|---|---|
-| A Publish being confirmed is cancelled; **Checking…** goes and the form is enabled | **Pass** (31; by reading) |
-| The Skip or New Copy alert closes unanswered | **Pass** by reading and the script's print; the alert itself by eye, M5 |
-| Nothing that writes is sent; no run, job or record; nothing remembered | **Pass** by reading: `start` is the one path to each, and it isn't reached |
-| Stays on the main page; checks the server as saved now, keeping choices and description | **Pass** (30, 31 show the new address, checked; kept by reading) |
-| The line under Server, below the address and **Not encrypted**; exact words | **Pass** (30, 31) |
-| Announced, and the Server pop-up's hint | **Pass** by reading |
-| Only when a confirmation or an alert was given up | **Pass** by reading |
-| Doesn't dim **Publish** | **Pass** (30, 31) |
-| Goes on Publish, a server chosen, added or saved from the sheet, removal (D-13's line instead), next opening | **Pass** by reading |
-| A run never starts with other than the saved address and certificate, from either route | **Pass** by reading: both read the saved record just before `start` |
-| A rename or a new key alone gives nothing up | **Pass** by reading |
-
-**`answer(skip:)` counting as a confirming Publish: accepted.** Answering the
-alert is still pressing Publish (§3.8), so while the saved server is read the
-same state is right: **Publish** can't be pressed twice, **Cancel** and Esc still
-send nothing that writes, and a change or removal arriving then gives the answer
-up as D-15 and D-13 require. **Checking…** and the dimmed form may show for the
-few milliseconds of one catalog read. That is accurate and needs no delay or
-special case.
-
-## D-16: Save never recreates a removed server
-
-| Ruled (§4) | Result |
-|---|---|
-| Name-only Save, checked Save and Trust Certificate insert no row and leave no key | **Pass** by reading; Trust Certificate goes through the same Save |
-| Removed before the press: nothing read from the Keychain, sent or written | **Pass** by reading (`s33`: no request) |
-| Removed during a check that passes: nothing written | **Pass** by reading |
-| The Server sheet closes, no alert, no new string | **Pass** by reading |
-| From Publish: **Server** None with **This server was removed.**, no other server chosen | **Pass** (32) |
-| From Publish, last server: **No saved server**, no removal line | **Pass** by reading (`s33`) |
-| From Import: servers read again, a removed source left as after Remove Server… | **Pass** by reading (`s34`) |
-| The sheet isn't closed at the moment of removal; Add unaffected | **Pass** by reading |
-| A name-only Save changes only the name of the server as saved now | **Pass** by reading |
+**D-17 and D-19 are built as ruled. D-18 is too, except in two rename cases
+(F30, F31).** The publish sheet's failed-check text passes. Four findings, all
+low: two in the UI, two in the user guide. None blocks QA. F30 and F31 change
+source, so they take the code reviewer's second pass.
 
 ## Findings
 
-**F29 (low, user guide).** In the publish section, "that Publish is given up:
-nothing is sent" says more than is true. While Publish is confirming, the check
-has already sent requests, with the key, to the earlier address. D-15 rules that
-nothing **that writes** is sent. Someone who moved the server because the old
-address was wrong shouldn't be told otherwise.
+**F30 (low, D-18).** A rename saved while the import window is checking that
+server is undone in the window.
 
-Fix: replace **nothing is sent** with **nothing is uploaded or changed on the
-server**.
+- `connectServer` reads the row, then runs the network check. A name saved from
+  Publish during the check is taken in place (`loadServersAfterPublish`). The
+  check then returns the row it read earlier, and `takeSaved(saved)` in the
+  `.ready` case puts the old name back (`ServerSource.swift`).
+- The person sees the old name in the title, Source pop-up and inspector, and an
+  untyped Project name returns to the old prefill, so an import then makes a
+  project under the old name. **Edit Server…** opens on the old record. The next
+  check puts it right.
+- It needs the save to land while a check is out, so a slow server makes it
+  likelier; the reconnect after an import counts. By reading; no test or script
+  covers it. The Source pop-up's list would show the new name beside the old
+  title.
+- Fix: take the check's row only if the window's record hasn't changed since the
+  check began (compare `browse.service.name` with the captured `service.name`).
+  Check by holding the check (`fault slowcheck`), renaming from Publish and
+  printing the window afterwards.
 
-The other changed lines are right: the quoted line is the UI's, the cases that
-remove it match §3.3, a name or key alone gives nothing up, and both D-16
-passages (the import section and the removed server under **Server**) match the
-build.
+**F31 (low, D-18).** After a rename, marked cells already on screen keep the old
+name in their tooltip (**Published to “‹name›” from this library**, and the
+imported one).
+
+- `ImportGridView` receives only `shots` and `selection`, and `update` reconfigures
+  cells only when one of them changes. A rename changes neither. A scroll or a
+  selection change corrects them.
+- §11.1's list names the title, pop-up, inspector and editor, not tooltips. "The
+  window takes the saved name in place" covers them: a tooltip naming a server
+  that no longer has that name reads as a second server.
+- Fix: give the grid view the server's name, read in the parent's body, and
+  refresh the visible cells when it changes. By reading.
+
+**F32 (low, user guide).** "**Save** and **Trust Certificate** with the key field
+empty send and save nothing once the other sheet has saved" says more than is
+true. If the other save lands while this sheet is already checking, the check
+goes on sending, with the key that belongs to its address (log E: two keyed
+requests to the old address after the save). D-19 promises no write then, not
+silence. "The window shows the server as saved" also leaves out what Publish
+does, and a new key alone saved during a check blocks the write too. Suggested:
+
+> If a server's sheet is open in each window and one saves a new address or
+> certificate, **Save** or **Trust Certificate** in the other, with its key field
+> empty, sends and saves nothing: the sheet closes and the server shows as saved
+> (from **Publish…**, the publish sheet comes back with it chosen and checks it
+> again). If the other save arrives while this sheet is already checking, the
+> check finishes against the address it started with, using the key saved for
+> that address, and nothing is saved. A new key saved elsewhere during a check
+> also stops this sheet from saving.
+
+**F33 (low, user guide terms).** Same section.
+
+- "saved again from **File ▸ Publish…** (its **Edit Server…**)": the publish
+  sheet's menu item reads **Edit “‹name›”…**. **Edit Server…** appears only under
+  a failed check, and **Review Certificate…** saves too. Suggested: "saved again
+  from **File ▸ Publish…** (**Edit “‹name›”…**, **Edit Server…** or **Review
+  Certificate…**)".
+- Earlier in the section, "the app contacts a server only when you choose it, or
+  press **Add**, **Save**, **Try Again** or **Rescan**" is no longer true of the
+  app, which also contacts one for publishing. Suggested: "The import window
+  contacts a server only when you choose it, press **Add**, **Save**, **Try
+  Again** or **Rescan**, save it from **File ▸ Publish…**, or finish an import
+  from it."
+
+The rest of the new sentences match the build: the window follows whether in
+front, behind or closed; a rename shows in place; what goes with a new address or
+certificate; a saved key never reaching the old address; and the running import.
+
+## D-17: Retry Failed called off as its check starts
+
+| Ruled (§10.3) | Result |
+|---|---|
+| A changed or removed server, or an unreadable catalog: nothing sent, the run as it was | **Pass** by reading (`PublishRetry.perform`: `.changed`, `.unreadable` give `calledOff`) |
+| The job leaves Activity with no message, announcement or sheet | **Pass** by reading (`release`, not `finish`) |
+| Reopened: removal or address change shows the refusal with **Retry Failed** off; a certificate change alone is no refusal | **Pass** by reading (`retryRefusal`, servers reread on appearing) |
+
+## D-18: the saved server changes while it is the Import window's source
+
+| Ruled (§11.1) | Result |
+|---|---|
+| Every check reads the key with its row; only the held address and certificate are contacted | **Pass** by reading (`connectServer` has one path, `RemoteImportConnection.connect`) |
+| Keychain refusal as today; unreadable catalog as the Keychain result under **Can't Connect to ‹name›** | **Pass** by reading (F: refusal) |
+| Follows as soon as the publish save is read, wherever the window is; one check per save | **Pass** (A); closed and minimized by reading, M8 |
+| Window not brought forward, keyboard not moved | **Pass** by reading; M8 |
+| New address: connects again; selection, pages, All Photos, no range, prefilled name; no request to the old address | **Pass** (A) |
+| Date Range popover closes, marks reread, old requests cancelled, earlier **Imported ‹n› photos** goes; destination, templates, Add to, job code, preset stay | **Pass** by reading |
+| Certificate change alone treated the same; removed as after Remove Server… | **Pass** by reading |
+| Name only: in place, nothing contacted, selection, pages, album, range kept | **Pass** (B, B2: no window request); **F30**, **F31** |
+| Project name follows only if not typed | **Pass** (B, B2); **F30** |
+| Title, Source pop-up, inspector, **Edit Server…** take the name | **Pass** by reading; **F30** |
+| Key only: nothing reloads, next check reads it | **Pass** by reading |
+| Import running: nothing changes; originals from the old address | **Pass** (C). Source pop-up is dimmed, label unchanged (by reading) |
+| A check during the run that finds the change sends nothing and leaves grid, state and selection | **Pass** by reading |
+| After the run: follows, ending subtitle kept; a rename taken then too | **Pass** (C: new address, **Imported 6 photos**); rename by reading |
+| Run's alert unchanged; publish **Edit Server…** not dimmed for an import | **Pass** by reading (C: saved during the run) |
+
+## D-19: a Server sheet behind the saved server
+
+| Ruled (§11.2) | Result |
+|---|---|
+| At the press: D-16 first, then key with row; behind, nothing sent or written | **Pass** (D); order by reading |
+| At the save: row written only with the same address, certificate and checked key, as one step | **Pass** (E: no write) and by reading (under the account's gate) |
+| A failed check shows its result as usual | **Pass** by reading |
+| The sheet closes, no alert, no new string | **Pass** (D, E) |
+| From Import: servers reread, server chosen as saved, grid takes the keyboard, publish side told | **Pass** (D, E); keyboard by reading, M8 |
+| From Publish: sheet returns, server chosen and rechecked, choices and description kept, no D-15 line, nothing remembered or published | **Pass** by reading only: D and E use the import window's sheet as the stale one. M8 |
+| Typed key, name-only Save and Add unaffected | **Pass** by reading |
+
+## Publish sheet: failed-check text (QA Q4)
+
+**Pass.** The sheet's title and detail, the Server pop-up's hint and the
+announcement all come from `PublishText.checkTitle` and `checkDetail`, and the
+words match §3.3: `ServerText`'s for ordinary failures, D-3's for an untrusted
+certificate, **The key couldn't be read** with the system's text for the
+Keychain. Buttons are unchanged. The snapshot shows the Keychain case under the
+address and **Not encrypted** line, with **Try Again**, **Edit Server…** and a
+dimmed **Publish 1 Photo**.
 
 ## Follow-ups
 
-Both items proposed in `status.md` are follow-ups; neither holds this branch.
-The first replaces the fourth pass's proposed follow-up. Suggested bodies, with
-what each should add:
+Both stand from the fifth pass; neither holds this branch.
 
 1. **Publish sheet keeps an old check after its own Server sheet is cancelled**
-   (bug; what is left of D-14). Agreed. Add: by reading, **Check Originals** in
-   that state also still asks the earlier address, with the key it was checked
-   with, while matching records by the new one. It isn't only a stale check and
-   album list. Nothing is written, and **Publish** connects afresh. Expected:
-   when the publish sheet comes back and the saved address or certificate
-   differs from the one checked, it checks again, keeping every choice. D-15's
-   line isn't needed, since nothing was given up.
+   (bug; what is left of D-14). By reading, **Check Originals** in that state also
+   still asks the earlier address, with the key it was checked with, while
+   matching records by the new one. Nothing is written, and **Publish** connects
+   afresh. Expected: when the publish sheet comes back and the saved address or
+   certificate differs from the one checked, it checks again, keeping every
+   choice. No D-15 line, since nothing was given up.
 2. **A name-only Save whose catalog write fails says nothing** (bug, #271's
-   code). Agreed. Change the expectation: "the same message" as a checked Save
-   would copy a wrong one. By reading, a checked Save's catalog failure, D-16's
-   new read before the check included, is headed **The key couldn't be saved**
-   with **The Keychain returned an error: …**. Expected: both say the library
-   couldn't be read or written, in wording the designer rules on then.
+   code). A checked Save's catalog failure is headed **The key couldn't be
+   saved** with **The Keychain returned an error: …**, so don't copy it. Expected:
+   both say the library couldn't be read or written, in wording the designer rules
+   on then. Add: the import window's grid also heads a Keychain **read** refusal,
+   and under D-18 an unreadable catalog, **The key couldn't be saved** (log F).
+   That is as D-18 ruled ("as today"), so not a finding here, but it belongs in
+   the same fix.
 
 ## Design requirements
 
@@ -100,35 +167,40 @@ what each should add:
 | P1, §2.1 | File menu items, order, ⌥⌘E, Stop title, enabling | Pass by reading; M3 |
 | §2.2, §2.3 | Toolbar item; context menu | Pass by reading; M3 |
 | P2, §3.1, §3.2 | Sheet, header, sections | Pass; smallest window M1 |
-| §3.3 | Server section, removed server (D-13) and changed destination (D-15) included | Pass (26, 26c, 26e, 28, 30, 31); M5 |
+| §3.3 | Server section, failed states, D-13 and D-15 | Pass; M5 |
 | §3.4 | Album, Archive captions | Pass; M4 |
 | §3.5 | Stacking | Pass |
-| P3, §3.6 | Shared form, presets, description | Pass (29a, 29b); M4 |
+| P3, §3.6 | Shared form, presets, description | Pass; M4 |
 | §3.8 | Publish enabling; Cancel sends nothing that writes | Pass |
-| P4, P13, P14, §4 | Server sheet by host, wording, address warning, D-16 | Pass (32); M4, M5 |
+| P4, P13, P14, §4 | Server sheet by host, wording, address warning, D-16 | Pass; M4, M5 |
 | P5, §5 | Missing permissions | Pass |
 | P6, §6 | Folder map | Pass; M2 |
-| P7, §7 | Check Originals | Pass (06) |
+| P7, §7 | Check Originals | Pass |
 | P8, §8 | Skip / New Copy | Pass by reading; M5 |
 | P9, §9 | Activity, Stop, ending, quit | Pass; M6 |
-| P10, §10 | Activity row, results, Retry Failed | Pass (23, 23a, 23b, 27) |
+| P10, §10 | Activity row, results, Retry Failed | Pass |
+| §10.3, D-17 | Retry called off silently | Pass by reading |
 | P11, §11 | Import window marks | Pass by reading; M6 |
+| §11.1, D-18 | The window follows the saved server | **F30**, **F31**; otherwise pass; M8 |
+| §11.2, D-19 | A Server sheet behind the saved server | Pass; M8 |
 | P12, P15, P16 | Nothing elsewhere; Archive warns; Already There | Pass |
 | §13 | Keyboard, announcements, plurals | Pass by reading; M2 |
 
-Rows without a snapshot from this round rest on the earlier passes.
+Rows not about D-17 to D-19 or the failed-check text rest on the earlier passes.
 
 ## Earlier passes
 
 F1 to F28 were closed by the fourth pass, with D-12, D-13 and the Failed list's
-repeated row confirmed at 41f6d0f. D-14's accepted cases still standing: a
-key-only change isn't noticed by an open sheet; the publish sheet's own Server
-sheet stays up when its server is removed (a Save now ends as D-16 says); and
-follow-up 1.
+repeated row confirmed at 41f6d0f. The fifth pass approved D-15 and D-16 as built
+(including `answer(skip:)` counting as a confirming Publish) with one user guide
+fix, F29, which now reads as asked ("nothing is uploaded or changed on the
+server"): **closed**. D-14's accepted cases still standing: a key-only change
+isn't noticed by an open sheet; the publish sheet's own Server sheet stays up
+when its server is removed (a Save ends as D-16 says); and follow-up 1.
 
 ## Requirements and design issues
 
-None for the product manager.
+None for the product manager. No new design ruling.
 
 ## Manual checks (a person, bundled app, scratch library and a test server)
 
@@ -160,7 +232,19 @@ None for the product manager.
   Edit and Remove Server dimmed.
 - **M7.** The owner's server (AC17): an https server shows no **Not encrypted**
   line; if its certificate isn't trusted, read the publish sheet's wording.
+- **M8.** The same server in both windows (it needs two addresses, such as its
+  name and its IP). With the import window behind the library window, then
+  minimized, then closed, save the other address from Publish's **Edit
+  “‹name›”…**: the import window doesn't come forward, the library window keeps
+  the keyboard, and the import window shows the new address when brought back.
+  Save only a new name and hover an **In Library** photo that was already on
+  screen (after F31). Then open Edit Server in both windows, key field empty, save
+  a new address in one and press **Save** in the other, once each way round: the
+  second closes with no alert. From Publish, the publish sheet comes back with the
+  server chosen, choices and description kept and no line under Server; from
+  Import, the grid takes the keyboard.
 
 ## Follow-up
 
-F1 to F28 are closed. Open: F29, M1 to M7, and the two follow-ups above.
+F1 to F29 are closed. Open: F30 to F33 (low), M1 to M8, and the two follow-ups
+above.
