@@ -170,6 +170,10 @@ extension Catalog {
     /// design D-16): checked before the key store is touched, and again by
     /// the row's update; either way nothing is written and the account's key
     /// is deleted, so none is left for a server that is no longer saved.
+    ///
+    /// The key's write, the row's and a failed row's key restore are made
+    /// under the account's `RemoteKeyGate`, so `RemoteSavedKey.read` never
+    /// pairs the new key with the previous row (security review N7).
     public func saveRemoteService(_ service: RemoteServiceRecord, key: String?, keys: any RemoteKeyStore) async
         -> ServiceSaveOutcome {
         let account = service.uuid
@@ -183,30 +187,34 @@ extension Catalog {
                 return .catalogFailed(error.localizedDescription)
             }
         }
-        var previous: String?
-        if let key {
-            do throws(RemoteKeyStoreError) {
-                previous = try keys.key(account: account)
-                try keys.setKey(key, account: account)
-            } catch {
-                return .keychainRefused(error)
-            }
-        }
-        do {
-            return .saved(try await saveRemoteService(service))
-        } catch RecordError.recordNotFound {
-            // Removed while the key was written: neither stays.
-            try? keys.deleteKey(account: account)
-            return .removed
-        } catch {
-            if key != nil {
-                if let previous {
-                    try? keys.setKey(previous, account: account)
-                } else {
-                    try? keys.deleteKey(account: account)
+        // The key and the row change as one pair for every reader of a key
+        // (security review N7): F2's order stays, behind the account's gate.
+        return await RemoteKeyGate.shared.holding(account) { () async -> ServiceSaveOutcome in
+            var previous: String?
+            if let key {
+                do throws(RemoteKeyStoreError) {
+                    previous = try keys.key(account: account)
+                    try keys.setKey(key, account: account)
+                } catch {
+                    return .keychainRefused(error)
                 }
             }
-            return .catalogFailed(error.localizedDescription)
+            do {
+                return .saved(try await saveRemoteService(service))
+            } catch RecordError.recordNotFound {
+                // Removed while the key was written: neither stays.
+                try? keys.deleteKey(account: account)
+                return .removed
+            } catch {
+                if key != nil {
+                    if let previous {
+                        try? keys.setKey(previous, account: account)
+                    } else {
+                        try? keys.deleteKey(account: account)
+                    }
+                }
+                return .catalogFailed(error.localizedDescription)
+            }
         }
     }
 

@@ -362,16 +362,25 @@ final class PublishModel: ServerSheetHost {
         albums = []
         albumsState = .notLoaded
         let keys = library.remoteKeyStore
+        let catalog = library.catalog
         let readsAccount = stacking
         let opened = session
         debugChecksStarted += 1
         checkTask = Task {
-            let outcome = await PublishConnection.connect(service, keys: keys, readsAccount: readsAccount)
+            let outcome = await PublishConnection.connect(service, catalog: catalog, keys: keys, readsAccount: readsAccount)
             guard !Task.isCancelled, session == opened, self.serviceID == service.id else { return }
             switch outcome {
             case .failed(let result):
                 client = nil
                 check = .failed(result)
+            case .changed:
+                // Saved since it was chosen: nothing was sent. The reload the
+                // change posts checks it again as saved, or clears it when
+                // removed (reviews F28, D-13; security review N7).
+                break
+            case .unreadable(let message):
+                check = .idle
+                startIssue = message
             case .ready(let client, let info):
                 self.client = client
                 check = .passed(info)
@@ -702,7 +711,8 @@ final class PublishModel: ServerSheetHost {
         startIssue = nil
         connectionChangedLine = false
         defer { if confirmingSession == opened { confirmingSession = nil } }
-        let outcome = await PublishConnection.connect(service, keys: library.remoteKeyStore, readsAccount: stacking)
+        let outcome = await PublishConnection.connect(service, catalog: library.catalog, keys: library.remoteKeyStore,
+                                                      readsAccount: stacking)
         guard !Task.isCancelled, session == opened, serviceID == service.id else { return false }
         let client: ImmichClient
         let info: PublishServerInfo
@@ -710,6 +720,15 @@ final class PublishModel: ServerSheetHost {
         case .failed(let result):
             self.client = nil
             check = .failed(result)
+            return false
+        case .changed(let change):
+            // Saved since it was checked: nothing was sent, nothing starts
+            // (security review N7), and the sheet says so as `stillSaved`
+            // does (review D-15; a removal is D-13's reload's to say).
+            if case .connectionChanged = change { connectionChangedLine = true }
+            return false
+        case .unreadable(let message):
+            startIssue = message
             return false
         case .ready(let ready, let readyInfo):
             client = ready
@@ -1024,10 +1043,11 @@ final class PublishModel: ServerSheetHost {
     /// its Activity message stay as they were (PRD revision 7, review D-10).
     /// The job keeps showing Checking until the run's first report.
     private func retryRun(_ run: PublishRun, service: RemoteServiceRecord) async {
-        guard let keys = library?.remoteKeyStore else { return release(run.id) }
+        guard let keys = library?.remoteKeyStore, let catalog = library?.catalog else { return release(run.id) }
         let outcome = await PublishRetry.perform(
             run,
-            check: { await PublishConnection.connect(service, keys: keys, readsAccount: run.choices.stacking) },
+            check: { await PublishConnection.connect(service, catalog: catalog, keys: keys,
+                                                     readsAccount: run.choices.stacking) },
             makeJob: { [weak self] client, info in await self?.retryJob(service: service, client: client, info: info) },
             progress: report(for: run.id))
         if let ended = outcome.ended(stopAsked: slot.isStopping) {

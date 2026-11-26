@@ -7,22 +7,38 @@ import Security
 public enum PublishConnection: Sendable {
     case ready(ImmichClient, PublishServerInfo)
     case failed(ConnectionCheckResult)
+    /// The server as saved now is not `service`: removed, or its address or
+    /// trusted certificate changed (security review N7). Nothing was sent.
+    /// Never `.unchanged`.
+    case changed(PublishServerChange)
+    /// The catalog could not be read; nothing was sent.
+    case unreadable(String)
 
-    /// Off the main actor: the Keychain may ask the person.
-    public static func connect(_ service: RemoteServiceRecord, keys: any RemoteKeyStore,
+    /// Off the main actor: the Keychain may ask the person. The key is read
+    /// with the row as saved now (`RemoteSavedKey`), and only a row with
+    /// `service`'s address and trusted certificate is contacted, so a key
+    /// saved for a new address never goes to the previous one: not from a
+    /// record held since before a Save, nor between a Save's key write and
+    /// its row write (security review N7).
+    public static func connect(_ service: RemoteServiceRecord, catalog: Catalog, keys: any RemoteKeyStore,
                                readsAccount: Bool) async -> PublishConnection {
-        guard let address = service.serverAddress else { return .failed(.notImmich) }
+        guard service.serverAddress != nil else { return .failed(.notImmich) }
         let key: String
-        do throws(RemoteKeyStoreError) {
-            guard let stored = try keys.key(account: service.uuid) else {
-                return .failed(.keychain(RemoteKeyStoreError.from(errSecItemNotFound).message))
-            }
+        let saved: RemoteServiceRecord
+        switch await RemoteSavedKey.read(for: service, in: catalog, keys: keys) {
+        case .key(let stored, let record):
             key = stored
-        } catch {
+            saved = record
+        case .changed(let change):
+            return .changed(change)
+        case .keychain(let error):
             return .failed(.keychain(error.message))
+        case .catalog(let message):
+            return .unreadable(message)
         }
-        let connection = RemoteConnection(address: address, key: key, pinned: service.pinnedFingerprint,
-                                          unencryptedConfirmed: service.allowsUnencrypted)
+        guard let address = saved.serverAddress else { return .failed(.notImmich) }
+        let connection = RemoteConnection(address: address, key: key, pinned: saved.pinnedFingerprint,
+                                          unencryptedConfirmed: saved.allowsUnencrypted)
         guard let client = try? ImmichClient(connection: connection) else {
             return .failed(.unreachable(reason: "", isLocalHost: address.isLocalNetworkHost))
         }
@@ -36,7 +52,9 @@ public enum PublishConnection: Sendable {
 /// How a Retry Failed came out (R23, design §10.3).
 public enum PublishRetryOutcome: Sendable {
     /// Stopped while it checked its server, or before it started on any
-    /// photo: not an ending. The run stays exactly as it was before this
+    /// photo, or its server was no longer saved as the run's (removed, or
+    /// its address or certificate changed, security review N7): not an
+    /// ending. The run stays exactly as it was before this
     /// Retry Failed (PRD revision 7, review D-10).
     case calledOff
     /// Its check found a problem (a failed check or a missing permission,
@@ -79,6 +97,12 @@ public enum PublishRetry {
         case .failed(let result):
             ended.ending = .stopped(.checkFailed(result))
             return .checkStopped(ended)
+        case .changed, .unreadable:
+            // The server was changed or removed since Retry Failed read it,
+            // or the catalog can't say: nothing was sent, and the run stays
+            // as it was; the next Retry Failed gives the refusal its reload
+            // finds (security review N7).
+            return .calledOff
         case .ready(let client, let info):
             let missing = PublishPermissions.missing(from: info.permissions, album: run.choices.album,
                                                      stacking: run.choices.stacking)

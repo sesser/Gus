@@ -939,7 +939,7 @@ struct PublishJobTests {
             f.server.add(.slowCheck(.seconds(30)))
             let retry = Task {
                 await PublishRetry.perform(run, check: {
-                    await PublishConnection.connect(service, keys: keys, readsAccount: false)
+                    await PublishConnection.connect(service, catalog: catalog, keys: keys, readsAccount: false)
                 }, makeJob: makeJob)
             }
             while !f.server.requests.dropFirst(requestsBefore).contains(where: { $0.path == "/api/server/version" }) {
@@ -969,7 +969,7 @@ struct PublishJobTests {
             let preparing = AsyncStream<Void>.makeStream()
             let beforePhotos = Task {
                 await PublishRetry.perform(run, check: {
-                    await PublishConnection.connect(service, keys: keys, readsAccount: false)
+                    await PublishConnection.connect(service, catalog: catalog, keys: keys, readsAccount: false)
                 }, makeJob: { client, info in
                     preparing.continuation.yield()
                     await Self.untilCancelled()
@@ -989,7 +989,7 @@ struct PublishJobTests {
 
             // The next Retry Failed publishes them.
             let next = await PublishRetry.perform(run, check: {
-                await PublishConnection.connect(service, keys: keys, readsAccount: false)
+                await PublishConnection.connect(service, catalog: catalog, keys: keys, readsAccount: false)
             }, makeJob: makeJob)
             let ended = try #require(next.ended(stopAsked: false))
             if case .ran = next {} else { Issue.record("not run: \(next)") }
@@ -1053,9 +1053,10 @@ struct PublishJobTests {
             let keys = InMemoryKeyStore()
             try keys.setKey("wrong-key", account: f.service.uuid)
             let service = f.service
+            let catalog = f.catalog
             let writesBefore = f.writes
             let outcome = await PublishRetry.perform(run, check: {
-                await PublishConnection.connect(service, keys: keys, readsAccount: false)
+                await PublishConnection.connect(service, catalog: catalog, keys: keys, readsAccount: false)
             }, makeJob: { _, _ in nil })
             guard case .checkStopped(let ended) = outcome else {
                 Issue.record("not stopped by its check: \(outcome)")
