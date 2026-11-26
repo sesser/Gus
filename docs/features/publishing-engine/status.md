@@ -3,13 +3,78 @@ Issue: #28 · Complexity: Hard
 # Publish to Immich: status
 
 Owner: swift-macos-engineer. Branch `feature/publishing-engine` (off `develop`).
-Spec: the PRD (issue #28, revision 2) and [design.md](design.md).
+Spec: the PRD (issue #28, revision 4, approved 2026-11-25) and [design.md](design.md)
+(current against revision 4; rulings in its §16).
 
-**State: In progress.** Only the Immich verification has been done so far (this
-file). No code under `Sources/` or `Tests/` has been written. Several
-assumptions turned out differently, and they go to product and design first
-(**Requirements issues** and **Design questions** below) before any code that
-depends on them is built.
+**State: In progress.** Engineering started 2026-11-26. The verification below
+(2026-11-25, and three more items on 2026-11-26) is done; its requirements
+issues and design questions are ruled (PRD revisions 3 and 4, design §16).
+
+## Progress
+
+Built so far (each step committed on the branch):
+
+1. **Connection layer** (`Sources/PhotoCore/Remote/`): `ImmichEndpoint` gains
+   `asset(id:)`, `ownAlbumsHolding`, and publishing's four writes (`upload`,
+   `createAlbum`, `addToAlbum`, `createStack`); `RemoteRequestAllowlist` holds
+   exactly those four writes plus `GET /assets/{id}` (`RemoteRequestAllowlist.writes`).
+   `RemoteHTTPSession.exchange` returns any status with at most 64 KiB of an
+   error body (the server's words, R23); `RemoteHTTPSession.upload` streams the
+   multipart body from a file and ends by R17's rule (`RemoteUploadEnding`).
+   `ImmichClient.check(requiring:readsAccount:)` serves both Server sheet hosts
+   (R1). `ImmichPublishing.swift`: `RemotePublishDestination`,
+   `PublishFailure`, `PublishStop`, `PublishUploadBody`.
+2. **Catalog**: migration v18, `remotePublication` (records, R17) and
+   `remotePublishSettings` (remembered choices and folder map per server, R7,
+   R12; removed with the server). `Catalog/RemotePublications.swift`.
+3. **Rules** (`PublishOriginals.swift`, `PublishSettings.swift`):
+   `OriginalRules` (R11 to R13, R15, design §7.1 as pure functions),
+   `OriginalFinder` (the one function Check Originals and the run share,
+   AC12), `PublishFolderMapping` (longest folder wins, by volume identity),
+   `PublishPathForms` (NFC and NFD, compared by Unicode scalars),
+   `PublishPermissions` (R8).
+4. **Engine** (`PublishJob.swift`, `PublishRun.swift`): per photo, look for
+   the original, render like an export, upload, record at once, read a
+   duplicate, album, stack; `AlbumCoordinator` (R22's lost-answer rule),
+   `StackSequencer` (one stack at a time per original, grid order), faults
+   and the person's Stop, Retry Failed over the same `PublishRun`.
+5. **Fake server** (`FakeImmichServer`): uploads with per-account duplicates,
+   `GET /assets/{id}`, path search, albums (create, add with the duplicate
+   answer, `assetId=` and `name=` filters), stacks as verified (merge by
+   primary only, trashed members dropped, a named trashed primary kept),
+   partners and unshared accounts, and faults (`refuseStack`, `loseAnswer`,
+   `answer`, `holdUploadAnswer`, `stallUploadBody`).
+6. **Tests**: `PublishRulesTests` (14), `PublishJobTests` (20).
+
+Left, in order: the publish sheet and its pages, the Server sheet's host
+interface and wording (R1, R27), the results sheet and Retry Failed in the
+app, menus, toolbar and context menu, Activity's Show Results… action, the
+quit case, the Import window's In Library for published assets (R20), the
+address warning (R26), debug-script commands, the String Catalog, the user
+guide, then the full test run, the bundle and the CI toolchain build.
+
+Decisions made in building (none changes the spec):
+
+- **The original is looked for before the upload** (fresh runs), so stacks
+  for one original go in grid order whatever order uploads finish in (R14).
+  A failed look does not stop the upload: the stacking step counts as failed
+  (R15), and Retry Failed looks again.
+- **An album create is never retried blindly.** A lost answer goes to
+  `PublishAlbumState.unknown` with the ids of the account's albums of that name
+  read just before the create; the next attempt first lists the account's
+  albums holding the run's first photo and adopts one of that name not in that
+  set (verified live, below); only when there is none is the create sent
+  again. The cycle is bounded by the retry policy.
+- **Records are written outside the run's cancellation** (GRDB refuses a
+  write from a cancelled task), so an upload accepted while the run ends is
+  recorded (R17, AC23).
+- **The upload's dates.** `fileCreatedAt` and `fileModifiedAt` are both the
+  capture's wall-clock time labelled UTC (R4); with no capture date, the
+  original's modification time as local wall-clock time (the PRD's unconfirmed
+  assumption).
+- **Temporary files** go in a per-run folder under
+  `<temporary directory>/<bundle id>.publish/`, removed when the run ends
+  (R24); the whole folder is removed at launch too, for a crash.
 
 ## Immich verification (2026-11-25)
 
@@ -326,7 +391,41 @@ again (New Copy) on the same Mac and build gets the duplicate answer. R19's
 | `valkey/valkey@sha256:70739f85…` (3.2.0's) | 189 MB |
 | `valkey/valkey@sha256:418652cf…` (3.4.2's) | 191 MB |
 
-## Requirements issues (for the product manager)
+### Open items verified 2026-11-26
+
+Observed live on both 3.2.0 and 3.4.2 (`exp2.py`, synthetic data, the same
+compose files; servers removed afterwards).
+
+**A. The original's stack primary is in the trash (PRD open question 1).**
+*Holds.* Stack {P primary, O, M}; P trashed. `GET /assets/O` still gives
+`stack.primaryAssetId` = P. `POST /stacks [E, P, O]` returned 201 with E
+primary and listed members {E, O, M}: the other members are kept and the edit
+is primary. One nuance: P, named in the create, takes the new stack's id while
+in the trash, and **is back in the stack when restored** (count 4). Other
+trashed members, not named, stay unstacked when restored (item 5). The user
+guide says so; R14's sentence ("Members in the trash drop out … and stay
+unstacked if restored") is true of every member but the primary: see RI-E1.
+
+**B. Archive with a stack of more than two (task).** *Holds.* Stack {O, M1,
+M2}, all timeline; `POST /stacks [E archived, O]` gave 4 members, E primary.
+Timeline with `withStacked=true` shows none of O, M1, M2; the archive shows E.
+Each keeps its own visibility (`timeline`). R6's caption is right for any
+stack size.
+
+**C. A lost album create told from an older album of the same name (PRD open
+question 2).** *Holds.* An older album "Trip" holds X; the run publishes X
+again (answered `duplicate`), reads the account's albums named "Trip" (the
+older one), creates "Trip" with X and treats the answer as lost. `GET
+/albums?isOwned=true&assetId=X` gives both albums; of those named "Trip", the
+one not in the set read before is exactly the run's, and the older one is
+excluded. `name=` filters by exact name on both versions; album answers carry
+`id`, `albumName`, `assetCount`, `createdAt`. The engine uses the set read
+before the create, not dates.
+
+## Verification requirements issues (ruled 2026-11-25: PRD revision 3, design §16.4)
+
+Kept as raised; every one is ruled. The rulings are in the PRD's revision 3
+and design §16.4.
 
 - **RI-V1 (R4, item 1): the time of day at Copyright and None.** Immich dates a
   file with no embedded date by the upload's `fileCreatedAt`, but shows its UTC
@@ -402,7 +501,9 @@ again (New Copy) on the same Mac and build gets the duplicate answer. R19's
   Recommendation: (a). It matches the project-name rule of #271 and needs no new
   request.
 
-## Design questions (for the designer)
+## Verification design questions (ruled 2026-11-25: design §16.4)
+
+Kept as raised; every one is ruled in design §16.4.
 
 - **DQ-V1 (§5, §3.4; items 7 and 8): `album.read` with New album.** Retry Failed
   can avoid a second album only by finding the one a lost create made, which
@@ -423,11 +524,30 @@ again (New Copy) on the same Mac and build gets the duplicate answer. R19's
 
   Recommendation: (b), since nothing ever reports locked. Low priority.
 
+## Requirements issues (open, for the product manager)
+
+- **RI-E1 (R14, AC22; verified item A): a trashed primary returns to the
+  stack.** R14 says members in the trash "drop out of the stack and stay
+  unstacked if restored". Live, that is true of every trashed member except
+  the original's stack primary: the create must name it (R14's first
+  condition), and Immich then gives it the new stack's id although it is in
+  the trash, so restoring it puts it back in the stack (not as primary). No
+  request is added and nothing in the app changes. Options:
+  - (a) Reword R14's sentence: "Members in the trash drop out of the stack;
+    restored, they stay unstacked, except the stack's former top photo, which
+    returns to it." The user guide already says this.
+  - (b) Leave R14 as is (it is about what the app does, which is unchanged).
+
+  Recommendation: (a), so the PRD and the user guide agree. Not blocking.
+
 ## Build and test
 
 | When | Command | Result |
 |---|---|---|
 | 2026-11-25, baseline | `swift build --product photocli`; `swift run -c release photobench …` | Built clean (Swift 6.4.2). No code was changed, so `swift test` was not run |
+| 2026-11-26, baseline at a58d943 | `swift build --build-tests` | Built clean, no errors |
+| 2026-11-26, engine | `swift test --filter "Remote\|Publish\|CatalogTests\|LibraryRemoval"` | 159 tests in 15 suites passed |
+| 2026-11-26, engine | `swift test --filter PublishJobTests`, three runs | 20 of 20 each time |
 
 ## README
 
