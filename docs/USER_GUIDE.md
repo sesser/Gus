@@ -38,17 +38,22 @@ it is the address's host), its address and an API key. An address without
 `https://` or `http://` gets `https://`; a trailing slash and `/api` are
 dropped, a port and a path such as `/immich` are kept, and **Will connect to**
 shows where the key will go. Create the key in Immich, in your account
-settings; it needs only these permissions: asset.read, asset.view,
+settings; importing needs these permissions: asset.read, asset.view,
 asset.download, album.read and user.read (user.read tells the app which photos
-are your own; a key that can do more is accepted, and the app still only
-reads). This Mac keeps its copy of the key in the Keychain and
-nowhere else. **Add** (Return) checks the server; while it does, the sheet
+are your own; a key that can do more is accepted, and importing still only
+reads). Publishing needs others (see **Publishing to an Immich server**
+below); one key can do both. This Mac keeps its copy of the key in the
+Keychain and nowhere else. **Add** (Return) checks the server; while it does, the sheet
 says **Checking the server…**. Each problem is named under the field it
 concerns: the server can't be reached; it doesn't look like an Immich server;
 the key was rejected; the key is missing permissions (naming them); the
 server is too old (Immich 3.2.0 or newer is needed, and both versions are
 shown); the server's certificate has changed; or the Keychain refused the key.
-A server that passes is saved and becomes the source. The app asks the server
+A key that lacks import's permissions is not saved from here; when it holds
+asset.upload and asset.read, the sheet says it can be saved from **File ▸
+Publish…** instead. Choosing such a server as the source shows **Can't Import
+from ‹name›** with the permissions to add, and imports nothing. A server that
+passes is saved and becomes the source. The app asks the server
 not to compress its answers and refuses any answer that comes compressed: if a
 reverse proxy in front of Immich compresses answers even when not asked to, the
 server is reported as not looking like an Immich server (and, while browsing,
@@ -91,10 +96,11 @@ server gives for it, which can include videos and other people's photos), and
 photos taken between two days, either end open. Nothing is checked when a
 server opens: check photos as for a card, or **Select All** (⌘A), which takes
 the photos loaded so far (the subtitle says, for example, **250 selected ·
-250 loaded**). A photo already imported from this server is marked **In
-Library** and can't be checked, so it is never downloaded again, even after
-you remove the server and add it again at the same address; a server at a
-new address is a new server to the library. A photo edited in Immich carries
+250 loaded**). A photo already imported from this server, or published to it
+from this library, is marked **In Library** and can't be checked, so it is
+never downloaded again, even after you remove the server and add it again at
+the same address (its tooltip says which); a server at a new address is a new
+server to the library. A photo edited in Immich carries
 an **Edited** badge: the original is what is imported, never the server's
 edit.
 
@@ -110,8 +116,8 @@ existing project with this name.** If several projects share the name, the
 oldest is used, and it keeps its folder for Show in Finder. Choosing a project
 in **Add to** puts the photos in it, and the field is hidden (and with it the
 line). A card or folder import set to **New Project** still always makes a new
-one. There is no After Import section, since nothing on
-the server is ever changed or deleted. **Import N Photos** downloads each
+one. There is no After Import section, since importing never changes or
+deletes anything on the server. **Import N Photos** downloads each
 original under a hidden temporary name, checks its size and the SHA-1 the
 server gave, and moves it into place under your file name template; a
 download that does not match is discarded. A photo in an Immich external
@@ -130,9 +136,14 @@ deleted on the server during the import is listed and the rest go on.
 Activity in the library window lists what was imported, what was already in
 the library, the Live Photo videos left out and each photo that could not be
 imported, with the reason. **Edit Server…** changes the name, address or key
-(an empty key field keeps the stored key); **Remove Server…** asks first,
-then deletes the key from the Keychain (it still works on the server until
-you delete it in Immich) and keeps every photo already imported. If the
+(an empty key field keeps the stored key). Changing the address of a server the
+library has imported from or published to shows, under the address, **Photos
+imported from or published to the old address won't be recognized at the new
+one.**: nothing is carried over, and typing the old address back restores
+them. **Remove Server…** asks first, then deletes the key from the Keychain
+(it still works on the server until you delete it in Immich), along with the
+server's folder map and publishing choices; every photo already imported
+stays, and so does the record of what was published. If the
 Keychain won't delete the key, nothing is removed and an alert says so; try
 again, or delete the key in Immich. If a server's albums can't be read, the
 photos are still listed and Activity says so; **Rescan** tries again. The
@@ -1192,6 +1203,124 @@ be exported (an offline volume, for instance), the report is a warning that
 lists up to ten of them with the reason for each. Photos skipped because you
 chose to skip existing files get a note of their own. The Finder can show the
 files when it is done.
+
+**Publishing to an Immich server** (**File ▸ Publish…**, ⌥⌘E; the toolbar's
+**Publish**; **Publish…** in a photo's context menu) uploads the selected
+photos, or the one in the loupe, to one of the Immich servers you added, with
+their adjustments, and puts each on top of its original there. Targets are
+Export's: a RAW+JPEG pair is published once, from its RAW; each copy is its
+own photo; videos are left out and counted; a photo whose original is offline
+fails and the rest go on. Each photo is published as it is saved when you
+press **Publish**. The sheet:
+
+- **Server**: one of your servers, or **Add Server…** and **Edit “‹name›”…**,
+  which open the server sheet in place of this one and bring it back after.
+  Opening the sheet checks the chosen server, and choosing another checks that
+  one; nothing else contacts a server. A server added for importing over
+  `http://` is publishable too, with no second question, and the sheet always
+  says **Not encrypted (http)** for it.
+- **Album**: **None**, **New Album…** (a name; an album of that name may already
+  exist, and the sheet says a second one will be made), or one of your albums.
+  **Show in**: **Timeline** or **Archive**, set when the photo is uploaded. With
+  Archive and stacking both on, a stacked original leaves the timeline with its
+  edit, and so does the rest of its stack; their own visibility isn't changed.
+- **Stack with original** (on at first): see below. **Edit Folder Map…** and
+  **Check Originals**.
+- **Files**: the export presets and **Edit Settings…**, which shows Export's
+  file names, file type, size, metadata and watermark settings on a page of its
+  own (**Cancel** puts them back). The file uploaded is the one Export would
+  write with the same settings, under the name the file name setting gives,
+  and always SDR. **Description**: typed text replaces each file's description
+  for this run only; left empty, each photo keeps its own; the library is not
+  changed, and at a metadata level without descriptions it isn't sent.
+
+What the server is told: the file, its name, its capture date and whether it
+goes to the timeline or the archive. Ratings, flags and labels are never sent,
+and no location apart from what the metadata level leaves in the file. Immich
+dates each photo at its capture date at every metadata level: when the file
+carries no date (at **Copyright and contact only** and **None**), the app sends
+the time of day the photo was taken as if it were UTC, so Immich shows the
+time you took it; among photos from other time zones it may sort off by the
+offset. A photo with no capture date at all is dated by its original file's
+modification time.
+
+The key needs **asset.upload** and **asset.read** to publish at all (a key with
+only these two can be saved from **File ▸ Publish…**; from the import window a
+server needs import's permissions). An album also needs **album.read** and
+**albumAsset.create**, and a new album **album.create**. Stacking needs
+**user.read** and **stack.create**. A missing permission is named under the
+option that needs it, and **Publish** stays dimmed until you add it in Immich
+and choose **Check Again**, or turn the option off.
+
+**Stacking on the original.** For each photo the app looks for its original on
+the server: the photo it was imported from (or that its RAW+JPEG partner, or
+for a copy the photo it was copied from, was imported from); otherwise, through
+the **folder map**, a photo of an Immich external library at the path the
+server sees. The folder map is a list of pairs: a folder on this Mac and the
+path the server reads it as (`/mnt/media/photos`, say). When folders overlap,
+the longest one wins; a folder on a disk is still found when the disk mounts
+at another place. Under each pair, the first selected photo in that folder
+shows where it will be looked for. Capital letters count; an accented name is
+found whichever way it is encoded. Only your own photos count as originals,
+never a partner's at the same path, and never one in the trash, hidden or
+locked, a video, one this library published, or (through the folder map) one
+of a different size; two that qualify are "more than one match" and neither is
+used. **Check Originals** says, before anything is uploaded, how many photos
+have an original and why the others don't. A photo without an original is
+still published, unstacked, with the reason in the results.
+
+The published photo becomes the top photo of its original's stack. If the
+original is already in a stack, every photo of that stack ends in one stack
+with the new photo on top, earlier publications included; several edits of one
+original in a run all join it, the last in the grid's order on top. When a
+published photo joins a stack, any photo of that stack that is in the server's
+trash drops out of it, and if you restore it, it stays unstacked; the one
+exception is the stack's former top photo, which returns to the stack (not on
+top) when restored. If the server refuses the stack (a locked top photo, say),
+the photo is still published and the stack is left as it was; that counts as a
+failure that **Retry Failed** finishes.
+
+**Publishing again.** When photos were already published to that server (even
+before the server was removed and added again at the same address), the app
+asks once: **Skip** (the default) leaves them alone, **New Copy** publishes
+them again as new photos, and **Cancel** sends nothing. Nothing on the server
+is ever replaced. When the server already has an identical file (an unchanged
+photo published again, say), it reports the photo as already on the server;
+it gets the album and the stack unless it is in the trash, hidden, or the
+server won't show it, which the results say. Photos published from this
+library show as **In Library** in the import window.
+
+The run goes in the background, in Activity, with **Stop** (and **File ▸ Stop
+Publishing**, ⌘.). Each photo is filed in its album and stacked right after its
+own upload, so stopping leaves only the photos in progress without their album
+or stack. The server stopping to respond (after three more tries), a rejected
+key, a changed certificate or a missing permission stops the run. When a run
+ends while a file is being uploaded, a file not yet fully sent is abandoned at
+once; for one fully sent the app waits up to 10 seconds for the answer and
+records the photo if it was accepted (Activity says **Stopping. Waiting for
+“‹name›” to answer…** meanwhile). If publishing ends just after a file has
+been sent, because you stop, quit or lose the server, the server may keep a
+photo the app has no record of. It isn't marked In Library. Publishing it again
+reports it as already on the server only if the file is identical; otherwise
+you get a second copy. Quitting while publishing asks first.
+
+When a run ends, Activity says what happened (published, already on the server,
+skipped, stacked, not stacked, videos left out, failed, not finished, not
+published because publishing stopped), with **Show Results…**; **File ▸
+Publish Results…** opens the newest run's results, and the **Run** pop-up
+earlier ones. The results list every failed, unfinished and unstacked photo
+with its reason. **Retry Failed** repeats only what did not succeed, with the
+run's server, settings and choices: it uploads no photo twice, makes no second
+album or stack, and finishes the album and stacking of photos already
+uploaded. After a stop caused by the server, it also publishes the photos not
+reached; after your own Stop it doesn't. It is offered until you quit, and not
+while another publish runs, after the server was removed, or after its address
+changed. Unfinished steps are not kept after you quit. Stack the photo in
+Immich, or publish it again as a New Copy. That stacks the existing photo if
+the server finds the file identical; otherwise the first upload stays loose
+beside the new one. The rendered files are temporary and are removed when the
+run ends; originals and sidecars are never written. The standalone importer
+and `photocli` can't publish.
 
 **History**: in the loupe, the **History** panel at the bottom of the inspector
 (under the Info and Adjust tabs) lists the changes made to the open photo's
