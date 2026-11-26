@@ -310,3 +310,74 @@ public struct OriginalFinder: Sendable {
         }
     }
 }
+
+/// Check Originals' tally (design §7, AC12): what `OriginalFinder` says of
+/// each photo, the run's own function, so the check and the run agree.
+public struct OriginalsTally: Equatable, Sendable {
+    public typealias Photo = (name: String, reason: NoOriginalReason)
+
+    /// Photos whose original was found.
+    public var found: Int
+    /// Photos looked for: every photo but the offline ones.
+    public var checked: Int
+    /// Photos without an original, by group, groups in the order first met.
+    public var groups: [(group: NoOriginalReason.Group, photos: [Photo])]
+    /// Offline photos, left out of the check.
+    public var offline: Int
+
+    public init(found: Int = 0, checked: Int, groups: [(group: NoOriginalReason.Group, photos: [Photo])] = [],
+                offline: Int) {
+        self.found = found
+        self.checked = checked
+        self.groups = groups
+        self.offline = offline
+    }
+
+    /// Counts one photo's outcome.
+    public mutating func add(_ match: OriginalMatch, name: String) {
+        switch match {
+        case .found:
+            found += 1
+        case .none(let reason):
+            if let at = groups.firstIndex(where: { $0.group == reason.group }) {
+                groups[at].photos.append((name, reason))
+            } else {
+                groups.append((reason.group, [(name, reason)]))
+            }
+        }
+    }
+
+    /// Check Originals over `versionIDs` in their order: offline photos are
+    /// counted and not looked for; a photo with no source is checked and
+    /// counted in neither found nor a group. `progress` gets the photos done
+    /// and the total after each. Nil when cancelled; throws the first failed
+    /// request (the check then stops, saying why).
+    public static func check(_ versionIDs: [Int64], offline: Set<Int64>, sources: [Int64: PublishSource],
+                             names: [Int64: String], isolation: isolated (any Actor)? = #isolation,
+                             find: (PublishSource) async throws(PublishFailure) -> OriginalMatch,
+                             progress: (_ done: Int, _ total: Int) -> Void = { _, _ in })
+        async throws(PublishFailure) -> OriginalsTally? {
+        let checkable = versionIDs.filter { !offline.contains($0) }
+        var tally = OriginalsTally(checked: checkable.count, offline: versionIDs.count - checkable.count)
+        for (index, id) in checkable.enumerated() {
+            if let source = sources[id] {
+                do throws(PublishFailure) {
+                    tally.add(try await find(source), name: names[id] ?? "")
+                } catch {
+                    if Task.isCancelled { return nil }
+                    throw error
+                }
+            }
+            if Task.isCancelled { return nil }
+            progress(index + 1, checkable.count)
+        }
+        return tally
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.found == rhs.found && lhs.checked == rhs.checked && lhs.offline == rhs.offline
+            && lhs.groups.map(\.group) == rhs.groups.map(\.group)
+            && lhs.groups.map { $0.photos.map(\.name) } == rhs.groups.map { $0.photos.map(\.name) }
+            && lhs.groups.map { $0.photos.map(\.reason) } == rhs.groups.map { $0.photos.map(\.reason) }
+    }
+}

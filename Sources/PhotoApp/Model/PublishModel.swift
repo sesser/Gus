@@ -39,19 +39,8 @@ final class PublishModel: ServerSheetHost {
         case failed(String)
     }
 
-    struct OriginalsResult: Equatable {
-        var found: Int
-        var checked: Int
-        /// Photos without an original, by group, in the order first met.
-        var groups: [(group: NoOriginalReason.Group, photos: [(name: String, reason: NoOriginalReason)])]
-        var offline: Int
-
-        static func == (lhs: Self, rhs: Self) -> Bool {
-            lhs.found == rhs.found && lhs.checked == rhs.checked && lhs.offline == rhs.offline
-                && lhs.groups.map(\.group) == rhs.groups.map(\.group)
-                && lhs.groups.map { $0.photos.map(\.name) } == rhs.groups.map { $0.photos.map(\.name) }
-        }
-    }
+    /// Check Originals' tally, in PhotoCore with its test (QA Q2).
+    typealias OriginalsResult = OriginalsTally
 
     /// The Skip / New Copy question (design §8), with the server, client and
     /// check it was asked for, so the answer starts that run (review F1).
@@ -615,28 +604,19 @@ final class PublishModel: ServerSheetHost {
         let names = self.names
         originals = .running(done: 0, total: checkable.count)
         originalsTask = Task {
-            var result = OriginalsResult(found: 0, checked: checkable.count, groups: [], offline: offline.count)
-            for (index, id) in checkable.enumerated() {
-                guard let source = sources[id] else { continue }
-                do throws(PublishFailure) {
-                    switch try await finder.find(source) {
-                    case .found:
-                        result.found += 1
-                    case .none(let reason):
-                        let entry = (name: names[id] ?? "", reason: reason)
-                        if let at = result.groups.firstIndex(where: { $0.group == reason.group }) {
-                            result.groups[at].photos.append(entry)
-                        } else {
-                            result.groups.append((reason.group, [entry]))
-                        }
-                    }
-                } catch {
-                    guard !Task.isCancelled else { return }
-                    originals = .failed(PublishText.cause(PublishCause(error)))
-                    return
-                }
-                guard !Task.isCancelled else { return }
-                originals = .running(done: index + 1, total: checkable.count)
+            let result: OriginalsTally
+            do throws(PublishFailure) {
+                guard let tally = try await OriginalsTally.check(ids, offline: offline, sources: sources, names: names,
+                                                                 find: { source async throws(PublishFailure) in
+                                                                     try await finder.find(source)
+                                                                 },
+                                                                 progress: { done, total in
+                                                                     originals = .running(done: done, total: total)
+                                                                 }) else { return }
+                result = tally
+            } catch {
+                originals = .failed(PublishText.cause(PublishCause(error)))
+                return
             }
             originals = .result(result)
             AccessibilityText.announce(PublishText.originalsSummary(found: result.found, of: result.checked),

@@ -233,6 +233,88 @@ struct PublishJobTests {
         }
     }
 
+    @Test("Check Originals' tally agrees with the run: found as stacked, each reason as the run's, offline left out (AC12, QA Q2)")
+    func originalsTallyMatchesRun() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await Self.fixture(root, files: ["a.jpg", "b.jpg", "c.jpg", "d.jpg"])
+            let ids = [try await f.version("a.jpg"), try await f.version("b.jpg"), try await f.version("c.jpg"),
+                       try await f.version("d.jpg")]
+            let original = FakeImmichServer.Asset(fileName: "a.jpg", data: try f.masterData("a.jpg"), takenAt: Date())
+            f.server.addAssets([original])
+            // a: its original is on the server; c and d: linked to an asset the server no longer has; b: nothing.
+            _ = try await f.catalog.database.write { db in
+                for (versionID, remoteID) in [(ids[0], original.id), (ids[2], "gone-c"), (ids[3], "gone-d")] {
+                    try Catalog.insertLink(db, remoteID: remoteID, fingerprint: "x",
+                                           link: RemoteLinkTarget(provider: .immich, address: f.address,
+                                                                  serviceID: f.service.id),
+                                           versionID: versionID, at: Date())
+                }
+            }
+            let sources = try await f.catalog.publishSources(versionIDs: ids, address: f.address)
+            var names: [Int64: String] = [:]
+            for id in ids { names[id] = try #require(try await f.catalog.details(forVersion: id)).image.fileName }
+            let finder = OriginalFinder(destination: f.client, catalog: f.catalog, address: f.address,
+                                        accountID: FakeImmichServer.ownerID, folderMap: [])
+            var steps: [Int] = []
+            let tally = try #require(try await OriginalsTally.check(ids, offline: [], sources: sources, names: names,
+                                                                    find: { source async throws(PublishFailure) in
+                                                                        try await finder.find(source)
+                                                                    },
+                                                                    progress: { done, _ in steps.append(done) }))
+            #expect(steps == [1, 2, 3, 4])
+            #expect(tally.checked == 4 && tally.offline == 0 && tally.found == 1)
+            #expect(tally.groups.map(\.group) == [.noMappedFolder, .importedOriginalNotFound])
+            #expect(tally.groups.map { $0.photos.map(\.name) } == [["b.jpg"], ["c.jpg", "d.jpg"]])
+            #expect(f.writes.isEmpty, "Check Originals only reads")
+
+            // The run, with the same finder's rule, comes to the same.
+            let run = await f.job().run(try await f.makeRun(ids))
+            #expect(run.counts.stacked == tally.found)
+            var fromRun = OriginalsTally(checked: ids.count, offline: 0)
+            for item in run.items {
+                switch item.stacking {
+                case .stacked?: fromRun.add(.found(assetID: item.assetID ?? ""), name: names[item.versionID] ?? "")
+                case .noOriginal(let reason)?: fromRun.add(.none(reason), name: names[item.versionID] ?? "")
+                default: Issue.record("\(item.versionID): \(String(describing: item.stacking))")
+                }
+            }
+            #expect(fromRun == tally)
+
+            // Offline photos are counted and not looked for.
+            let looked = Mutex(0)
+            let partial = try #require(try await OriginalsTally.check(ids, offline: [ids[1], ids[3]], sources: sources,
+                                                                      names: names,
+                                                                      find: { source async throws(PublishFailure) in
+                                                                          looked.withLock { $0 += 1 }
+                                                                          return try await finder.find(source)
+                                                                      }))
+            #expect(partial.checked == 2 && partial.offline == 2 && partial.found == 1)
+            #expect(looked.withLock { $0 } == 2)
+            #expect(partial.groups.map { $0.photos.map(\.name) } == [["c.jpg"]])
+        }
+    }
+
+    @Test("Check Originals stops on a failed request and gives nothing when cancelled (AC12, QA Q2)")
+    func originalsTallyFailureAndCancel() async throws {
+        let source = PublishSource(versionID: 1, imageID: 1, files: [], linkedAssetIDs: [])
+        await #expect(throws: PublishFailure.self) {
+            _ = try await OriginalsTally.check([1, 2], offline: [], sources: [1: source, 2: source], names: [:],
+                                               find: { _ async throws(PublishFailure) in throw .remote(.disk("no")) })
+        }
+        let started = AsyncStream<Void>.makeStream()
+        let task = Task {
+            try await OriginalsTally.check([1, 2], offline: [], sources: [1: source, 2: source], names: [:],
+                                           find: { _ async throws(PublishFailure) in
+                                               started.continuation.yield()
+                                               await Self.untilCancelled()
+                                               throw .remote(.disk("cancelled"))
+                                           })
+        }
+        for await _ in started.stream { break }
+        task.cancel()
+        #expect(try await task.value == nil)
+    }
+
     @Test("With stacking off no stack request is sent; a linked asset in the trash falls through to the folder map (AC7)")
     func stackingOffAndFallThrough() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
