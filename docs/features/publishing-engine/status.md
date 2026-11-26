@@ -3,15 +3,127 @@ Issue: #28 · Complexity: Hard
 # Publish to Immich: status
 
 Owner: swift-macos-engineer. Branch `feature/publishing-engine` (off `develop`).
-Spec: the PRD (issue #28, revision 4, approved 2026-11-25) and [design.md](design.md)
-(current against revision 4; rulings in its §16).
+Spec: the PRD (issue #28, **revision 6**, 2026-11-26) and [design.md](design.md)
+(rulings in its §16), with the design review's rulings D-1 to D-5 and its
+correction to §3.6 ([review.md](review.md)).
 
-**State: Done** (2026-11-26). Every acceptance criterion is built and mapped
-to a test or a check below, except AC17 (the owner's, on his own server).
-`swift test` passes, `Scripts/build-app.sh all` builds, the CI toolchain build is
-clean, and the UI was checked with the debug script. Open for others: RI-E1
-(below), the checks **For a person**, the owner's approval of the proposed
-`CLAUDE.md` Network rule, and the follow-ups under **Follow-ups proposed**.
+**State: Done** (2026-11-26, review round). Every finding of
+[code-review.md](code-review.md) (C1 to C7), [review.md](review.md) (F1 to F18,
+G-2) and [security-review.md](security-review.md) (L1, N1) is fixed, or for F6
+answered below, each with its test or scripted check; RI-E1 is ruled (PRD
+revision 5) and its tests are in. `swift test`, `Scripts/build-app.sh all` and
+the CI toolchain build are recorded under **Build and test**. Open for others:
+the checks **For a person**, the owner's approval of the proposed `CLAUDE.md`
+Network rule, and **Follow-ups proposed**. Next: code-reviewer's second pass and
+the designer's (the UI changed), then qa-tester.
+
+## Review round (2026-11-26)
+
+Started fresh from this file at b244b48. The three review files were committed
+as they were (666b6fe). Engine fixes and their tests: 8b12a6b; the app, strings,
+user guide and this file follow it.
+
+### Code review
+
+| # | Fix | Test or check |
+|---|---|---|
+| C1 (= F2) | `ProgressCounter` learns of the person's Stop (`withTaskCancellationHandler` around the run: `stopping()`), so every later report says ending; the model holds the stop in `PublishSlot.isStopping`, and a report sent before the stop that arrives after it stays ending (`PublishProgress.followed(by:)`). Activity, File ▸ Stop Publishing and the quit rule read `PublishModel.isEnding` | `stopKeepsEndingInEveryReport` (fails without the fix: no ending report at all), `PublishRulesTests.progressCounter`; scripted D-1 run below |
+| C2 (= F3) | `PublishSlot` (one publish at a time): a run takes it in `start`, a retry right after re-reading the servers and before its check; `isPublishing`, `canPublish`, `retryRefusal`, File ▸ Publish… and `begin` read it; `start` refuses with "A publish is already running." when it is held. The retry's check runs inside the run's task (D-2) | `PublishRulesTests.oneAtATime`; scripted: during a retry's slow check the reopened results say "A publish is already running." and Publish is dimmed |
+| C3 (= F7) | `ExportSettingsEditor.onWatermarkPicked`: Export routes Choose Image… to `ExportModel.useWatermark` again, which clears its issue on a good pick; the debug script's `export set watermark=` takes the same route (`watermarkPicked`) | Scripted, two launches: "The watermark image is missing. Choose it again." after Export, gone after a good pick, "“notpng.png” is not a PNG image." after a bad one |
+| C4 | `publishSources` orders links as PRD revision 6 says: the photo's own, then for a copy its original's (the master's default version), then the pair partner's; only the first is tried | `pairBothLinkedAndCopy` (fails without: the copy took the JPEG's link), `pairJPEGLinkedAndCopy` |
+| C5 (= L1) | `PublishTemporaryFolders`: each launch has its own folder under `$TMPDIR/<bundle id>.publish/`, held by an exclusive `flock` on `<launch>.lock` taken atomically as the file is made (`O_EXLOCK`), before the folder exists, for the life of the process. `removeLeftovers` (at launch) removes only folders whose lock it can take (their process has ended) and folders with no lock file | `PublishRulesTests.temporaryFoldersPerLaunch` (fails when cleanup removes the whole base, as before) |
+| C6 | Test only: the fake server releases held upload answers one by one (`releaseHeldAnswer(fileName:)`), and `PublishJob.onRecorded` tells the test when one is recorded | `stackOrderWhicheverUploadFinishesFirst`, both orders. With `sequencer.turn` removed it failed (wrong primary, wrong members, the creates not one after the other) |
+| C7 | The v17 comment is back on `addHDRChoice`; v18's on `addPublishing`. Comment only | Reading |
+| Q1 | Ruled by PRD revision 6 (R11, AC7) as C4 above | as C4 |
+
+### Design review
+
+| # | Fix | Test or check |
+|---|---|---|
+| F1 | Publish N Photos runs `confirm()`, a task the model keeps; the sheet closing by any route (`LibraryModel.showsPublishSheet` → `sheetClosed`) starts a new session and cancels it, the check, albums and Check Originals. After every wait `requestPublish` gives up unless the same session is open and the same server chosen, and it starts the run with the server, client and check it got (the question carries them too). The form is dimmed while confirming; Cancel is not | Scripted: Publish pressed against a 2.5 s check, Cancel: nothing uploaded, no job, Publish enabled again |
+| F2 | As C1. Detail per D-1: **Stopping…**, or **Stopping. Waiting for “‹name›” to answer…** only while an answer is awaited (`RemoteUploadEnding` counts awaited answers, `PublishProgress.awaitsAnswer`) | as C1; scripted: the waiting detail twice a second apart, Stop dimmed |
+| F3 | As C2. Per D-2 the retry's check is the run's: Activity job at once, indeterminate, **Checking “‹name›”…**, Stop on. Every ending sets `endedAt` (`finish`) | Scripted: the job's detail and Stop during the check; the retried run's row and results updated |
+| F4 | Servers are read again when the results sheet appears and whenever a server is added, edited or removed in either window (`CardImportLibrary.remoteServersChanged`); `retry` re-reads them before deciding, and a refusal then leaves the sheet open with its reason | Scripted: Remove Server in the import window, then Publish Results: "This server was removed.", Retry dimmed |
+| F5 | `choose(_:keepingChoices:)`: back from editing the server already chosen, only its folder map, links and names are read again and the check runs; remembered choices load only when the selection moves to another server (a new one included) | Scripted: Archive and a description set, Edit Server, rename, Save: both kept |
+| F6 | **Not reproduced as written.** With the old binding restored in a bundle, typing `/mnt/media` a character at a time through the field editor (the path key presses take) kept every slash. Fixed anyway, as the designer ruled the transform wrong either way: the field holds the text as typed; `keptServerPath` is used for matching and the example, and Done saves `kept` | `PublishRulesTests.serverPathAsTyped` (fails without: `//` in the matched path); scripted on the old and new bundles |
+| F7 | As C3 | as C3 |
+| F8 | `endedRuns` (ended, not the one holding the slot) feeds File ▸ Publish Results…, `resultsRun`, `showResults` and the Run pop-up | Scripted: Publish Results dimmed during the first run, enabled after |
+| F9 | `begin` and `choose` set the check to checking and drop the client before any wait; `canPublish` needs `!isLoading` and a client; the empty state shows only once servers are read (a spinner before) | Scripted: `publish sheet nowait` prints check checking, Publish dimmed, pop-up dimmed |
+| F10 | Ruling D-3: the untrusted certificate's title and detail in the Server section, with Review Certificate… | By reading (the fake server is http only) |
+| F11 | `resetOriginals()` cancels and clears; used by `begin`, `choose`, the stacking box, a saved folder map that changed, Publish, and the sheet closing; not by the album | Scripted: a check started, stacking turned off and on, three seconds later: not run |
+| F12 | The album pop-up is a `Menu` with an inline `Picker` (None, New Album…, the albums), so the choice is ticked; **Albums need album.read on this key** and the dimmed New Album… only once the check passed without `album.read`; the pop-up dimmed until the check passes | Scripted: items printed with ✓ (None; New Album… when chosen), pop-up dimmed while checking |
+| F13 (G-2) | `AnnouncedIssue`: every issue under a control is announced when it appears and when its words change, and the control takes it as its hint: the Server section (failed check, missing permission), Album (missing permission, list failed, album gone) on the pop-up, Stacking on the box, Archive on Show in, the settings issue on Edit Settings…, folder map issues on their field, the start issue on Publish, the check stopped on Check Originals | By reading; VoiceOver is left to CI |
+| F14 | `PublishJob.onRecorded` → the import window marks each upload In Library as it is recorded; the Can't Import view's Edit Server… and Review Certificate… are dimmed while that server is published to | By reading; the hook is exercised by `stackOrderWhicheverUploadFinishesFirst` |
+| F15 | The popover shows a small spinner for the publish job with no progress (checking, ending); the counter returns from Waiting to the step in hand when a retried request is over | `PublishRulesTests.progressCounter` (fails without: stayed Waiting); popover snapshot 16 below |
+| F16 | D-4: **not published: the server didn't accept the upload (‹status›). “‹message›”**, other server causes **The server answered ‹status›.** with the message; an album add's per-photo refusal shows the server's words alone (`PublishCause.itemRefused`); Not Finished reads **already on the server, but** for an already-there photo; D-5: a retry stopped by its check says **Publishing stopped: ‹the check's title›.** (`PublishStop.checkFailed`), **The key couldn't be read** for the Keychain | Scripted: "not published: the server didn't accept the upload (400). “Status 400”", "already on the server, but not checked before publishing stopped.", "Publishing stopped: The server rejected this API key." |
+| F17 | Add Folder… focuses the new section's server field (`focusedMapping`, applied when the field appears) | Scripted: `publish map focus` after `map add`: the field with the `/mnt/media/photos` prompt has the keyboard |
+| F18 | `Catalog.rememberMadeAlbum` changes only the remembered album, and only when no later run to that server has started (`PublishRun.mayRememberItsAlbum`) | `madeAlbumRememberedAlone`, `PublishRulesTests.albumRememberedOnlyByTheLatest` |
+| Correction to §3.6 | Noted: the missing watermark is the only settings issue (`settingsIssue`) | — |
+| User guide | "It uploads no photo twice (except after a lost answer, described above)"; also the link order, the former primary per revision 5, Stopping…, the retry's check, a trailing slash dropped on Done | Reading |
+| Improvements | Done: `.help` on result names; the File Settings page shows the missing-watermark issue. Not done: a separate wording for a one-photo check ("Originals found for 1 of 1 photos."), which needs new catalog keys and was a judgment call | — |
+
+### Security review
+
+| # | Fix | Test or check |
+|---|---|---|
+| L1 | As C5 | as C5 |
+| N1 | `RemoteAsset.isServerID` (1 to 64 ASCII letters, digits and hyphens) guards `asset(id:)`, `addToAlbum` and, for import (#271), every listed asset's id before it can reach the thumbnail or original path. `RemoteRequestAllowlist.permits` matches with `NSRegularExpression` and requires the match to cover the whole path. Found here: on macOS 27.2 `String.range(of:options: .regularExpression)` does not let `$` match before a trailing U+2028, but ICU itself (`NSRegularExpression`) does, so the review's mechanism depends on the Foundation release; the fix answers alike on every release | `PublishRulesTests.serverIDsAndAnchoredAllowlist` (fails without the whole-path match), `strangeIDsNeverRequested` (no request made) |
+| N2 to N4 | No change, as the review says | — |
+
+### Requirements
+
+- **RI-E1: ruled** (PRD revision 5, R14, AC10): a trashed former primary is
+  named in the create and rejoins the stack (not on top) if restored, unless a
+  later publication has replaced that stack while it was in the trash, which
+  drops it too. Tests: `trashedPrimaryNamedAndRestored` (named in the create,
+  a member once restored), `laterPublicationDropsTrashedPrimary` (the second
+  create names the first edit, not it; restored, it is unstacked). User guide
+  updated.
+
+### Review round: scripted checks
+
+The bundle built with `CONFIGURATION=debug Scripts/build-app.sh library`,
+copied to the scratchpad, identifier set to `me.sesser.gus.debugtest.review28`
+and signed ad hoc; a `photobench generate --jpeg 3 --dng 0 --heic 0 --videos 1`
+library imported with `photobench import`; the fake server started and given
+the publishing permissions (`import server fake fault permissions …`), added as
+"Home". For F6 a second copy (`…review28old`) had the old binding put back. A
+new fake-server fault `slowCheck` (`import server fake fault slowcheck <ms>`)
+holds a check's first answer so a check can be caught running. New debug
+words: `publish sheet nowait`, `publish press`, `publish cancel`, `publish map
+type`, `publish map focus`, `publish originals nowait`, `publish servers`; the
+`export` print shows its issue. Results are in the tables above. No crash in
+any run after one found and fixed here: the retry's first build read
+`progress` while modifying it (an exclusivity trap) when its check passed.
+
+Snapshots for the designer (the window's layers; glass panes come out blank or
+coloured, and the default button is drawn as in an inactive window), under
+`/private/tmp/claude-501/-Users-randy--claude-spares-spare-ZSbkzm/7f274175-835d-4217-a958-c2a7b08f08df/scratchpad/shots/`:
+
+- `01-publish-main.png`: the main page, http server.
+- `02-publish-new-album-taken.png`: New Album… named like an existing album
+  (taken with a key lacking publishing permissions, so the issues show).
+- `03-publish-archive-stacked.png`: Archive with stacking (same key).
+- `04-file-settings.png`: File Settings.
+- `05-folder-map.png`: a pair typed `/mnt/media/` (as typed), its example;
+  `05-folder-map-added.png`: right after Add Folder… (field focused).
+- `06-check-originals.png` (dimmed, missing permissions),
+  `06-check-originals-result.png`: three "Nothing at the mapped path".
+- `07-server-sheet-from-publish-edit.png`: the Server sheet opened from Publish (Edit).
+- `08-publish-checking.png`: Publish pressed, **Checking…** in the button bar, the form dimmed.
+- `09-results-first-run.png`, `10-results-stopped.png` (Not Finished, already
+  there), `11-results-failed.png` (the 400 wording),
+  `12-results-while-retry-checks.png` ("A publish is already running."),
+  `13-results-retry-check-failed.png`, `14-results-server-removed.png`.
+- `15-activity-stopping.png`, `16-activity-retry-checking.png` (Activity
+  popover: the retry's check with the spinner and Stop).
+- `17-export-watermark-missing.png`, `18-export-watermark-chosen.png` (Export, C3).
+
+Not reached by script: the untrusted-certificate state (F10; the fake server
+is http), the "Stopping…" detail with nothing awaited (the small test photos
+end before it can be printed; `progressCounter` covers the state and
+`PublishText.detail` the words), the import window's marks appearing during a
+run (F14), announcements (F13).
 
 ## Progress
 
@@ -80,7 +192,8 @@ Tests are Swift Testing suites in `Tests/PhotoCoreTests` (`PublishRulesTests`,
 `CatalogTests`, `LibraryModalTests`, `LocalizationTests`). Scripted checks ran
 the bundle copied with identifier `me.sesser.gus.debugtest.publish28`, a
 `photobench` scratch library and the fake server (2026-11-26; commands under
-**Scripted checks**).
+**Scripted checks**); the review round's under **Review round: scripted checks**
+(identifier `me.sesser.gus.debugtest.review28`).
 
 | AC | Test or check | Result |
 |---|---|---|
@@ -90,10 +203,10 @@ the bundle copied with identifier `me.sesser.gus.debugtest.publish28`, a
 | AC4 | `offlineAndArchive` (visibility set by the upload), `newAlbum` (no second album), `rememberedChoices`; scripted: the Archive caption with and without stacking, a new album remembered as existing, empty description on reopening | Pass |
 | AC5 | `PublishRulesTests.permissions` (each removed in turn is named; exact set; `stack.read` never), `PublishBoundaryTests.purposes`; scripted with a two-permission key: Album and Stacking name their missing permissions, Publish dimmed, then enabled with None and stacking off, and that run published | Pass |
 | AC6 | `expectOnlyAllowedRequests` in the job tests, `RemoteConnectionTests.allowlist` (updates and deletes refused; `RemoteRequestAllowlist.writes` is the four) | Pass |
-| AC7 | `linkAndCopy`, `stackingOffAndFallThrough` (no stack request with stacking off; a trashed linked asset falls through to the map), `PublishBoundaryTests.pairPartner` | Pass |
+| AC7 | `linkAndCopy`, `stackingOffAndFallThrough` (no stack request with stacking off; a trashed linked asset falls through to the map), `PublishBoundaryTests.pairPartner`; revision 6: `pairBothLinkedAndCopy` (both halves linked: the pair and a copy of its RAW stack on the RAW's asset, nothing asks about the JPEG's), `pairJPEGLinkedAndCopy` (only the JPEG linked: both on the JPEG's asset) | Pass |
 | AC8 | `PublishRulesTests` (longest folder, volume identity, NFC/NFD, case, own beside partner's, qualifying beside each non-qualifying kind, pair order), `folderMapOwnBesidePartner` | Pass |
 | AC9 | `PublishRulesTests.reasonOrder`, `moreThanOne`, `linked`, `ladder`; `noOriginalReasons`; scripted Check Originals: "No mapped folder", then "Nothing at the mapped path" with the path | Pass |
-| AC10 | `joinsExistingStack` (non-primary original, trashed member out, no request about it, the create names edit, primary, original), `linkAndCopy` (two edits, later in grid order primary, two uploads at once), `refusedStackRetried` | Pass |
+| AC10 | `joinsExistingStack` (non-primary original, trashed member out, no request about it, the create names edit, primary, original), `linkAndCopy`, `stackOrderWhicheverUploadFinishesFirst` (two edits of one original, each finishing order forced: the later in grid order is primary), `trashedPrimaryNamedAndRestored`, `laterPublicationDropsTrashedPrimary` (RI-E1), `refusedStackRetried` | Pass |
 | AC11 | `refusedStackRetried`; scripted: refused stack, Retry Failed, both stacked, three uploads in all | Pass |
 | AC12 | One `OriginalFinder` for both (by construction); scripted `publish originals` | Pass |
 | AC13 | `records` (records survive removing the server); scripted: the question once ("3 photos were already published"), Skip sent nothing ("3 were skipped."), New Copy uploaded, Cancel sent nothing | Pass |
@@ -104,9 +217,9 @@ the bundle copied with identifier `me.sesser.gus.debugtest.publish28`, a
 | AC18 | Scripted: a confirmed local http server publishes with no second question and the sheet says Not encrypted. An https server's sheet has no such line by code (`service.serverAddress?.scheme == .http`); not run, the fake server is http only | Pass (http); https by reading |
 | AC19 | Scripted: Edit Server, name only: no warning; address changed on a server with records: the warning | Pass |
 | AC20 | `personsStop` (the photo in progress is the only one without its album) | Pass |
-| AC21 | `lostConnection` (fault: unreached included), `personsStop` (own Stop: left out; uploaded photo finished), `PublishBoundaryTests.retryAndLaterRuns` (a later run's photo left out; a re-edit renders as saved at the retry); the three refusal reasons by code (`retryRefusal`), "A publish is already running." seen scripted | Pass |
-| AC22 | By reading: the texts design §4.1 lists are changed (Server sheet captions and results by host, unencrypted notice, Import inspector captions, Remove Server alert, `Info.plist`); the user guide's import section and its new Publishing section (trashed members, a lost answer, unfinished steps) | Done, for the reviewers to read |
-| AC23 | `endingWaitsForFullySent` (answer within the bound: recorded; none: ends at the bound, no record), `notFullySentCancelledAtOnce`; scripted: Stopping… with Stop dimmed and File ▸ Stop Publishing dimmed, then recorded | Pass; a quit during the wait not scripted |
+| AC21 | `lostConnection` (fault: unreached included), `personsStop` (own Stop: left out; uploaded photo finished), `PublishBoundaryTests.retryAndLaterRuns` (a later run's photo left out; a re-edit renders as saved at the retry); `oneAtATime` (the slot); scripted (review round): "A publish is already running." while a retry checks, "This server was removed." after Remove Server in the import window | Pass |
+| AC22 | By reading: the texts design §4.1 lists are changed (Server sheet captions and results by host, unencrypted notice, Import inspector captions, Remove Server alert, `Info.plist`); the user guide's import section and its Publishing section (trashed members and the former primary per revision 5, a lost answer, unfinished steps, the lost-answer exception to "uploads no photo twice") | Done, for the reviewers to read |
+| AC23 | `endingWaitsForFullySent` (answer within the bound: recorded; none: ends at the bound, no record), `notFullySentCancelledAtOnce`, `stopKeepsEndingInEveryReport` (two photos at once: every report after Stop is ending, awaiting an answer while one is); scripted: "Stopping. Waiting for “Home” to answer…" twice a second apart with three photos, Stop and File ▸ Stop Publishing dimmed, Publish dimmed | Pass; a quit during the wait not scripted |
 | AC24 | `lostAlbumCreate`, both the automatic repeat and Retry Failed, with an older album of that name holding the first photo | Pass |
 | AC25 | `PublishBoundaryTests.purposes`; scripted: saved from Publish with two permissions, refused from Import with "To save a key made only for publishing…", the Import window shows "Can't Import from", a key lacking `asset.read` refused from Publish | Pass |
 
@@ -163,7 +276,8 @@ afterwards; the images kept.
 
 ## Proposed `CLAUDE.md` Network rule (R27; the owner approves before it is committed)
 
-Type names checked against the code on this branch.
+Type names checked against the code on this branch (review round: the
+temporary files, the whole-path allowlist match and the id rule added).
 
 > - **Network.** The app contacts one kind of host: an Immich server the user
 >   adds, and only the library app does it (the standalone importer, About and
@@ -173,31 +287,38 @@ Type names checked against the code on this branch.
 >   (`KeychainKeyStore`, service `<bundle id>.servers`, account the
 >   connection's uuid), never in the catalog, preferences, logs, Activity or
 >   debug output. Only the allowlisted requests are ever built
->   (`RemoteRequestAllowlist`), checked before a request exists: GET, the one
->   search POST, and, for publishing only, four writes
->   (`RemoteRequestAllowlist.writes`: upload an asset, create an album, add
->   assets to an album, create a stack). No request updates or deletes anything
->   on the server; adding another write needs the owner's approval. Creating a
->   stack makes the server replace the stack it joins, so it names the
->   original's current primary and runs one at a time per original
->   (`StackSequencer`); an album create is never sent again before the album it
->   may have made is looked for (`AlbumCoordinator`). An upload sends only the
->   rendered temporary file and the values publishing names
->   (`PublishUploadBody`: date, name, visibility), never an original or a
->   sidecar; it streams from disk, and a stopped run cancels it at once unless
->   it was fully sent, then waits at most 10 s for its answer
->   (`RemoteUploadEnding`). The key goes only as `x-api-key` and only to the
->   connection's host. Response bodies and downloads are capped (an error's
->   body at 64 KiB, read only for the server's message). Redirects are never
->   followed, and there are no cookies, cache or credential storage. Transport
->   policy: `https://` by default; plain `http://` only to a local-network host
->   after the user confirms the notice. An untrusted certificate is never
->   accepted silently; the user may trust one fingerprint per connection, a
->   changed one fails, and nothing turns checking off. Nothing else may use
->   `URLSession`: `RemoteHTTPSession.swift` is the one HTTP path (the fake
->   server uses the Network framework). Tests use `FakeImmichServer` and
->   `InMemoryKeyStore`. A test launch always uses the in-memory store. No
->   package was added: Foundation and the Security framework.
+>   (`RemoteRequestAllowlist`, matched against the whole path), checked before
+>   a request exists: GET, the one search POST, and, for publishing only, four
+>   writes (`RemoteRequestAllowlist.writes`: upload an asset, create an album,
+>   add assets to an album, create a stack). An id a server gave goes into a
+>   path only if it is 1 to 64 ASCII letters, digits and hyphens
+>   (`RemoteAsset.isServerID`). No request updates or deletes anything on the
+>   server; adding another write needs the owner's approval. Creating a stack
+>   makes the server replace the stack it joins, so it names the original's
+>   current primary and runs one at a time per original (`StackSequencer`); an
+>   album create is never sent again before the album it may have made is
+>   looked for (`AlbumCoordinator`). One publish runs at a time
+>   (`PublishSlot`). An upload sends only the rendered temporary file and the
+>   values publishing names (`PublishUploadBody`: date, name, visibility),
+>   never an original or a sidecar; it streams from disk, and a stopped run
+>   cancels it at once unless it was fully sent, then waits at most 10 s for
+>   its answer (`RemoteUploadEnding`). Rendered files and upload bodies go
+>   under the system's temporary folder, in a folder of this launch's
+>   (`PublishTemporaryFolders`: `<bundle id>.publish/<launch>`, held by a
+>   lock for the life of the process); each run removes its own when it ends,
+>   and a launch removes only those of launches that have ended. The key goes
+>   only as `x-api-key` and only to the connection's host. Response bodies and
+>   downloads are capped (an error's body at 64 KiB, read only for the
+>   server's message). Redirects are never followed, and there are no cookies,
+>   cache or credential storage. Transport policy: `https://` by default;
+>   plain `http://` only to a local-network host after the user confirms the
+>   notice. An untrusted certificate is never accepted silently; the user may
+>   trust one fingerprint per connection, a changed one fails, and nothing
+>   turns checking off. Nothing else may use `URLSession`:
+>   `RemoteHTTPSession.swift` is the one HTTP path (the fake server uses the
+>   Network framework). Tests use `FakeImmichServer` and `InMemoryKeyStore`. A
+>   test launch always uses the in-memory store. No package was added:
+>   Foundation and the Security framework.
 
 Also for the owner's part of `CLAUDE.md`: the catalog table list gains
 `remotePublication` and `remotePublishSettings` (migration v18).
@@ -206,22 +327,30 @@ Also for the owner's part of `CLAUDE.md`: the catalog table list gains
 
 - The sheet, its two pages and the results sheet at the smallest window; their
   look in the dark library window; keyboard only from ⌥⌘E to Publish.
-- Return in the Description field (design §13: Return should press Publish and
-  Option-Return insert a line; a vertical `TextField` may insert a line
-  instead, which the design accepts). Not confirmed by the engineer.
+- Return in the Description field (design §13, review G-1: pressing Publish,
+  inserting a line, or neither are all acceptable; note which).
 - Menus and the context menu by eye; the toolbar's Publish item in the default
   set.
 - The quit alert during a real run, and a quit while a run is ending (asks
   nothing, waits out the bound).
-- AC17 on the owner's server (https, a reverse proxy, the web interface).
+- The album pop-up's tick and the dimmed New Album… with its line, with a real
+  mouse (F12); the folder map's field typed by hand (`/mnt/media/photos`, an
+  edit in the middle, a pasted trailing slash; M4) and its focus after Add
+  Folder… (F17).
+- Stop while a large photo renders: **Stopping…** until the render returns (D-1).
+- AC17 on the owner's server (https, a reverse proxy, the web interface), and
+  there the untrusted-certificate wording if a certificate the system doesn't
+  trust is met (F10, D-3).
 
 ## Known and left
 
-- Announcements (design §13): the album, stacking and Archive issues are
-  announced when they appear; the Server section's issue is the menu's hint
-  only, and Check Originals' summary is announced. VoiceOver is left to CI.
+- Announcements and hints (design §13, F13) are by reading; VoiceOver is left
+  to CI.
 - A server whose permissions change after the sheet's check keeps the old
-  check until Check Again or Publish (which checks again).
+  check until Check Again or Publish (which checks again; ruling G-3).
+- A retry stopped by the person during its check ends as the person's Stop, so
+  photos not yet uploaded are left out of the next retry (R23's "the latest
+  ending decides").
 
 ## Immich verification (2026-11-25)
 
@@ -671,21 +800,18 @@ Kept as raised; every one is ruled in design §16.4.
 
   Recommendation: (b), since nothing ever reports locked. Low priority.
 
-## Requirements issues (open, for the product manager)
+## Requirements issues
 
-- **RI-E1 (R14, AC22; verified item A): a trashed primary returns to the
-  stack.** R14 says members in the trash "drop out of the stack and stay
-  unstacked if restored". Live, that is true of every trashed member except
-  the original's stack primary: the create must name it (R14's first
-  condition), and Immich then gives it the new stack's id although it is in
-  the trash, so restoring it puts it back in the stack (not as primary). No
-  request is added and nothing in the app changes. Options:
-  - (a) Reword R14's sentence: "Members in the trash drop out of the stack;
-    restored, they stay unstacked, except the stack's former top photo, which
-    returns to it." The user guide already says this.
-  - (b) Leave R14 as is (it is about what the app does, which is unchanged).
+- **RI-E1 (R14, AC22; verified item A): ruled** by the product manager, PRD
+  revision 5 (2026-11-26), option (a) with a further fact: a trashed former
+  primary is named in the create and rejoins the stack (not on top) if
+  restored, unless a later publication has replaced that stack while it was
+  still in the trash, which drops it too. The app's requests are unchanged.
+  The user guide says so; `trashedPrimaryNamedAndRestored` and
+  `laterPublicationDropsTrashedPrimary` pin both halves against the fake
+  server.
 
-  Recommendation: (a), so the PRD and the user guide agree. Not blocking.
+None open.
 
 ## Build and test
 
@@ -709,6 +835,27 @@ no-answer case measures the bound (2 s) with a 4 s margin above it.
 `notFullySentCancelledAtOnce` relies on a 48 MB body not fitting the loopback
 buffers (about 4 MB observed, status.md task 5). `PublishJobTests` passed 3 of
 3 runs in isolation and in 3 full runs; that rules out only a frequent flake.
+| 2026-11-26, review round, baseline at b244b48 | `swift build --build-tests` | Built clean |
+| 2026-11-26, review round | `swift test --filter "PublishRulesTests\|PublishJobTests"` | 20 and 28 tests passed |
+| 2026-11-26, review round | the three publishing suites, `--skip-build`, 20 runs | 20 of 20 passed |
+| 2026-11-26, review round | each new test with its fix reverted (C1, C4, C5, C6, F6, F15, N1) | Each failed (see the tables); restored and passing |
+| 2026-11-26, review round | `swift test` | 1634 tests in 226 suites passed (100.2 s), at 0759b74's sources |
+| 2026-11-26, review round | `Scripts/build-app.sh all` | Both bundles built and signed (release) |
+| 2026-11-26, review round | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, no errors, no warnings in the changed files (Swift 6.2.4; `/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`) |
+
+Determinism of the review round's tests: none sleeps to synchronize.
+`stackOrderWhicheverUploadFinishesFirst` forces each order with the fake
+server's held answers released one by one, and waits for the job's own
+`onRecorded` before releasing the second. `stopKeepsEndingInEveryReport` waits
+only for the cancellation it sends itself and for the server to hold an answer
+(a fully sent body always arrives), never for the behaviour under test, so
+without the fix it fails rather than hangs; its run ends within the 2 s bound.
+`temporaryFoldersPerLaunch` uses its own folder and descriptors. The RI-E1 and
+C4 tests run one photo or two at concurrency 1. Runs: the three publishing
+suites (`PublishJobTests`, `PublishRulesTests`, `PublishBoundaryTests`, 52
+tests) passed 20 of 20 times with `--skip-build`, which rules out a per-run
+flake rate of about 1 in 7 or more (at about 95%), not rarer ones; the
+structural argument above is the claim for those.
 
 ## Follow-ups proposed
 
@@ -718,6 +865,8 @@ buffers (about 4 MB observed, status.md task 5). `PublishJobTests` passed 3 of
   importer and `photocli` link none of it. See **Decisions on the open items**.
 - **Explain the combined script's timeout** (bug, for QA first): see
   **Scripted checks**.
+- **A one-photo Check Originals sentence** (enhancement, small): "Originals
+  found for 1 of 1 photos." reads oddly; design review improvement, not done.
 
 ## README
 
