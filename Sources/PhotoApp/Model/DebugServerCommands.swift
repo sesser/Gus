@@ -19,6 +19,7 @@ import PhotoUI
 ///                        (address `fake`, or `fakehost`: the fake server named localhost)
 ///                        | review [<seed>]   (the Edit sheet's changed-certificate page, a made-up certificate)
 ///     import server list | select <name> (waits) | check | edit | remove [<name>] | confirm yes|no | print
+///                  | rescan   (as Rescan, without waiting for the check)
 ///     import server keychain fail|ok   (the in-memory key store refuses, or works again)
 ///     import server project <text>   (as typing in the Project name field; `print` shows the DQ-13 note)
 ///     import album <name>|all (waits) | import dates <yyyy-mm-dd|-> <yyyy-mm-dd|->|clear (waits)
@@ -99,6 +100,11 @@ enum DebugServerCommands {
             }
             model.chooseServer(service)
             await waitForConnect(model)
+        case "rescan":
+            // As Rescan, returning at once (design review F30: a Save landing
+            // while the check is out).
+            model.rescanSource()
+            print("debug-script: import server rescan started")
         case "check":
             guard let browse = model.browse else { return print("debug-script: import server check: no server") }
             if let failure = browse.failure {

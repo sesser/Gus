@@ -371,7 +371,8 @@ private struct ImportGridArea: View {
                 Button("Show Them") { model.showsDuplicates = true }
             }
         case .shots:
-            ImportGridView(model: model, shots: model.visibleShots, selection: model.selection)
+            ImportGridView(model: model, shots: model.visibleShots, selection: model.selection,
+                           serverName: model.browse?.service.name)
         }
     }
 }
@@ -745,7 +746,8 @@ private struct ServerGridArea: View {
                 Button("Show All Photos") { model.chooseAlbum(nil) }
             }
         case .photos:
-            ImportGridView(model: model, shots: model.visibleShots, selection: model.selection)
+            ImportGridView(model: model, shots: model.visibleShots, selection: model.selection,
+                           serverName: model.browse?.service.name)
         }
     }
 }

@@ -20,7 +20,9 @@ public final class ServerBrowse {
     /// The server as the window last read it: its address and trusted
     /// certificate are the ones every check contacts (publishing design D-18);
     /// a rename saved elsewhere is taken in place.
-    public internal(set) var service: RemoteServiceRecord
+    public var service: RemoteServiceRecord { record.service }
+    /// `service` with the count of renames taken in place (design review F30).
+    var record: RemoteSourceRecord
     @ObservationIgnored public private(set) var client: (any RemotePhotoSource)?
     public internal(set) var isConnecting = true
     /// Why the server can't be browsed now (any of the check's results).
@@ -51,7 +53,7 @@ public final class ServerBrowse {
     @ObservationIgnored let thumbnails = RemoteThumbnails()
 
     init(service: RemoteServiceRecord) {
-        self.service = service
+        self.record = RemoteSourceRecord(service)
     }
 
     public var address: ServerAddress? { service.serverAddress }
@@ -151,6 +153,7 @@ extension CardImportModel: ServerSheetHost {
         browse.failure = nil
         browse.albumGone = false
         let service = browse.service
+        let began = browse.record.revision
         let keys = library.remoteKeyStore
         let catalog = library.catalog
         browse.connectTask = Task {
@@ -178,7 +181,9 @@ extension CardImportModel: ServerSheetHost {
                 shots = []
                 selection = []
             case .ready(let client, let info, let saved):
-                if !isImporting { takeSaved(saved) }
+                // The row was read as the check began: a rename taken since
+                // is newer and stays (design review F30).
+                follow(browse.record.afterCheck(began: began, saved: saved, importing: isImporting))
                 browse.setClient(client)
                 browse.info = info
                 loadAlbums()
@@ -211,8 +216,7 @@ extension CardImportModel: ServerSheetHost {
     /// The same address and certificate saved under another name: taken in
     /// place; the Project name follows unless the person typed one.
     private func takeSaved(_ saved: RemoteServiceRecord) {
-        guard let browse, browse.service.id == saved.id, browse.service.name != saved.name else { return }
-        browse.service = saved
+        guard let browse, browse.record.take(saved) else { return }
         if !browse.projectNameEdited {
             let noteWasShown = addsToExistingProject
             browse.projectName = RemoteProjectName.prefill(connection: saved.name, scope: browse.scopeName)

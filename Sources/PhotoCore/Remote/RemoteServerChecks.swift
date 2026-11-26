@@ -5,7 +5,7 @@ import Security
 /// read with its row as saved now (publishing design D-18, security review
 /// N7): only a row with the address and trusted certificate the window holds
 /// is contacted, so a key saved for a new address never reaches the previous
-/// one.
+/// one (within this process and its catalog: `RemoteKeyGate`).
 public enum RemoteImportConnection: Sendable {
     /// The check passed. The row as saved now: the same address and
     /// certificate as the window's, its other values (the name) perhaps not.
@@ -87,11 +87,49 @@ public enum RemoteSourceFollow: Equatable, Sendable {
     }
 }
 
+/// The server record the import window shows, with a count of the renames
+/// taken in place (publishing design D-18). A check reads its row when it
+/// begins; a rename saved while the check is out is taken in place at once,
+/// so the check's row is older than the window's record and must not put the
+/// old name back (design review F30).
+public struct RemoteSourceRecord: Equatable, Sendable {
+    public private(set) var service: RemoteServiceRecord
+    /// Bumped by every rename taken; a check notes it when it begins.
+    public private(set) var revision = 0
+
+    public init(_ service: RemoteServiceRecord) {
+        self.service = service
+    }
+
+    /// Takes `saved` in place: the same server under another name (the
+    /// caller has checked that the address and certificate are the same).
+    /// Returns whether the record changed.
+    @discardableResult
+    public mutating func take(_ saved: RemoteServiceRecord) -> Bool {
+        guard service.id == saved.id, service.name != saved.name else { return false }
+        service = saved
+        revision += 1
+        return true
+    }
+
+    /// What a check that passed does with the row it read (`saved`, with
+    /// the window's address and certificate): taken in place only when no
+    /// rename was taken since the check began at `began`, and never during
+    /// an import (the reconnect after it follows).
+    public func afterCheck(began: Int, saved: RemoteServiceRecord, importing: Bool) -> RemoteSourceFollow {
+        guard !importing, began == revision else { return .none }
+        let follow = RemoteSourceFollow.after(held: service, now: saved, importing: false)
+        if case .takeSaved = follow { return follow }
+        return .none
+    }
+}
+
 /// The Server sheet's check and save (issue #271; publishing design D-16,
 /// D-19), from either host. With the key field empty the stored key is read
 /// with its row, and the row is written only if the server is still saved as
 /// the sheet opened on it, so a key saved in the other window never goes to
-/// this sheet's address and this sheet never writes over that Save.
+/// this sheet's address and this sheet never writes over that Save (in this
+/// process: `RemoteKeyGate`).
 public enum RemoteServerSheetCheck {
     public enum Outcome: Sendable {
         case saved(RemoteServiceRecord)

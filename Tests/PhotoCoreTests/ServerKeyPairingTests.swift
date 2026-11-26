@@ -158,6 +158,58 @@ struct ServerKeyPairingTests {
         #expect(RemoteSourceFollow.after(held: held, now: nil, importing: true) == .afterImport)
     }
 
+    @Test("A rename taken while the import window's check is out is not undone by the check's older row (F30)")
+    func checkKeepsARenameTakenMeanwhile() async throws {
+        let f = try await Self.fixture()
+        var shown = RemoteSourceRecord(f.service)
+        let id = try #require(f.service.id)
+
+        // The check begins: it notes the record and reads the row ("Home").
+        let began = shown.revision
+        guard case .ready(_, _, let checked) = await RemoteImportConnection.connect(shown.service, catalog: f.catalog,
+                                                                                   keys: f.keys) else {
+            Issue.record("the check failed")
+            return
+        }
+        #expect(checked.name == "Home")
+
+        // While it is out, Publish's Edit Server… saves a new name, and the
+        // window takes it in place (`loadServersAfterPublish`).
+        var renamed = try #require(try await f.catalog.remoteService(id: id))
+        renamed.name = "Cellar"
+        let cellar = try await f.catalog.saveRemoteService(renamed)
+        #expect(RemoteSourceFollow.after(held: shown.service, now: cellar, importing: false) == .takeSaved(cellar))
+        let tookCellar = shown.take(cellar)
+        #expect(tookCellar)
+
+        // The check returns with the row it read: the window keeps "Cellar".
+        #expect(shown.afterCheck(began: began, saved: checked, importing: false) == .none)
+        #expect(shown.service.name == "Cellar")
+
+        // Renamed back to "Home" as well, and a check that began before both
+        // read "Cellar" between them: the window's "Home" is newer and stays.
+        var back = shown
+        let tookBack = back.take(checked)
+        #expect(tookBack)
+        #expect(back.afterCheck(began: began, saved: cellar, importing: false) == .none)
+        #expect(back.service.name == "Home")
+
+        // No rename taken since the check began: a row read with a new name
+        // is taken (the reconnect after an import), the same name is nothing,
+        // and nothing is taken while an import runs.
+        let now = shown.revision
+        var other = renamed
+        other.name = "Attic"
+        #expect(shown.afterCheck(began: now, saved: other, importing: false) == .takeSaved(other))
+        #expect(shown.afterCheck(began: now, saved: cellar, importing: false) == .none)
+        #expect(shown.afterCheck(began: now, saved: other, importing: true) == .none)
+        let tookOther = shown.take(other)
+        #expect(tookOther)
+        #expect(shown.revision == now + 1)
+        let tookAgain = shown.take(other)
+        #expect(!tookAgain, "the same name is no rename")
+    }
+
     // MARK: The Server sheet (D-19)
 
     /// A sheet opened on `opened` and submitted with the key field empty: its
