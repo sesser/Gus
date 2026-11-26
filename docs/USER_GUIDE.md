@@ -1226,7 +1226,7 @@ press **Publish**. The sheet:
   certificate is changed in the import window while the sheet is open, the
   sheet checks it again and keeps your choices. If that happens while
   **Publish** is checking the server, or while the question about photos
-  already published is up, that Publish is given up: nothing is sent, the
+  already published is up, that Publish is given up: nothing is uploaded or changed on the server, the
   question closes, and under **Server** the sheet says **This server's address
   or certificate changed. Nothing was published.** until you press **Publish**
   again (which uses the new address) or choose, add or save a server. A new name

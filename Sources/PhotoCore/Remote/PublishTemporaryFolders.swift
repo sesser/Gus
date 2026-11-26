@@ -9,9 +9,12 @@ import Foundation
 /// Every copy of the app run by one user shares the base folder (the app is
 /// not sandboxed, and a scripted copy has the same branding), so a launch
 /// never removes another's folder while that copy runs. Each launch holds an
-/// exclusive `flock` on `<launch>.lock`, taken atomically as the file is made
-/// (`O_EXLOCK`) and before its folder exists, for as long as its process
-/// lives; the system drops the lock when the process ends, however it ends.
+/// exclusive `flock` on `<launch>.lock`, asked for in the same `open` that
+/// makes the file (`O_EXLOCK`) and before its folder exists, for as long as
+/// its process lives; the system drops the lock when the process ends, however
+/// it ends. Making and locking are not atomic: another copy's cleanup can take
+/// the new file's lock between the two, so a launch whose lock fails tries a
+/// new name (`lockAttempts`, security review N6(a)).
 /// Cleaning up removes only the folders whose lock it can take, and folders
 /// with no lock file (an earlier layout, or a cleanup cut short) once they
 /// are a day old, which no running launch can own unless its lock file was

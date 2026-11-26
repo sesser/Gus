@@ -16,7 +16,19 @@ recorded under **Build and test**. Open for others: the checks **For a person**
 rule (its temporary-folder sentence changed this round) and **Follow-ups
 proposed**. Next: code-reviewer's pass on this round, the designer's (the UI
 changed: one new line under Server, the Server sheet closing on Save), and the
-security reviewer's on N5 and N6, then qa-tester.
+security reviewer's on N5 and N6, then qa-tester. The fourth pass's two wording
+findings (C13, F29) are fixed below (**Fourth-pass wording fixes**); next is
+qa-tester.
+
+## Fourth-pass wording fixes (2026-11-26)
+
+The fourth-pass `code-review.md` and `review.md` were committed as they were
+(f5de048). Comment and user guide only, no code change.
+
+| # | Fix | Check |
+|---|---|---|
+| C13 | `PublishTemporaryFolders`' type doc comment no longer says the lock is taken atomically as the file is made: it says the lock is asked for in the same `open` that makes the file (`O_EXLOCK`), that making and locking are not atomic (another copy's cleanup can lock the new file between the two), and that a launch whose lock fails tries a new name (`lockAttempts`, security N6(a)) | `swift build` clean (2026-11-26); `git diff` shows only comment lines in `Sources/` |
+| F29 | `docs/USER_GUIDE.md` (publish section, D-15): "that Publish is given up: nothing is sent" now reads "nothing is uploaded or changed on the server" | Read in place |
 
 ## Fourth review round (2026-11-26)
 
