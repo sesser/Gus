@@ -3,19 +3,115 @@ Issue: #28 · Complexity: Hard
 # Publish to Immich: status
 
 Owner: swift-macos-engineer. Branch `feature/publishing-engine` (off `develop`).
-Spec: the PRD (issue #28, **revision 6**, 2026-11-26) and [design.md](design.md)
-(rulings in its §16), with the design review's rulings D-1 to D-5 and its
-correction to §3.6 ([review.md](review.md)).
+Spec: the PRD (issue #28, **revision 7**, 2026-11-26) and [design.md](design.md)
+(rulings in its §16 and §17: D-1 to D-11 and the correction to §3.6).
 
-**State: Done** (2026-11-26, review round). Every finding of
-[code-review.md](code-review.md) (C1 to C7), [review.md](review.md) (F1 to F18,
-G-2) and [security-review.md](security-review.md) (L1, N1) is fixed, or for F6
-answered below, each with its test or scripted check; RI-E1 is ruled (PRD
-revision 5) and its tests are in. `swift test`, `Scripts/build-app.sh all` and
-the CI toolchain build are recorded under **Build and test**. Open for others:
-the checks **For a person**, the owner's approval of the proposed `CLAUDE.md`
-Network rule, and **Follow-ups proposed**. Next: code-reviewer's second pass and
-the designer's (the UI changed), then qa-tester.
+**State: Done** (2026-11-26, second review round). Every second-pass finding of
+[review.md](review.md) (F19 to F23) and [code-review.md](code-review.md) (C8 to
+C10), PRD revision 7 (R23, AC21) with D-10 and D-11, and the code reviewer's two
+wording points on the proposed Network rule are fixed, each with its test or
+scripted check (**Second review round** below). `swift test`,
+`Scripts/build-app.sh all` and the CI toolchain build are recorded under **Build
+and test**. Open for others: the checks **For a person**, the owner's approval
+of the proposed `CLAUDE.md` Network rule, **Design questions** and
+**Follow-ups proposed**. Next: code-reviewer's third pass and the designer's
+(the UI changed), then qa-tester.
+
+## Second review round (2026-11-26)
+
+Started fresh from this file at a382a7b. The reviewers' and designer's files
+were committed as they were (cbbbc24).
+
+| # | Fix | Test or check |
+|---|---|---|
+| F19 (blocker) | Cause confirmed: `canPublish` read `client` (`@ObservationIgnored`) before `serverInfo`; while the check ran `client` was nil, so the guard stopped there and the button's view observed nothing the passing check changed. `client` is observed now (and `session`, which `isConfirming` reads). Searched the publish, results and Server sheet code for state drawn but not observed: `client` was the only one; `canPublish` and `canCheckOriginals` now read only observed state (the watermark file's presence aside, as before). Found on the way, outside these sheets: the Import window's `ServerBrowse.client` has the same pattern (see **Follow-ups proposed**) | A/B on screen, both copies built from this tree, the sheet opened and the check waited for, nothing pressed and no page visited: `01-publish-main.png` (Publish 3 Photos enabled) and `01b-publish-main-client-unobserved.png` (the same build with only `@ObservationIgnored` put back on `client`: dimmed, while a fresh computation printed "enabled" before this round) |
+| F20 (D-6) | "Originals found: ‹found› of ‹checked›." and "Publishing stopped. Photos on the server: ‹n› of ‹total›.", plain catalog entries (no plural variation); the old keys removed | `LocalizationTests`; scripted: "Originals found: 0 of 1." (`25-check-originals-one-photo.png`), "Publishing stopped. Photos on the server: 2 of 3." (`10-results-stopped.png`) |
+| F21 (D-7) | One published photo: "Skip leaves it as it is on the server. New Copy publishes it again; …" (its own catalog entry); the last sentence unchanged | Scripted, one photo published then offered again: the question printed with the singular text (the alert itself is a window the snapshot can't draw) |
+| F22 (D-8) | A photo whose upload is done reports Uploading with its number as it finishes its steps; the job's first report is the first photo's own step, numbered 1, never "0 of N" | `retryFinishingStepsReportsUploading` (failed without the fix: every report Rendering 0) |
+| F23 (D-9) | `endedRuns` by end time (`PublishRun.byEnding`, ties keep their order); File ▸ Publish Results…, Show Results… without a run and the Run pop-up (latest first) follow it. No reason not to | `PublishRulesTests.endedRunsByEndTime` (failed in start order); scripted: two runs, the older retried: the pop-up lists it first and it opens by default (`23-results-newest-after-retry.png`) |
+| C8 | The awaited-answer count is raised and lowered inside each upload's `wait` lock, and its change is told inside the count's lock (order: wait, count, progress), so an upload's end is never counted before its start and two uploads' changes arrive in the count's order | By reading (a window of a few instructions); the stop tests pass |
+| C9 | `ProgressCounter` delivers each report inside its lock, so reports arrive in the order of their states; both listeners are non-blocking (the app's makes a task, the tests' appends under a lock of their own). This makes the determinism argument below hold for `stopKeepsEndingInEveryReport` | Structural, below; the publishing suites 30 of 30 |
+| C10 | `canPublish` and `canCheckOriginals` need the chosen server to still be saved | Scripted: two servers, Home chosen and checked, Home removed in the import window: Server reads None, Publish and Check Originals dimmed, a scripted Publish refused (`26-publish-chosen-server-removed.png`) |
+| R23, AC21, D-10 | `PublishRetry` (PhotoCore) runs a retry once it holds the slot: the check (`PublishConnection.connect`, moved from the app), then the job. A Stop during the check, or before the retry has started on any photo (`PublishJob.retry` returns nil), is `calledOff`; a Stop asked before the app acts on a check's result wins over it (`PublishRetryOutcome.ended(stopAsked:)`). Called off, the app only releases the slot: no `finish`, no message, no announcement, no sheet; the run, its end time, ending, results and retry coverage are untouched, so it rejoins the results where its end time puts it. Until the check returns the job shows the usual ending (Stopping…, Stop dimmed); the detail stays **Checking “‹name›”…** until the job's first report. Both cancellation exits of the old `retryRun` are gone with it | `stopDuringRetryCheck` (fault stop with an unreached photo; a Stop while the real check's answer is held: no write request, called off; a Stop racing a check failure: called off; a Stop after the check, before any photo: called off; the next Retry Failed publishes the unreached and failed photos). Without the fix (cancellation after the check turned into the person's Stop, as before) it failed 3 expectations. `retryCheckFailsOrRuns` (D-5's ending, and a Stop asked first wins). `PublishRulesTests.retryOutcomeRule`. Scripted (`16-activity-retry-checking.png`, `19-activity-just-after-stop-during-retry-check.png`, `21-results-after-stop-during-check.png`, `22-results-next-retry.png`): the message's post time and count unchanged, Retry Failed still offered with the unreached photo, the next retry published all three |
+| `job(...) == nil` in `execute` | Reachable only if the `LibraryModel` that owns this model were gone (it lives for the app's life, held by `LibraryLoader`), so not reached. Retries no longer go through `execute`: a retry whose job can't be built is called off (no ending). A new run keeps writing the person's Stop there, as it never started | By reading |
+| D-11 | Show Results… on a run's Activity row is dimmed while that run is retried, its check included (`isBeingRetried`); `showResults(id)` never opens another run in its place | Scripted: "Show Results… dimmed" during the retry's check, "enabled" after (`16-activity-retry-checking.png`) |
+| Network rule wording | Both points taken in the proposed text below: the base folder is named from the fixed `AppBranding.bundleIdentifier`, shared by every copy; cleanup also removes folders with no lock file | Reading |
+
+Also fixed, found by the snapshots:
+
+- **Export's preview kept no watermark after the same image was chosen again**
+  (its file had gone): the identifier is unchanged, so `settings` alone didn't
+  reload it. `useWatermark` now loads it (`18-export-watermark-chosen.png`
+  shows it; the same on `develop`, older than this branch).
+- **Retry Failed on a run with nothing to retry**: the debug script could start
+  one (the sheet shows no button then); `retry` now refuses it.
+- **A scripted run that ends with a sheet up never quits** (AppKit ignores the
+  quit, #276): explains the combined script's timeout of the first round. The
+  scripts now close the sheet before `quit`.
+
+New debug words: `publish scroll top|bottom|<points>` (the library window's
+sheet, so a snapshot shows what is below the fold), `publish activity` (the
+newest message, whether its Show Results… is dimmed, and when it was posted),
+`publish results run <n>` (the Run pop-up's item, latest first; the results
+print lists the pop-up).
+
+### Snapshots (second round)
+
+The debug bundle (`CONFIGURATION=debug Scripts/build-app.sh library`) copied
+with identifier `me.sesser.gus.debugtest.round2`, signed ad hoc; a fresh copy
+of a `photobench generate --jpeg 3 --dng 0 --heic 0 --videos 1` library
+(`photobench import`) for every script; the fake server with the publishing
+permissions. Each PNG was read after it was written. In
+`/private/tmp/claude-501/-Users-randy--claude-spares-spare-ZSbkzm/7f274175-835d-4217-a958-c2a7b08f08df/scratchpad/round2/shots/`:
+
+- `01-publish-main.png`: opened, check waited for, nothing pressed: **Publish 3
+  Photos enabled** (F19). `01b-publish-main-client-unobserved.png`: the A/B
+  copy, dimmed.
+- `02-publish-new-album-taken.png`: New Album… named "Trip" (an album of that
+  name exists): the Name field, the note and **Use the Existing Album**.
+- `03-publish-archive-stacked.png`: Archive with stacking: the warning under
+  Show in.
+- `06-check-originals.png`: scrolled down, one folder mapped, Check Originals
+  enabled. `06-check-originals-dimmed.png`: a key without `stack.create`: the
+  Stacking issue and Check Originals dimmed. `06-check-originals-result.png`:
+  "Originals found: 0 of 3." and three "Nothing at the mapped path".
+- `25-check-originals-one-photo.png`: one photo: "Originals found: 0 of 1." (F20).
+- `09-results-fault-stopped.png`: a run stopped by a rejected key: header line,
+  counts, the 401 wording, Retry Failed.
+- `10-results-stopped.png`: the person's Stop with two answers held: "Publishing
+  stopped. Photos on the server: 2 of 3.", Not Finished, the caption beside
+  Retry Failed.
+- `13-results-retry-check-failed.png`: that fault-stopped run retried with the
+  key revoked: "Publishing stopped: The server rejected this API key.". Retry
+  Failed stays enabled, as designed: a check failure is a fault (D-5), so the
+  unreached photo stays covered, and the server is still saved.
+- `15-activity-stopping.png`: ending with an answer awaited: "Stopping. Waiting
+  for “Home” to answer…", Stop dimmed, spinner.
+- `16-activity-retry-checking.png`: the retry's check: "Checking “Home”…", Stop,
+  spinner; the run's message below with **Show Results… dimmed** (D-11).
+- `19-activity-just-after-stop-during-retry-check.png`: 100 ms after Stop during
+  that check: the job gone, the run's message unchanged (posted at the same
+  time, one message), Show Results… enabled. The "Stopping…" moment itself was
+  over before the snapshot: the cancelled check returned at once.
+- `21-results-after-stop-during-check.png`: the same run's results, unchanged.
+- `22-results-next-retry.png`: the next Retry Failed: all three published.
+- `23-results-newest-after-retry.png`: two runs, the older retried last: it
+  opens by default and the Run pop-up shows it first (F23).
+- `24-sheet-dimmed-behind-one-photo-question.png`: the sheet behind the Skip or
+  New Copy alert for one photo; the alert is its own window and doesn't draw
+  here (its text is in the script output, F21).
+- `26-publish-chosen-server-removed.png`: C10.
+- `17-export-watermark-missing.png` (after Export pressed: "The watermark image
+  is missing. Choose it again."), `17b-export-watermark-not-png.png`,
+  `18-export-watermark-chosen.png` (issue gone, the mark drawn in the preview):
+  Export scrolled to its watermark section.
+
+Shots 01 to 06 were taken before the last two app changes (the retry guard and
+the watermark reload), which change nothing they show. Not captured: the Skip or
+New Copy alert itself (above), the Stopping… moment of a Stop during a retry's
+check (above), a retry that only finishes steps showing "Uploading 1 of 2" (it
+ends before a print can catch it; `retryFinishingStepsReportsUploading` covers
+it).
 
 ## Review round (2026-11-26)
 
@@ -217,7 +313,7 @@ the bundle copied with identifier `me.sesser.gus.debugtest.publish28`, a
 | AC18 | Scripted: a confirmed local http server publishes with no second question and the sheet says Not encrypted. An https server's sheet has no such line by code (`service.serverAddress?.scheme == .http`); not run, the fake server is http only | Pass (http); https by reading |
 | AC19 | Scripted: Edit Server, name only: no warning; address changed on a server with records: the warning | Pass |
 | AC20 | `personsStop` (the photo in progress is the only one without its album) | Pass |
-| AC21 | `lostConnection` (fault: unreached included), `personsStop` (own Stop: left out; uploaded photo finished), `PublishBoundaryTests.retryAndLaterRuns` (a later run's photo left out; a re-edit renders as saved at the retry); `oneAtATime` (the slot); scripted (review round): "A publish is already running." while a retry checks, "This server was removed." after Remove Server in the import window | Pass |
+| AC21 | `lostConnection` (fault: unreached included), `personsStop` (own Stop: left out; uploaded photo finished), `PublishBoundaryTests.retryAndLaterRuns` (a later run's photo left out; a re-edit renders as saved at the retry); `oneAtATime` (the slot); revision 7: `stopDuringRetryCheck` (a Stop during the check sends no write request and leaves the ending and results as they were; the next retry covers the unreached), `retryCheckFailsOrRuns`, `PublishRulesTests.retryOutcomeRule`; scripted (review round): "A publish is already running." while a retry checks, "This server was removed." after Remove Server in the import window; second round: Stop during the retry's check, message and results unchanged, the next retry published them | Pass |
 | AC22 | By reading: the texts design §4.1 lists are changed (Server sheet captions and results by host, unencrypted notice, Import inspector captions, Remove Server alert, `Info.plist`); the user guide's import section and its Publishing section (trashed members and the former primary per revision 5, a lost answer, unfinished steps, the lost-answer exception to "uploads no photo twice") | Done, for the reviewers to read |
 | AC23 | `endingWaitsForFullySent` (answer within the bound: recorded; none: ends at the bound, no record), `notFullySentCancelledAtOnce`, `stopKeepsEndingInEveryReport` (two photos at once: every report after Stop is ending, awaiting an answer while one is); scripted: "Stopping. Waiting for “Home” to answer…" twice a second apart with three photos, Stop and File ▸ Stop Publishing dimmed, Publish dimmed | Pass; a quit during the wait not scripted |
 | AC24 | `lostAlbumCreate`, both the automatic repeat and Retry Failed, with an older album of that name holding the first photo | Pass |
@@ -303,10 +399,13 @@ temporary files, the whole-path allowlist match and the id rule added).
 >   never an original or a sidecar; it streams from disk, and a stopped run
 >   cancels it at once unless it was fully sent, then waits at most 10 s for
 >   its answer (`RemoteUploadEnding`). Rendered files and upload bodies go
->   under the system's temporary folder, in a folder of this launch's
->   (`PublishTemporaryFolders`: `<bundle id>.publish/<launch>`, held by a
->   lock for the life of the process); each run removes its own when it ends,
->   and a launch removes only those of launches that have ended. The key goes
+>   under the system's temporary folder, in a folder of this launch's inside
+>   one base folder every copy of the app shares, named from the fixed
+>   `AppBranding.bundleIdentifier` (`PublishTemporaryFolders`:
+>   `<AppBranding.bundleIdentifier>.publish/<launch>`, each launch's held by a
+>   lock for the life of its process); each run removes its own when it ends,
+>   and a launch removes only the folders of launches that have ended (their
+>   lock is free) and folders with no lock file. The key goes
 >   only as `x-api-key` and only to the connection's host. Response bodies and
 >   downloads are capped (an error's body at 64 KiB, read only for the
 >   server's message). Redirects are never followed, and there are no cookies,
@@ -338,6 +437,12 @@ Also for the owner's part of `CLAUDE.md`: the catalog table list gains
   edit in the middle, a pasted trailing slash; M4) and its focus after Add
   Folder… (F17).
 - Stop while a large photo renders: **Stopping…** until the render returns (D-1).
+- Stop while a retry is still checking a slow or Keychain-prompting server:
+  **Stopping…** until the check returns, then the job leaves Activity and
+  nothing else changes, an open results sheet included (D-10). The scripts
+  reached only a check that returns at once when cancelled.
+- Publish N Photos enabled right after the check, with no click elsewhere
+  first, and Return publishing (F19; the snapshot shows the enabled button).
 - AC17 on the owner's server (https, a reverse proxy, the web interface), and
   there the untrusted-certificate wording if a certificate the system doesn't
   trust is met (F10, D-3).
@@ -348,9 +453,14 @@ Also for the owner's part of `CLAUDE.md`: the catalog table list gains
   to CI.
 - A server whose permissions change after the sheet's check keeps the old
   check until Check Again or Publish (which checks again; ruling G-3).
-- A retry stopped by the person during its check ends as the person's Stop, so
-  photos not yet uploaded are left out of the next retry (R23's "the latest
-  ending decides").
+- A Stop while a retry checks its server, or before it has started on any
+  photo, is not an ending (PRD revision 7, D-10): the run stays as it was and
+  the next Retry Failed still covers what it covered. A Stop after the retry has
+  started on its photos is the person's Stop, so photos still not uploaded drop
+  out of the next retry (R23's "the latest ending decides").
+- A run's photos that a later run published are left out of its retry, but
+  the results still count them as failed or not published and still offer
+  Retry Failed, which then has nothing to send (see **Design questions**).
 
 ## Immich verification (2026-11-25)
 
@@ -825,6 +935,20 @@ None open.
 | 2026-11-26, done | `Scripts/build-app.sh all` | Both bundles built and signed |
 | 2026-11-26, done | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, no errors (Xcode 26.3, `/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`) |
 | 2026-11-26, done | `PUBLISH_LIVE_SERVER=… PUBLISH_LIVE_KEY_FILE=… swift test --filter PublishLiveTests`, 3.2.0 and 3.4.2 | Passed on both |
+| 2026-11-26, review round, baseline at b244b48 | `swift build --build-tests` | Built clean |
+| 2026-11-26, review round | `swift test --filter "PublishRulesTests\|PublishJobTests"` | 20 and 28 tests passed |
+| 2026-11-26, review round | the three publishing suites, `--skip-build`, 20 runs | 20 of 20 passed |
+| 2026-11-26, review round | each new test with its fix reverted (C1, C4, C5, C6, F6, F15, N1) | Each failed (see the tables); restored and passing |
+| 2026-11-26, review round | `swift test` | 1634 tests in 226 suites passed (100.2 s), at 0759b74's sources |
+| 2026-11-26, review round | `Scripts/build-app.sh all` | Both bundles built and signed (release) |
+| 2026-11-26, review round | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, no errors, no warnings in the changed files (Swift 6.2.4; `/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`) |
+| 2026-11-26, second round, baseline at a382a7b | `swift build --build-tests` | Built clean |
+| 2026-11-26, second round | `swift test --filter "PublishJobTests\|PublishRulesTests\|PublishBoundaryTests"`, three runs | 57 tests, passed each time |
+| 2026-11-26, second round | each new test with its fix reverted (F22, F23, D-10) | `retryFinishingStepsReportsUploading` 2 issues, `endedRunsByEndTime` 1, `stopDuringRetryCheck` 3; restored and passing |
+| 2026-11-26, second round | the publishing and connection suites (`PublishJobTests`, `PublishRulesTests`, `PublishBoundaryTests`, `RemoteConnectionTests`, `RemoteSessionTests`; 74 tests), `--skip-build`, 30 runs | 30 of 30 passed |
+| 2026-11-26, second round | `swift test` | 1639 tests in 226 suites passed (90.1 s), on the final sources |
+| 2026-11-26, second round | `Scripts/build-app.sh all` | Both bundles built and signed (release; the library app's executable records SDK 27.2, minimum 15.0) |
+| 2026-11-26, second round | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, exit 0, no warning in the changed files (`/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`) |
 
 Determinism of the new tests: none sleeps to synchronize. The stop tests
 (`personsStop`, `endingWaitsForFullySent`) stop at the client's own "fully
@@ -835,13 +959,6 @@ no-answer case measures the bound (2 s) with a 4 s margin above it.
 `notFullySentCancelledAtOnce` relies on a 48 MB body not fitting the loopback
 buffers (about 4 MB observed, status.md task 5). `PublishJobTests` passed 3 of
 3 runs in isolation and in 3 full runs; that rules out only a frequent flake.
-| 2026-11-26, review round, baseline at b244b48 | `swift build --build-tests` | Built clean |
-| 2026-11-26, review round | `swift test --filter "PublishRulesTests\|PublishJobTests"` | 20 and 28 tests passed |
-| 2026-11-26, review round | the three publishing suites, `--skip-build`, 20 runs | 20 of 20 passed |
-| 2026-11-26, review round | each new test with its fix reverted (C1, C4, C5, C6, F6, F15, N1) | Each failed (see the tables); restored and passing |
-| 2026-11-26, review round | `swift test` | 1634 tests in 226 suites passed (100.2 s), at 0759b74's sources |
-| 2026-11-26, review round | `Scripts/build-app.sh all` | Both bundles built and signed (release) |
-| 2026-11-26, review round | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, no errors, no warnings in the changed files (Swift 6.2.4; `/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`) |
 
 Determinism of the review round's tests: none sleeps to synchronize.
 `stackOrderWhicheverUploadFinishesFirst` forces each order with the fake
@@ -857,16 +974,63 @@ tests) passed 20 of 20 times with `--skip-build`, which rules out a per-run
 flake rate of about 1 in 7 or more (at about 95%), not rarer ones; the
 structural argument above is the claim for those.
 
+Determinism of the second round's tests: none sleeps to synchronize. C9 makes
+the report order structural: every report is computed and delivered under the
+counter's one lock, so the listener receives them in the order of their states,
+and `stopKeepsEndingInEveryReport`'s "every report after the first ending one
+is ending" follows from `ending` never being cleared. `stopDuringRetryCheck`
+cancels only after an event it observes (the server has recorded the check's
+request, or the test's own check or job closure has yielded), and what it
+asserts doesn't depend on when the cancellation lands inside the check: before
+the request, during it, or as a result returns, the outcome is called off by
+`Task.isCancelled`, checked after the check returns. `untilCancelled` waits for
+the cancellation, never for time. `retryFinishingStepsReportsUploading` runs at
+concurrency 1 and checks every report, whatever their timing. The 30 clean runs
+rule out a per-run flake rate of about 1 in 10 or more (at about 95%); the
+structural argument is the claim for rarer ones.
+
+## Design questions (second round)
+
+- **DQ-R2-1: Retry Failed for photos a later run published.** R23 leaves out of
+  a retry a photo not yet uploaded that a later run has since published, and the
+  code does. But the run's results still count it (Failed, or Not published),
+  `offersRetry` still counts it, so **Retry Failed** stays offered and, pressed,
+  sends nothing and ends the run again as completed while the counts still say
+  "1 failed" (seen in the second round's script: a fault-stopped run, then a
+  Skip run that published its photos, then Retry Failed on the first). Options:
+  (a) leave it: the button is harmless, the next press does nothing; cost none;
+  (b) after a retry, show such photos under their own line ("published by a
+  later run") and leave them out of `offersRetry`; cost: a new count, a section
+  or reason sentence, catalog keys and a test, plus a read of the later
+  publications when the results sheet opens or when the retry ends; (c) keep
+  the counts but leave them out of `offersRetry`, so Retry Failed goes once
+  nothing else is left; cost: a catalog read before offering the button
+  (`offersRetry` is pure today), small. Recommendation: (c), with the reason
+  sentence of (b) if the designer wants the photo explained. Not changed here.
+- **DQ-R2-2: the publish sheet after its chosen server is removed** (C10). The
+  Server pop-up reads None, Publish and Check Originals are dimmed, and nothing
+  says why; the person picks another server. A line ("This server was removed.",
+  the results sheet's existing words) under the Server row would explain it.
+  Not added: the design doesn't place it.
+
 ## Follow-ups proposed
 
 - **Move the server code to a library-only target** (enhancement): a `Remote`
   target and the server parts of the import window (`ServerSource`,
   `ServerSheet`, `ServerText`) in a library-only target, so the standalone
   importer and `photocli` link none of it. See **Decisions on the open items**.
-- **Explain the combined script's timeout** (bug, for QA first): see
-  **Scripted checks**.
-- **A one-photo Check Originals sentence** (enhancement, small): "Originals
-  found for 1 of 1 photos." reads oddly; design review improvement, not done.
+- **The Import window's Date Range and Import buttons may stay dimmed after a
+  server connects** (bug, #271's code, found by reading in the second round):
+  `ServerBrowse.client` is `@ObservationIgnored`, and `DateRangeButton`
+  (`.disabled(model.isImporting || browse.client == nil)`) reads nothing else
+  that changes when the check passes, the same pattern as F19. The toolbar's
+  Import button reads `selectedShots` and the Album button `albumsLoaded`, which
+  do change, so those redraw. Not reproduced on screen (toolbar items are glass
+  and don't draw in a snapshot); check with a real window, then drop
+  `@ObservationIgnored` from `client`.
+- The first round's "combined script's timeout" is explained: the scripted
+  `quit` is ignored while a sheet is up (#276). Closing the sheet first quits.
+- The one-photo Check Originals sentence is fixed (F20); that follow-up is gone.
 
 ## README
 
