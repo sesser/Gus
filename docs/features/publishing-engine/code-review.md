@@ -560,3 +560,12 @@ ended launches' folders and day-old lock-less ones are removed; no link is
 followed; nothing at all is removed unless the base is the user's real folder;
 a launch that can't lock uses a folder beside the base. Nothing else in the
 rule changed this round, and it still holds.
+
+### Fifth pass (2026-11-26, f5d5f09..ce41e92)
+
+Read only `git diff f5d5f09..ce41e92 -- Sources Tests`; no build or tests
+(comment-only change).
+
+| # | Result | Commit | Note |
+|---|---|---|---|
+| C13 | Fixed | ce41e92 | The diff under `Sources/` and `Tests/` is the doc comment of `PublishTemporaryFolders` (:12-17) and nothing else. It now says the lock is asked for in the same `open` that makes the file (`O_EXLOCK`), that making and locking are not atomic, and that a launch whose lock fails tries a new name (`lockAttempts`). That matches `Launch.make` (:58-80: `O_CREAT \| O_EXCL \| O_EXLOCK \| O_NONBLOCK`, `continue` on failure, up to `lockAttempts` names) and `lockAttempts`' own comment (:38-40). |
