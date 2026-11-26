@@ -128,6 +128,8 @@ final class PublishModel: ServerSheetHost {
     /// A problem found when Publish was pressed, shown in the sheet.
     private(set) var startIssue: String?
     @ObservationIgnored private var checkTask: Task<Void, Never>?
+    /// A check left at Checking… by a change saved meanwhile (code review C14).
+    @ObservationIgnored private var checkRecovery = PublishCheckRecovery()
     @ObservationIgnored private var albumsTask: Task<Void, Never>?
 
     // MARK: The Server sheet in place of this one (design §4)
@@ -211,6 +213,7 @@ final class PublishModel: ServerSheetHost {
         // Nothing from the last opening counts until this one has checked
         // its server (review F9).
         check = .checking
+        checkRecovery = PublishCheckRecovery()
         client = nil
         albums = []
         albumsState = .notLoaded
@@ -314,6 +317,7 @@ final class PublishModel: ServerSheetHost {
         checkTask?.cancel()
         albumsTask?.cancel()
         check = .checking
+        checkRecovery.checkStarted()
         client = nil
         albums = []
         albumsState = .notLoaded
@@ -347,6 +351,7 @@ final class PublishModel: ServerSheetHost {
         checkTask?.cancel()
         albumsTask?.cancel()
         check = .checking
+        checkRecovery.checkStarted()
         client = nil
         albums = []
         albumsState = .notLoaded
@@ -362,10 +367,20 @@ final class PublishModel: ServerSheetHost {
             case .failed(let result):
                 client = nil
                 check = .failed(result)
-            case .changed:
+            case .changed(.connectionChanged):
                 // Saved since it was chosen: nothing was sent. The reload the
-                // change posts checks it again as saved, or clears it when
-                // removed (reviews F28, D-13; security review N7).
+                // change posts checks it again as saved (review F28, security
+                // review N7), but only while the sheet shows: checked again
+                // here if that reload has already come, else when the sheet
+                // shows again if no recheck came first (code review C14).
+                if checkRecovery.checkFoundChange(checked: service, listed: self.service,
+                                                  sheetShown: library.showsPublishSheet) {
+                    // Not in this task: choosing cancels it, and the reads
+                    // that follow must not see that cancellation.
+                    Task { await self.recheckSavedServer() }
+                }
+            case .changed:
+                // Removed: the reload clears it (review D-13).
                 break
             case .unreadable(let message):
                 check = .idle
@@ -376,6 +391,15 @@ final class PublishModel: ServerSheetHost {
                 if PublishPermissions.canListAlbums(info.permissions) { loadAlbums() }
             }
         }
+    }
+
+    /// Checks the chosen server again as saved now, every choice kept, after
+    /// a check left waiting by a change (code review C14).
+    private func recheckSavedServer() async {
+        let opened = session
+        await loadServers()
+        guard session == opened, let service else { return }
+        await choose(service, keepingChoices: true, keepingLine: true)
     }
 
     func loadAlbums() {
@@ -1091,6 +1115,9 @@ final class PublishModel: ServerSheetHost {
         if returnsAfterServerSheet, serverSheet == nil {
             returnsAfterServerSheet = false
             library.showsPublishSheet = true
+            // A check that ended on a change while the sheet was hidden
+            // (code review C14).
+            if checkRecovery.sheetShown() { Task { await recheckSavedServer() } }
             return true
         }
         return false

@@ -160,6 +160,57 @@ struct PublishKeyPairingTests {
         #expect(seen.withLock { $0 } == [true])
         #expect(!RemoteKeyGate.shared.isHeld(first.uuid))
     }
+
+    @Test("A sheet check that ends on a change is checked again, never left at Checking… (code review C14)")
+    func checkLeftWaitingIsRechecked() {
+        let checked = RemoteServiceRecord(id: 1, name: "Home", address: "https://a.example")
+        var moved = checked
+        moved.address = "https://b.example"
+        var renamed = checked
+        renamed.name = "Cellar"
+
+        // C14: the publish sheet hidden behind its own Server sheet; the
+        // reload came while it was hidden (its list has the new address,
+        // no recheck), then the check ends on the change.
+        var recovery = PublishCheckRecovery()
+        recovery.checkStarted()
+        var now = recovery.checkFoundChange(checked: checked, listed: moved, sheetShown: false)
+        #expect(!now, "nothing is contacted while the sheet is hidden")
+        #expect(recovery.sheetShown(), "back from the Server sheet (Cancel), the sheet checks again")
+
+        // The same with the change ending the check before the reload came.
+        recovery = PublishCheckRecovery()
+        now = recovery.checkFoundChange(checked: checked, listed: checked, sheetShown: false)
+        #expect(!now)
+        #expect(recovery.sheetShown())
+
+        // Hidden when the reload came, shown again before the check ended:
+        // no reload is left to recheck, so the check's end does.
+        recovery = PublishCheckRecovery()
+        now = recovery.checkFoundChange(checked: checked, listed: moved, sheetShown: true)
+        #expect(now)
+        #expect(!recovery.sheetShown())
+
+        // Shown, and the reload still to come: it rechecks (choosing a
+        // server starts a check), so nothing more is done here.
+        recovery = PublishCheckRecovery()
+        now = recovery.checkFoundChange(checked: checked, listed: checked, sheetShown: true)
+        #expect(!now)
+        recovery.checkStarted()
+        #expect(!recovery.sheetShown(), "choosing the server came first")
+
+        // A rename alone in the list is no change read yet.
+        recovery = PublishCheckRecovery()
+        now = recovery.checkFoundChange(checked: checked, listed: renamed, sheetShown: true)
+        #expect(!now)
+        #expect(recovery.sheetShown())
+
+        // No longer listed: the removal's reload clears the sheet.
+        recovery = PublishCheckRecovery()
+        now = recovery.checkFoundChange(checked: checked, listed: nil, sheetShown: false)
+        #expect(!now)
+        #expect(!recovery.sheetShown())
+    }
 }
 
 /// Set once, read from any task.
