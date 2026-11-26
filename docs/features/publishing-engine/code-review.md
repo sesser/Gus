@@ -140,5 +140,126 @@ is not forced by any test (C6).
 
 ## Follow-up
 
-(After the engineer's fixes: each finding with Fixed, Not fixed (and why) or
-Withdrawn, and the commit.)
+Second pass, 2026-11-26: b244b48..a382a7b (666b6fe review files, 8b12a6b
+engine, 0759b74 app, a382a7b status). Build and tests: `swift build
+--build-tests` clean; `swift test` 1634 tests in 226 suites passed (99.8 s);
+the connection and publishing suites (`--filter "PublishJobTests|PublishRulesTests|PublishBoundaryTests|RemoteConnectionTests"`,
+63 tests in 5 suites) passed 30 of 30 runs with `--skip-build`, which rules out a
+per-run flake rate of about 1 in 10 or more (at about 95%), not rarer ones (see C9).
+I did not revert fixes to re-run the "fails without" checks; status.md records
+that the engineer did (C1, C4, C5, C6, F6, F15, N1), and each test below
+reads as one that would fail without its fix.
+
+**Verdict, second pass: ready for qa-tester.** C1 to C7 are fixed, and the
+security review's L1 and N1 with them. The new code (the publish slot, the
+retry inside the run's task, per-launch temporary folders, awaited-answer
+counting, the whole-path allowlist, the id rule, the sheet's sessions) is
+sound. Three new nits (C8 to C10) and one question (Q2) remain; none blocks QA.
+
+### First-pass findings
+
+| # | Result | Commit | Checked |
+|---|---|---|---|
+| C1 | Fixed | 8b12a6b, 0759b74 | `ProgressCounter` now holds `ending` as a flag that nothing clears, and `withTaskCancellationHandler { … } onCancel: { counter.stopping() }` around the task group tells it of the person's Stop, so every later report (`finished`, `step`, `waiting`) says ending. In the app, `isEnding` is `slot.isStopping \|\| progress?.phase == .ending`; `cancel()` sets `slot.stop()` first, and `followed(by:)` keeps a report sent before the stop but delivered after it at ending. The quit rule (`PhotoApplication.swift:111-112`), Activity's Stop (`stopDisabled: ending`) and File ▸ Stop Publishing (`publishIsEnding`) all read `isEnding`. `stopKeepsEndingInEveryReport` runs two photos at concurrency 2 and checks every report after the first ending one. |
+| C2 | Fixed | 8b12a6b, 0759b74 | `PublishSlot` is claimed in `start` (refused with "A publish is already running.") and in `retry` right after `loadServers()`, with no await between the check and the claim. `isPublishing` is `slot.isBusy`; `canPublish`, `begin`, `retryRefusal` and the menu read it. The retry's connect now runs inside `task` (`retryRun`), so Stop, ⌘Q's wait (`task != nil`) and Activity cover it. `isRetryPending` blocks a second Retry during `loadServers()`. A Publish that starts during that read can only come from a sheet, and the results sheet is still up (`LibraryModal`); if one did, the retry's `claim` fails and the results sheet stays open showing `.running`. Both of my first-pass traces now end in a refusal. |
+| C3 | Fixed | 0759b74 | `ExportSettingsEditor.onWatermarkPicked` sends Choose Image… to `ExportModel.useWatermark`, which clears `issue` on a good pick and sets the "not a PNG" text on a bad one. Publish's editor has no handler and uses `useWatermark` (separate editor instances, `PublishModel.swift:170`, `ExportModel.swift:91`). The debug script's `export set watermark=` now takes the same route (`watermarkPicked`), so scripted checks follow the real path. |
+| C4 | Fixed | 8b12a6b | `publishSources` orders links as own, then the copy's original's (`ownDefault`), then the pair partner's (`PublishOriginals.swift:248-249`), as PRD revision 6 rules (Q1). `pairBothLinkedAndCopy` checks both the source order and that no request names the JPEG's asset; `pairJPEGLinkedAndCopy` checks the fallback. |
+| C5 | Fixed | 8b12a6b | See L1 below. |
+| C6 | Fixed | 8b12a6b | `stackOrderWhicheverUploadFinishesFirst` holds both answers, releases them one at a time by file name, and waits for `onRecorded` of the first before releasing the second, in both orders. It checks the primary, the members and the exact create bodies (`[[earlier, original], [later, earlier, original]]`), so a missing `sequencer.turn` fails it whichever upload finishes first. |
+| C7 | Fixed | 8b12a6b | The v17 comment is back on `addHDRChoice` and v18's on `addPublishing`. Comment only; no migration code changed. |
+| Q1 | Ruled | PRD revision 6 | R11 and AC7 now say own, the copy's original, then the partner. C4 implements it. |
+
+### Security review
+
+| # | Result | Checked |
+|---|---|---|
+| L1 | Fixed (8b12a6b) | `PublishTemporaryFolders` gives each launch `<base>/<uuid>/` and takes an exclusive lock on `<uuid>.lock` as it creates the file (`O_CREAT \| O_EXCL \| O_EXLOCK \| O_NONBLOCK`), before the folder exists, holding it for the life of the process. `removeLeftovers` removes a launch folder only when it can take that lock itself (`O_EXLOCK \| O_NONBLOCK`), plus folders with no lock file. On macOS a `flock` held through one open file description refuses a second `open` with `O_EXLOCK`, even from the same process, so this launch's folder is safe too (`temporaryFoldersPerLaunch` relies on that and passes). A launch's folder is made lazily, when the first `PublishJob` is built, and every run and item folder is created with `withIntermediateDirectories`. So a cleanup's `readdir` that sees a brand-new folder before its lock (both created during the listing) costs at most an empty folder that is made again. Two cleanups at once can't both take a lock. A scripted copy no longer touches the owner's run. |
+| N1 | Fixed (8b12a6b) | `permits` compiles each pattern with `NSRegularExpression` and requires `match.range == whole`, so a trailing `\n`, U+2028 or U+2029 never passes. If a pattern fails to compile, the request is refused, which is the safe side. `RemoteAsset.isServerID` (1 to 64 ASCII `[0-9A-Za-z-]`) guards `asset(id:)` and `addToAlbum` before a request exists. In import, it now drops any listed asset whose id fails, before the id can reach the thumbnail or original path. The only id that still reaches the server unchecked is `ownAlbums(holding:)`'s, and that goes in a query item, which `URLComponents` encodes. Tests: `serverIDsAndAnchoredAllowlist` (ids, and paths ending in each terminator) and `strangeIDsNeverRequested` (no request reaches the fake server). |
+
+**Import's behavior change (N1).** An asset whose id is not 1 to 64 ASCII
+letters, digits or hyphens is now left out of the import listing, the same
+way as an unsafe file name. Before, it was listed and its thumbnail or
+download failed at the allowlist. Immich ids are UUIDs, so no real server is
+affected, and no import test changed. No test pins this drop in the listing;
+the allowlist is the backstop either way. Fine as it is.
+
+### Design review fixes I read (F1 to F18)
+
+- **F1 (confirming Publish).** `confirm()` keeps the confirming task. Closing
+  the sheet any way (`showsPublishSheet` didSet → `sheetClosed`) bumps
+  `session` and cancels it. Closing for the Server sheet does neither.
+  `requestPublish` checks `!Task.isCancelled, session == opened` after each
+  await, and calls `start` with no await after the last check. The run's
+  `Task` is unstructured, so cancelling the confirm task can't reach it. The
+  question carries its own service, client and check.
+- **F4, F5, F8, F9, F11, F18.** `serversChanged` from both Server sheet hosts.
+  `choose(keepingChoices:)` keeps the form when returning to the same server.
+  `endedRuns` leaves out the slot holder, including a run being retried.
+  `begin` and `choose` reset the check and client before any await.
+  `resetOriginals` runs everywhere design §7 names. `rememberMadeAlbum`
+  rewrites only the album, in one transaction, gated by `mayRememberItsAlbum`.
+  All correct. C10 below is a corner of F4.
+- **F6.** The field binds the text as typed. `serverPath(volumeIdentity:…)`
+  matches on `keptServerPath`, and Done saves `.kept`. A changed map resets
+  Check Originals.
+- **F15, D-1, D-2, D-5.** `retrying` reports waiting on its first wait and
+  stops reporting it however the request ends, so the waits balance (the
+  album create's `defer` too). The `.checking` phase is indeterminate, with
+  Stop on. `PublishStop.checkFailed` is a fault, so a retry stopped by its
+  check keeps every candidate. `PublishStop` lost `Codable`; nothing encoded
+  it (the build is clean and runs are not persisted).
+- **F12, F13, F16, F17.** View code: the inline `Picker` tag for New Album…
+  is normalized both ways, and the hints and announcements follow
+  `AnnouncedIssue`. I read the strings in `PublishText` and they are in the
+  catalog (`LocalizationTests` passes).
+
+### New findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C8 | Nit | `Sources/PhotoCore/Remote/RemoteHTTPSession.swift:239-259` | The cancellation handler moves `wait` from `.running` to `.awaiting` under the lock, but calls `ending.beganAwaiting()` after releasing it. The returning path reads `.awaiting`, sets `.over` and calls `endedAwaiting()`. When the answer arrives just as Stop is pressed, `endedAwaiting` can run first: the count is clamped from -1 to 0 and reports false. Then `beganAwaiting` raises it to 1 and reports true. Nothing lowers it again. | One fully sent photo, Stop pressed as its answer lands, a second photo still rendering. Activity reads "Stopping. Waiting for “Home” to answer…" until the run ends, though nothing is awaited (D-1 wants **Stopping…**). The count belongs to the run, so the next run starts clean. Cosmetic, in a window of a few instructions. Fix: call `beganAwaiting()` and `endedAwaiting()` inside the `wait.withLock` closures. The lock order would be wait → awaiting → counter state, and nothing takes them in the reverse order. | Design §9, D-1 |
+| C9 | Nit | `Sources/PhotoCore/Remote/PublishJob.swift:280-287` (`ProgressCounter.change`) | Each report is computed under the counter's lock but delivered (`reportTo(progress)`) after releasing it. Two threads can therefore deliver in the reverse order of their states. In the app, `followed(by:)` repairs only the phase. `done` can step back by one and `awaitsAnswer` can be left inverted until the next report. In `stopKeepsEndingInEveryReport`, a step computed just before `stopping()` but appended just after it puts a non-ending phase after the first ending report, which fails `after.allSatisfy { $0.phase == .ending }`. | The window is a few instructions, so the test is not structurally deterministic as status.md's argument says. The runs below make a frequent flake unlikely, not a rare one. Fix: call `reportTo` inside the lock. It is non-blocking in both callers: the app's closure only creates a `Task`, and the tests' appends to another `Mutex`. | Determinism claims (WORKFLOW) |
+| C10 | Nit | `Sources/PhotoApp/Model/PublishModel.swift:380` (`canPublish`), `:639` (`requestPublish`), `:230` (`serversChanged`) | F4 now reloads `servers` while the Publish sheet is open. If the chosen server is removed in the Import window meanwhile (Remove Server… is dimmed there only for a running publish), `service` becomes nil. `client` and `check` stay set, so `canPublish` is still true. Pressing Publish runs `confirm()`, and `requestPublish` returns at `guard … let service` with no message. | With two servers, open Publish on Home (check passed). In the Import window, choose Home, then Remove Server…. Back in the sheet, nothing in the Server list is ticked, Publish N Photos is enabled, and pressing it does nothing. Fix: require `service != nil` in `canPublish`, or have `serversChanged` clear the check and client (or choose another server) when the chosen one is gone. | Design §3.8 (Publish enabled only when it can run) |
+
+### Questions (second pass)
+
+- **Q2 (product manager): a Stop during a retry's check.** Status.md's Known
+  and left: Stop pressed while a retry checks its server, before anything is
+  sent, ends the run as the person's Stop. Under R23 ("the latest ending
+  decides"), the photos the earlier fault left unreached then drop out of
+  Retry Failed for good: the results say they are left out, and nothing
+  offers them again. That matches R23's wording, but here the Stop interrupted
+  only a check. Should a Stop before anything is sent keep the run's previous
+  ending? If the literal rule is meant, the user guide should say so.
+
+### Proposed `CLAUDE.md` Network rule (status.md, review-round version)
+
+Checked again against a382a7b. Every type and claim holds:
+
+- `RemoteRequestAllowlist` is matched against the whole path, with the four
+  writes in `writes`.
+- `RemoteAsset.isServerID` holds for every id that goes into a path. The one
+  other server-given id that reaches a request, `ownAlbums(holding:)`'s, goes
+  in a query, and the rule says "into a path".
+- `PublishSlot`, `StackSequencer`, `AlbumCoordinator`, `PublishUploadBody`
+  and `RemoteUploadEnding` (10 s) do what the rule says.
+- `PublishTemporaryFolders`: a launch's folder is locked for the life of the
+  process; each run removes its own.
+
+Two wording points, neither wrong enough to block:
+
+- The rule writes `<bundle id>.publish` with the same notation as the
+  Keychain's `<bundle id>.servers`. The temporary folder uses the constant
+  `AppBranding.bundleIdentifier`, so every copy shares the base folder, which
+  is why the locks exist. The Keychain service takes the identifier its
+  caller passes in.
+- "A launch removes only those of launches that have ended" leaves out
+  folders with no lock file, which it also removes.
+
+### `/security-review`
+
+Run it again, but scoped to the changed parts, not the whole branch.
+`PublishTemporaryFolders` is new file writing and deletion outside the
+library, with `flock`. The allowlist matcher and the id rule are new
+request-building gates, and the id rule also changes import's listing. I
+found nothing wrong in either, but WORKFLOW names both kinds of change.

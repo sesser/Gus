@@ -1,9 +1,10 @@
 # Publish to Immich: design
 
 Owner: apple-ui-designer. Date: 2026-11-25.
-Issue: #28. Status: complete against PRD revision 4 (2026-11-25). Immich
+Issue: #28. Status: complete against PRD revision 7 (2026-11-26). Immich
 behaviour was verified on 3.2.0 and 3.4.2 (§15). Every requirements issue, owner
-question and design question is ruled (§16); none is open.
+question and design question is ruled (§16); none is open. The design review's
+rulings are in §17.
 
 **Inputs.**
 
@@ -160,6 +161,7 @@ Information lines below, each `info.circle` and 11 pt secondary, only when true:
 | No saved server | The form is replaced by `ContentUnavailableView`: **Add a Server to Publish To** (`server.rack`), description **Photos are published to an Immich server.**, action **Add Server…**. The button bar has Cancel and a dimmed Publish |
 | Checking | A small spinner and **Checking “‹name›”…** under the address. Settings stay editable; the Album pop-up, Check Originals and Publish are dimmed |
 | Failed | II §3.4's title and detail (`ServerText`), selectable, with **Try Again** and **Edit Server…**; a changed or untrusted certificate shows **Review Certificate…** in place of Edit Server… (it opens the Server sheet on its certificate page). Publish dimmed |
+| Untrusted certificate | `ServerText` has no text for it (II shows it on the certificate page), so (D-3): **This server's certificate isn't trusted** and **macOS doesn't trust the certificate this server presented. Review it before publishing. Nothing was sent to the server.** with **Try Again**, **Review Certificate…**. Publish dimmed |
 | Keychain refused | **The key couldn't be read** and the system's text; **Try Again**, **Edit Server…** |
 | Passed | Nothing extra |
 
@@ -244,8 +246,10 @@ result uses the publishing wording of §4.1.
   ‹color space› · ‹size› · ‹metadata level›**, then **· Watermark** and
   **· Template names** when they apply; the trailing button **Edit Settings…**
   opens the settings page.
-- A settings problem Export would report (missing watermark image, empty
-  template) shows as an issue line under the summary and dims Publish.
+- A missing watermark image, the one settings problem Export reports, shows as
+  an issue line under the summary and on the settings page, and dims Publish. An
+  empty template is not a problem: Export falls back to the original name
+  (corrected, §17).
 - **Description**: `TextField(axis: .vertical)`, two to four lines, prompt
   **Leave empty to keep each photo's own**. Typed text goes into every file of
   this run and not into the library. Never remembered. At a metadata level that
@@ -284,9 +288,13 @@ check is running or failed; a needed permission is missing; the new album name i
 empty; the remembered album is unresolved; a settings issue stands; a publish is
 running.
 
-When pressed: the button bar shows a spinner and **Checking…**; the app confirms
-permissions again and looks up records. A failure appears in its section and the
-sheet stays. If any photo was published to this server before, §8's alert. Then
+The button's state follows each of those conditions as soon as it changes, with
+nothing else needing to happen on the sheet: after the opening check passes,
+Publish is enabled at once.
+
+When pressed: the button bar shows a spinner and **Checking…**, and the form is
+dimmed while Cancel stays on; the app confirms permissions again and looks up
+records. A failure appears in its section and the sheet stays. If any photo was published to this server before, §8's alert. Then
 the sheet closes and the run starts. **Cancel** or Esc at any point before that
 sends nothing that writes.
 
@@ -359,7 +367,7 @@ wording is a proposal; the facts are required.
 
 | From | Proposed wording |
 |---|---|
-| R14, trashed stack members | **When a published photo joins a stack, any photo of that stack that is in the server's trash drops out of it. If you restore it, it stays unstacked.** |
+| R14, trashed stack members | **When a published photo joins a stack, any photo of that stack that is in the server's trash drops out of it, and if you restore it, it stays unstacked. The one exception is the stack's former top photo: it returns to the stack, not on top, when restored, unless a later publication has replaced that stack while it was still in the trash, which drops it too.** |
 | R17, a lost answer | **If publishing ends just after a file has been sent, because you stop, quit or lose the server, the server may keep a photo the app has no record of. It isn't marked In Library. Publishing it again reports it as already on the server only if the file is identical; otherwise you get a second copy.** |
 | R23, unfinished steps | **Unfinished steps are not kept after you quit. Stack the photo in Immich, or publish it again as a New Copy. That stacks the existing photo if the server finds the file identical; otherwise the first upload stays loose beside the new one.** |
 
@@ -483,13 +491,15 @@ missing.
 | Stale | a change of server, folder map or the stacking box removes the result |
 
 ```
-✓ Originals found for 38 of 41 photos.
+✓ Originals found: 38 of 41.
   ▸ 2: Nothing at the mapped path
   ▸ 1: Size differs
   1 photo is offline and wouldn't be published.
   Photos without an original are published unstacked.
 ```
 
+- The summary is **Originals found: ‹found› of ‹checked›.** No noun follows
+  the numbers, so it reads correctly for one photo (D-6).
 - The icon is `checkmark.circle` when all are found, else
   `exclamationmark.triangle`; the words carry the meaning.
 - One `DisclosureGroup` per reason, closed, listing photo names with the reason
@@ -591,7 +601,10 @@ An alert on the publish sheet after Publish is pressed, once per run.
 > [ Skip ] [ New Copy ] [ Cancel ]
 
 - Singular and plural variations; the last sentence is left out when every photo
-  has a record.
+  has a record. With one photo already published the message begins (D-7):
+  **Skip leaves it as it is on the server. New Copy publishes it again; no photo
+  on the server is replaced, and a file that hasn't changed may be reported as
+  already there.**
 - **Skip** is the default (Return). A new copy can't be removed by the app, so the
   reflex answer is the one that adds nothing (HIG Alerts: don't make the riskier
   choice the default). Neither button is destructive-styled. **Cancel** (Esc)
@@ -603,7 +616,12 @@ An alert on the publish sheet after Publish is pressed, once per run.
 - One Activity job: title **Publish to “‹name›”** (toolbar form through
   `ToolbarMetrics.statusLine`), determinate progress over photos, detail
   **Rendering 3 of 12** or **Uploading 3 of 12**. During a retried request:
-  **Waiting for “‹name›”…**.
+  **Waiting for “‹name›”…**, returning to the step in hand when that request is
+  over. A retry that only finishes steps of uploaded photos reads **Uploading
+  ‹n› of ‹total›**, never **Rendering** (D-8).
+- A retry's server check is part of the run (D-2): the job appears at once,
+  indeterminate with a small spinner, **Stop** enabled, detail **Checking
+  “‹name›”…**. A Stop at that stage is not an ending of the run (§10.3, D-10).
 - Each photo's album and stacking steps follow its upload (R21). There is no
   separate stacking pass and no separate detail line for those steps: they run
   under **Uploading**, and a photo counts toward progress when all its steps have
@@ -633,9 +651,13 @@ An alert on the publish sheet after Publish is pressed, once per run.
   “‹name›” to answer…**. The popover's **Stop** stays in place, dimmed. **File ▸
   Stop Publishing** keeps that title, dimmed, until the run ends: ⌘. must not move
   on to another job, or a second press would stop an export or import. There is no
-  second control that abandons the wait. With nothing to wait for, the run ends at
-  once and this state never shows. The stop reason (§10.1) appears when the run
-  has ended.
+  second control that abandons the wait. The stop reason (§10.1) appears when the
+  run has ended.
+- **Ending with no fully sent file awaited** (a render still returning, say; D-1):
+  the same job, indeterminate, **Stop** dimmed, detail **Stopping…**. The waiting
+  detail shows only while an answer is awaited. With nothing at all in progress
+  the run ends at once and neither shows. Once a run is ending, nothing returns it
+  to a running state.
 - **Publish stays unavailable until the run has ended**: the menu item, toolbar
   item and context menu item, and **Retry Failed**, which gives **A publish is
   already running.** The server's **Edit Server…** and **Remove Server…** stay
@@ -687,9 +709,13 @@ Published 10 photos.
 
 - First line only for a stop: **“‹name›” stopped responding**, **“‹name›”
   rejected the API key**, **The certificate of “‹name›” has changed**, **The API
-  key is missing ‹permission›**; for the person's own Stop, **Publishing stopped
-  after 5 of 12 photos.** When nothing was published: **No photos were
-  published.**
+  key is missing ‹permission›**, each after **Publishing stopped:**; for the
+  person's own Stop, **Publishing stopped. Photos on the server: 5 of 12.** (D-6;
+  it counts accepted uploads, new and already there). When nothing was published:
+  **No photos were published.**
+- A retry stopped by its server check (D-5) reads **Publishing stopped: ‹the
+  check's title›.**, the title the publish sheet would show for that result, with
+  **The key couldn't be read** for a Keychain failure.
 - Counting: **Published** is new assets the server accepted. **Already on the
   server** is every upload answered as an identical file, and is not in
   Published. **Stacked** includes already-there photos that ended on a stack.
@@ -734,6 +760,10 @@ Published 10 photos.
   any stop by the person does.
 - **Show Results…** needs `ActivityLog.Message` to carry an optional action. It
   closes the popover, then presents the sheet.
+- While a retry of a run is running, its check included, **Show Results…** on
+  that run's row is dimmed (D-11). The sheet never shows a run still going
+  (§10.2), and the button must not open another run in its place. It is enabled
+  again when the retry is over, however it ended or stopped.
 
 ### 10.2 The Publish Results sheet
 
@@ -771,9 +801,13 @@ Published 10 photos.
 - **Already There, Nothing Else Done** reasons: **in the server's trash.**,
   **hidden on the server.**, **couldn't be read on the server.**
 - **Done** is the default (Return and Esc).
+- Only runs that have ended are shown: File ▸ Publish Results…, the sheet and the
+  Run pop-up never show a run still going.
 - Runs are kept until the app quits; **File ▸ Publish Results…** opens the newest,
   and the **Run** pop-up reaches earlier ones, so Retry Failed stays available as
-  R23 says, even after the Activity message has scrolled out of its 20.
+  R23 says, even after the Activity message has scrolled out of its 20. "Newest"
+  is the run that ended last, a retry's ending included; the pop-up lists runs by
+  that time, latest first, which is also the time it shows (D-9).
 
 Failure sentences. Where the server gave a message, append it in quotes,
 selectable, cut at 200 characters, with the key and any URL removed.
@@ -797,6 +831,11 @@ selectable, cut at 200 characters, with the key and any URL removed.
 For an already-on-server photo, "published, but" reads **already on the server,
 but**. The refused-stack sentence takes the server's message like any other, and
 does not say why beyond it: no "locked".
+
+Where **‹reason›** is the server's answer (D-4), it reads **The server answered
+‹status›.** followed by its quoted message; the system's lower-case status phrase
+is not used. A single photo turned down inside an answer that succeeded (an album
+add) shows the server's words alone, with no status.
 
 **Not Finished** sentences name what is left:
 
@@ -827,7 +866,9 @@ job with the same Stop and quit rules. In R23's order, it:
   that point (R14);
 - includes photos not yet uploaded and not failed only when a fault stopped the
   run, not after the person's own Stop. The latest ending decides, a retry's
-  included, so stopping a retry leaves them out of the next one;
+  included, so stopping a retry that has started on its photos leaves them out
+  of the next one. A Stop while the retry is still checking its server is not an
+  ending and changes none of this (D-10, below);
 - leaves out a photo not yet uploaded, whether it failed or was not reached, that
   a later run has since published to this server;
 - is unavailable, with the reason on a line beside the dimmed button, while a
@@ -847,13 +888,55 @@ Further:
   no caption.
 - The title stays **Retry Failed** (R23's name) even when all it has to do is
   finish steps.
-- A permission, key or certificate problem found when it starts stops it at once
-  and is reported like any run; the person fixes it from Publish… ▸ Edit
-  Server….
+- It starts by reading the saved servers again; a refusal found then leaves the
+  results sheet open with its reason. Otherwise the retry is the running publish
+  from that moment, its server check included (D-2).
+- A permission, key or certificate problem found by that check stops it at once
+  and is reported like any run, naming what was found (D-5); the person fixes it
+  from Publish… ▸ Edit Server….
 - The retried run updates its entry in the results rather than adding one, and
-  posts a new Activity message.
+  posts a new Activity message. The one exception is the Stop below.
 - Nothing unfinished is kept after quitting. The user guide says so and what to do
   then (R23's closing paragraph; AC22; wording in §4.1).
+
+**Stop during a retry's check** (D-10; R23, AC21). The Stop calls off the Retry
+Failed; the run does not end a second time. The run stays exactly as it was
+before the button was pressed: its ending, end time, results, album and retry
+coverage. No upload, album or stack request is sent.
+
+- **Which Stops.** Any Stop (the popover's, **File ▸ Stop Publishing**, **Stop
+  and Quit**) pressed while the detail reads **Checking “‹name›”…**. It wins over
+  a check result the app has not yet acted on: a fault found in the same instant
+  is not recorded or reported. Once a failed check has ended the run (D-5), or
+  the retry has moved on to its photos, a Stop is as anywhere else.
+- **Until the check has returned** (the Keychain may still be asking), it looks
+  like any ending with nothing awaited (§9, D-1): the same job, indeterminate,
+  **Stop** dimmed, **Stopping…**; Publish unavailable; a quit asks nothing.
+  Nothing returns it to checking or running. Then the job leaves Activity.
+- **Messages.** None is posted and nothing is announced. The run's earlier
+  message is not touched: its text, warning or information mark, time, place in
+  the list, read or unread state and **Show Results…**. If it has dropped out of
+  the 20, it is not posted again. Posting it anew would report the old fault as
+  if it had just happened. The person asked for the Stop, and the job leaving is
+  the feedback.
+- **Toolbar.** The Activity item follows its usual rule: it shows for another
+  job, an unread message or an open popover. A popover the Stop was pressed in
+  stays open, without the job; with nothing unread, the item goes when the
+  popover closes. The **Publish** item is enabled again under its usual rules.
+- **Menus.** **Publish…** (menu bar and context menu) and the server's **Edit
+  Server…** and **Remove Server…** are enabled again under their usual rules.
+  The single Stop item moves to the next newest job, or reads **Stop**, dimmed.
+  **Publish Results…** includes this run again.
+- **Results.** No sheet opens by itself. The run is back in the sheet and the
+  **Run** pop-up where its unchanged end time puts it (D-9), with the same header
+  line, counts, lists, **Retry Failed** and caption as before.
+- **A results sheet open at that moment** can only be showing another run, since
+  a run being retried is left out. It stays open on that run: nothing closes,
+  switches or scrolls it. The retried run rejoins the **Run** pop-up (which
+  appears once there are two), and **A publish is already running.** goes,
+  leaving **Retry Failed** to its other rules.
+- **Stop and Quit** during the check asks the usual question; the app then quits,
+  and as always nothing unfinished is kept.
 
 ## 11. The Import window (R20, AC15)
 
@@ -903,7 +986,9 @@ and publishing on one server, and anything in the standalone importer or
 Debug-script commands are the engineer's to name; the review needs to drive: open
 the sheet; choose server, album, visibility, stacking; type a description; open
 and edit both pages; run and print the check; publish; answer the question; stop;
-open results; retry; stop and quit while the fake server holds back an answer,
+open results; retry; stop a retry during its check, then print the Activity job,
+messages, menu state and the run's results; stop and quit while the fake server
+holds back an answer,
 printing the Activity detail and what Stop and Publish allow; edit a server's
 address and print the sheet's warning; and
 print the sheet's issues, the Archive caption, the album pop-up's items and the
@@ -935,7 +1020,7 @@ versions behaved the same. The numbers are the ones `status.md` uses.
 | 2 | Can the upload set visibility? | Yes | **Show in** stays, with no update request |
 | 3 | Does an archived primary leave a timeline original alone? | No: the original leaves the stacked timeline. Its own visibility is unchanged | The Archive warning (§3.4; R6) |
 | 4 | Does the import listing include stacked, non-primary originals? | Yes | No change |
-| 5 | Does creating a stack keep trashed members? | No: they drop out and stay unstacked. The app doesn't see them | Said in the user guide (§4.1); no results line (R14) |
+| 5 | Does creating a stack keep trashed members? | No: they drop out and stay unstacked, except a trashed former primary, which the create must name: restored, it is back in the stack, not on top, unless a later publication replaced the stack meanwhile (status.md item A; R14, revision 5). The app doesn't see trashed members | Said in the user guide (§4.1); no results line (R14) |
 | 6 | What do search and a read reveal? | Trashed, hidden, not a photo, and a partner's or shared-album asset in some cases. A locked asset never. A path search returns partners' assets too | **Hidden** wording; only own assets count (§7.1; R13, R15) |
 | 7 | Permission names | As listed, in both versions. `stack.read` is not needed | §4.1, §5 (R8) |
 | 8 | Can a lost create be detected? | A repeated stack create is harmless. A repeated album create makes a second album; finding the first needs `album.read`. Telling it from an older album of the same name is still to be confirmed (below) | `album.read` for a new album too (§3.4, §5; R22) |
@@ -949,12 +1034,11 @@ tried, so a New Copy of one is answered as already there (§8 says it may be);
 paths differ by Unicode form (§7.1; R13).
 
 Not verified: https, certificate trust or a reverse proxy; Immich's web interface;
-the owner's server (AC17); and two open questions the PRD gives the engineer: what
-a stack create does when the original's current primary is itself in the trash,
-and whether the lost-album-create lookup can tell the run's album from an older one
-of the same name, also when the first photo was already on the server and in that
-older album (R22, AC24). Nothing in this design depends on those answers unless the
-engineer returns one.
+the owner's server (AC17). The two questions the PRD gave the engineer were
+answered on 2026-11-26 (`status.md`, items A and C): a stack create naming a
+trashed primary keeps it in the stack (item 5 above), and a lost album create is
+told from an older album of the same name by the set of albums read before the
+create (R22, AC24).
 
 ## 16. Rulings and open items
 
@@ -1016,3 +1100,31 @@ Design questions, from `status.md`:
 | V3-1 | A key made only for publishing couldn't be saved | Owner: publish-only keys are allowed. The Server sheet opened from Publish requires only `asset.upload` and `asset.read`; from Import it is unchanged. Stacking needs `user.read` and `stack.create` (R1, R8, AC5, AC25; separate keys are a non-goal) | §3.3, §4, §4.1, §5, §14 |
 | V3-2 | Own assets at a path that can't be originals | Only qualifying assets count toward "the only match"; with none, one reason: size differs, published, trash, hidden, not a photo (R13, R15, AC8, AC9) | §7.1 |
 | V3-3 | A refused stack or unreadable primary: which count | A failure that Retry Failed repeats, not "no original found", as designed (R14, R15, R23, AC10) | §10.1, §10.2 |
+
+## 17. Design review rulings (2026-11-26)
+
+Cited as "review D-‹n›". D-1 to D-5 are from the first pass, D-6 to D-9 from the
+second ([`review.md`](review.md)). D-10 and D-11 follow code review Q2, ruled by
+PRD revision 7 ([`code-review.md`](code-review.md)). The sections named carry the
+full text.
+
+| # | Ruling | Where |
+|---|---|---|
+| D-1 | Ending with no fully sent file awaited: same job, indeterminate, Stop dimmed, **Stopping…**. The waiting detail only while an answer is awaited | §9 |
+| D-2 | A retry's server check is part of the run: indeterminate, Stop enabled, **Checking “‹name›”…** | §9, §10.3 |
+| D-3 | Untrusted certificate in the publish sheet: **This server's certificate isn't trusted**, with its own detail, **Try Again** and **Review Certificate…** | §3.3 |
+| D-4 | Upload refused: **not published: the server didn't accept the upload (‹status›). “‹message›”**. Other server causes: **The server answered ‹status›.** and the quoted message. A per-photo album refusal: the server's words alone | §10.2 |
+| D-5 | A retry stopped by its check: **Publishing stopped: ‹the check's title›.**, **The key couldn't be read** for the Keychain | §10.1, §10.3 |
+| D-6 | Two numbers, no noun after them, so one photo reads correctly (the catalog compiler can inflect only a first number): **Originals found: ‹found› of ‹checked›.** and **Publishing stopped. Photos on the server: ‹n› of ‹total›.** | §7, §10.1 |
+| D-7 | Skip or New Copy message for one published photo uses "it" | §8 |
+| D-8 | A retry that only finishes steps reads **Uploading ‹n› of ‹total›** | §9 |
+| D-9 | The newest run is the one that ended last; the Run pop-up is in that order | §10.2 |
+| D-10 | A Stop during a retry's check is not an ending: the run, its end time and its Activity message stay as they were; no new message, no announcement, no sheet; **Stopping…** until the check returns; an open results sheet stays on the run it shows | §9, §10.3 |
+| D-11 | While a run is being retried, **Show Results…** on its row is dimmed | §10.1 |
+
+Correction to §3.6 (first pass): Export reports no empty template, so the missing
+watermark image is the only settings issue.
+
+Standing rulings on the engineer's gaps: Return in Description may press Publish,
+insert a line or do nothing (§13); permissions changed on the server after the
+sheet's check hold until Check Again or Publish.
