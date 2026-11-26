@@ -409,3 +409,154 @@ parallel; nothing here needs more than that.
 are taken, and nothing this round changes what the rule describes.
 `PublishConnection` and `PublishRetry` are now PhotoCore `Remote/`, which
 matches "All of it is PhotoCore `Remote/`".
+
+### Fourth pass, 2026-11-26: 41f6d0f..f5d5f09
+
+Commits: 9773e03 (design D-15, D-16, reviews, security addendum), e603c77
+(engine), cd55215 (app), f5d5f09 (status). No merge of `develop`. Build and
+tests: `swift build --build-tests` clean; `swift test` 1651 tests in 226
+suites passed (95.8 s); the connection and publishing suites (`--filter
+"PublishJobTests|PublishRulesTests|PublishBoundaryTests|RemoteConnectionTests|RemoteSessionTests|RemoteCheckTests"`,
+86 tests in 6 suites, the nine new ones included) passed 30 of 30 runs with
+`--skip-build`. That rules out a per-run flake rate of about 1 in 10 or more
+(at about 95%). For rarer ones I accept status.md's structural argument, which
+I checked: the D-16 tests put the other window's change at a fixed point
+through a key store hook called synchronously inside the save or removal; the
+folder tests use their own folders, descriptors and `now`; C12's test cancels
+only after the hook has yielded, and the hook waits for that cancellation. I
+did not revert fixes to re-run the "fails without" checks (I don't edit
+`Sources/`); status.md records that the engineer did, and each test reads as
+one that would fail without its fix.
+
+**Verdict, fourth pass: ready for qa-tester.** C11 and C12 are fixed. D-15,
+D-16, N5, N6 and the N2 addendum are built as ruled, and I found no case that
+loses a key or a folder that should be kept. One new nit (C13, a doc comment).
+
+#### Earlier findings
+
+| # | Result | Commit | Checked |
+|---|---|---|---|
+| C11 | Fixed (as D-15, with security L2) | cd55215, e603c77 | `serversChanged`'s `.connectionChanged` now gives up a Publish being confirmed and the question (`cancelSheetWork()`, `question = nil`) before the recheck, as removal does. The rule is also enforced where a run starts: `requestPublish` (after connect and the records read) and `answer(skip:)` (before `start`) call `stillSaved`, which compares the saved row's address and fingerprint with the record checked. My C11 trace (question up, the import window moves Home, New Copy) now ends with the question closed by the reload, or, if New Copy came first, with `answer`'s read finding `.connectionChanged`: no run, the line shown. While `answer` reads, `confirmingSession` is set, so `isConfirming` dims Publish and a reload landing then cancels `confirmTask`. A rename or a new key alone is `.unchanged` (`after` compares address and fingerprint only). |
+| C12 | Fixed | e603c77 | `PublishJob.beforeFirstPhoto` (internal) is awaited after the job's reads and before the task group. `stopInsideRetryJobBeforeFirstPhoto` cancels there and expects `retry` to return nil, no write and still one upload; with `calledOff = false` the run would come back `.stopped(.stopped)` and the `#expect(stopped == nil)` fails. |
+
+#### D-16: Keychain and catalog writes (`RemoteServices.swift`, `ServerSheet.swift`)
+
+- `saveRemoteService(_:)` now inserts only a record with no id and otherwise
+  `update`s, which throws `RecordError.recordNotFound` when the row is gone
+  (GRDB's `save` inserted). Its only callers are the keyed save and the tests.
+  SQLite counts a matched row as changed even when no value differs, so an
+  unchanged update and `renameRemoteService`'s `changesCount > 0` behave.
+- Save (S) and Remove (R) interleaved. S is: check the row (s1), write the key
+  (s2), update the row (s3). R is: delete the key (r1), delete the row (r2),
+  delete the key again (r3, new). I traced every order. Each ends with no row
+  and no key once R has run:
+  - s3 before r2: r1 or r3 deletes S's key.
+  - s3 after r2: s3 throws `recordNotFound`, and S deletes its key.
+  - s1 after r2: S returns `.removed` before touching the key store.
+- No key that should be kept is deleted. Accounts are the record's `uuid`,
+  made fresh by `RemoteServiceRecord.init` (the sheet's Add is the only
+  `init` in `Sources/`). No row ever reuses another's uuid, and after D-16 no
+  save recreates a removed row, so a key deleted for a gone row has no owner.
+  r3 runs only after r1 succeeded (a Keychain refusal returns before the row
+  goes) and is `try?`. On the real Keychain it either finds nothing
+  (`errSecItemNotFound` counts as deleted) or finds an item this process just
+  wrote, so it adds no prompt. Both run off the main actor (`Catalog` is a
+  `Sendable` class; no `NonisolatedNonsendingByDefault`).
+- One residue, not a finding: with s2 done and s3 failing for some reason
+  other than `recordNotFound` after r2 (a database error), S puts the
+  previous key back, so a key can stay with no row. It needs a write error on
+  the app's own serialized writer at that instant. That is the existing F2
+  rollback, unchanged.
+- Name-only Save calls `renameRemoteService`, which writes `name` only, and
+  hands the host the row as saved now. With one window this gives the same
+  result as before. With two, an address or certificate saved in the other
+  window is kept, and the host's `choose`/`chooseServer` gets the current
+  record. A failed write still leaves the sheet as it was (`catch {}` in place
+  of `try?`).
+- A checked Save, and Trust Certificate (which calls `submit()`), read the row
+  before the Keychain and the network; a removed server reaches
+  `serverSheetFoundRemoved`. The save's own check catches a removal after
+  that. Add (no `existing`) skips both checks.
+- Import's Server sheet is otherwise unchanged. When its server still exists,
+  the only differences are one extra catalog read before the check, and a
+  failure of that read shown as the sheet's error. The import host's
+  `serverSheetFoundRemoved` does what `removeServer` does after a removal:
+  `closeServer()` if it was the source, `loadServers()`,
+  `remoteServersChanged()`.
+- Publish host: `serverSheetFoundRemoved` sets `serverSheet = nil`, so
+  `sheetDidClose` (`returnsAfterServerSheet`) brings the publish sheet back,
+  and `chosenServerWasRemoved()` runs unless the import window's reload did it
+  first (`serviceID == service.id`). `chosenServerRemoved = !servers.isEmpty`
+  reads the reloaded list, so the last server gives No saved server.
+
+#### N5, N6: `PublishTemporaryFolders`
+
+- `prepare` makes the base 0700 and requires `lstat` to find a directory owned
+  by `getuid()`, then sets 0700. `lstat` follows `/var` → `/private/var` in
+  `$TMPDIR` but not the last component, which is what's wanted.
+  `removeLeftovers` checks the same before listing.
+- Removals: `FileManager.removeItem` on a symbolic link removes the link, and
+  both `open` calls carry `O_NOFOLLOW`, so nothing outside the base is
+  removed or locked. `temporaryFoldersNoLinks` covers a linked base and a
+  linked `.lock`.
+- Kept folders. A running launch's folder keeps its held lock and is skipped.
+  A launch folder seen without its lock (a `readdir` that misses the lock
+  file, which is made first, or a lock file removed by a person or a temp
+  cleaner) is kept for a day by its own `lstat` mtime. Run folders are made
+  with `withIntermediateDirectories: true` (PublishJob.swift:104), so a launch
+  whose folder was removed after that day still runs.
+- `Launch.make` no longer returns an unlocked folder in the base. It tries 8
+  names, then falls back to `<bundle id>.publish-<UUID>` beside the base,
+  which no cleanup removes. status.md accepts that leftover with a reason.
+- C13 below: one doc line still says the lock is taken atomically.
+
+#### D-15 residue (not a finding)
+
+`stillSaved` reads the row, then `start` runs when the main actor resumes. A
+Save in the import window that commits in that gap (well under a millisecond,
+unless the main actor is busy) lets the run start with the record checked a
+moment earlier. The reload that follows finds neither a confirm nor a question
+and only rechecks. The key still goes only to the address it was checked with,
+and the effect is the one C11 described (records under the old address),
+within a window a person can't reach by clicking two windows. I don't ask for
+more.
+
+#### Other changes read
+
+- N2 addendum: `ImmichClient.refusals` puts each per-photo error through
+  `RemoteAnswer.shownText` (trim, cut at `shownTextLimit`, empty to none).
+  `serverMessage` uses the same function. `albumAddErrorCut` pins both.
+- Strings: one new key with its catalog entry (`LocalizationTests` passes).
+  The line shows as `AnnouncedIssue` and as the Server pop-up's hint, and
+  clears where design §3.3 says (`requestPublish`, `choose` unless
+  `keepingLine`, `chosenServerWasRemoved`, `begin`).
+- Debug script: `publish answer` polls `isConfirming` with a 25 ms sleep for
+  up to 5 s. It's a script command, not a test, and the poll ends as soon as
+  the state is reached.
+- USER_GUIDE: both new paragraphs match the code.
+
+#### New findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C13 | Nit | `Sources/PhotoCore/Remote/PublishTemporaryFolders.swift:12-13` | The type's doc comment still says the lock is "taken atomically as the file is made (`O_EXLOCK`)". `lockAttempts`' comment (:36-37) and security N6(a) say the opposite: another process can lock the new name between its creation and its locking. | No wrong behavior. The retry loop exists only because creation and locking are not atomic, and the comment says they are. A later reader who trusts it could remove the loop as dead code, and the race N6(a) describes would come back. Fix: say the lock is taken in the same `open` that makes the file, and that another process can still take it first, hence the retry. | Correctness of documentation that guards a rule |
+
+#### `/security-review`
+
+Yes, scoped, not the whole branch. This round changes credential deletion
+(`saveRemoteService`'s `.removed` path and `removeRemoteService`'s second
+delete) and file deletion outside the library (`PublishTemporaryFolders`'
+`lstat`, `O_NOFOLLOW`, mode and age rules), both kinds WORKFLOW names. The
+reviewer should confirm L2, N5 and N6 against these commits (e603c77, cd55215)
+and look at the two credential paths above. I found nothing wrong in either.
+No new parser, subprocess or network path. The request gates and the
+allowlist are unchanged. The one new request-adjacent read, `stillSaved`, is
+local.
+
+#### `CLAUDE.md` Network rule (status.md)
+
+The fourth-round sentence matches the code: base 0700 and the user's own; only
+ended launches' folders and day-old lock-less ones are removed; no link is
+followed; nothing at all is removed unless the base is the user's real folder;
+a launch that can't lock uses a folder beside the base. Nothing else in the
+rule changed this round, and it still holds.
