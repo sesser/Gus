@@ -551,4 +551,12 @@ enum PublishText {
     static var chosenServerRemoved: String {
         String(localized: "This server was removed.", comment: "Publish sheet: under Server")
     }
+
+    /// Under the publish sheet's Server pop-up when the chosen server's
+    /// address or certificate changed while Publish was being confirmed or
+    /// its Skip or New Copy question was up (review D-15).
+    static var connectionChanged: String {
+        String(localized: "This server's address or certificate changed. Nothing was published.",
+               comment: "Publish sheet: under Server, after a Publish was given up")
+    }
 }

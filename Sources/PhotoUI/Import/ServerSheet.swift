@@ -37,6 +37,10 @@ public protocol ServerSheetHost: AnyObject {
     func serverSheetCancelled()
     /// Remove Server… (Import only).
     func serverSheetRemove(_ service: RemoteServiceRecord)
+    /// Save or Trust Certificate found the server being edited removed (in
+    /// the other window): nothing was saved, and the sheet closes with no
+    /// alert (publishing design D-16).
+    func serverSheetFoundRemoved(_ service: RemoteServiceRecord) async
 }
 
 /// The Server sheet's state (issue #271, design §3): the form, the check and
@@ -181,17 +185,26 @@ public final class ServerSheetModel: Identifiable {
     // MARK: Actions
 
     /// Add or Save (Return): checks the server when the address or key
-    /// changed, then saves the row and the key together.
+    /// changed, then saves the row and the key together. Save never
+    /// recreates a server removed in the other window, and a name-only Save
+    /// changes only the name of the server as saved now (publishing design
+    /// D-16).
     public func submit() {
         submitted = true
         guard canSubmit, let address = parsedAddress, let host, let catalog = host.serverCatalog else { return }
         let name = effectiveName
         if let existing, !ServerFormRules.needsCheck(isEdit: true, addressChanged: addressChanged, keyEntered: keyEntered,
                                                      trustedPending: trustedPending) {
-            var record = existing
-            record.name = name
+            guard let id = existing.id else { return }
             Task {
-                if let saved = try? await catalog.saveRemoteService(record) { await host.serverSheetSaved(saved) }
+                // A failed write leaves the sheet as it was (as before D-16).
+                do {
+                    if let renamed = try await catalog.renameRemoteService(id: id, to: name) {
+                        await host.serverSheetSaved(renamed)
+                    } else {
+                        await host.serverSheetFoundRemoved(existing)
+                    }
+                } catch {}
             }
             return
         }
@@ -210,6 +223,20 @@ public final class ServerSheetModel: Identifiable {
         keyCanPublish = false
         checkTask = Task {
             defer { isChecking = false }
+            // A server removed in the other window is not read from the
+            // Keychain, contacted or written (publishing design D-16).
+            if let existing, let id = existing.id {
+                do {
+                    guard try await catalog.remoteService(id: id) != nil else {
+                        await host.serverSheetFoundRemoved(existing)
+                        return
+                    }
+                } catch {
+                    result = .keychain(error.localizedDescription)
+                    return
+                }
+                guard !Task.isCancelled else { return }
+            }
             // The Keychain is asked off the main thread: its access prompt
             // must not block the window (code review C8).
             let key: String
@@ -256,6 +283,8 @@ public final class ServerSheetModel: Identifiable {
                     result = .keychain(error.message)
                 case .catalogFailed(let message):
                     result = .keychain(message)
+                case .removed:
+                    if let existing { await host.serverSheetFoundRemoved(existing) }
                 }
             case .untrustedCertificate(let summary):
                 page = .certificate(summary, changed: false)

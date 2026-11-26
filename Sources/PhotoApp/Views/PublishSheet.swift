@@ -225,6 +225,10 @@ private struct PublishForm: View {
                     IssueText(text: PublishText.notEncrypted)
                 }
             }
+            // A Publish given up after the address or certificate changed (review D-15).
+            if publish.connectionChangedLine {
+                AnnouncedIssue(text: PublishText.connectionChanged)
+            }
             checkState
             if !publish.missing.server.isEmpty {
                 AnnouncedIssue(text: PublishText.cantPublish(publish.missing.server))
@@ -241,9 +245,11 @@ private struct PublishForm: View {
         }
     }
 
-    /// The Server section's issue: a failed check, else a missing permission.
+    /// The Server section's issue: a removal, a Publish given up (D-15), a
+    /// failed check, else a missing permission.
     private var serverHint: String {
         if publish.chosenServerRemoved { return PublishText.chosenServerRemoved }
+        if publish.connectionChangedLine { return PublishText.connectionChanged }
         if case .failed(let result) = publish.check { return PublishText.checkTitle(result, service: publish.service) }
         return publish.missing.server.isEmpty ? "" : PublishText.cantPublish(publish.missing.server)
     }

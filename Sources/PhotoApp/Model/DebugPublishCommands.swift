@@ -18,7 +18,8 @@ import PhotoUI
 ///     publish map open|cancel|done|print | map add <folder> <server path>
 ///     publish originals                   Check Originals; waits and prints the result
 ///     publish start                       Publish N Photos; prints whether it asked or started
-///     publish answer skip|newcopy|cancel  the Skip or New Copy alert
+///     publish answer skip|newcopy|cancel  the Skip or New Copy alert; waits for the answer's read of the saved
+///                                         server and prints whether a run started (review D-15)
 ///     publish stopatsent                  stops the run when the next upload is fully sent
 ///     publish wait                        until the run ends; prints the Activity row
 ///     publish stop                        File ▸ Stop Publishing
@@ -156,6 +157,10 @@ enum DebugPublishCommands {
             case "newcopy": publish.answer(skip: false)
             default: publish.question = nil
             }
+            // The answer reads the saved server first (review D-15).
+            for _ in 0..<200 where publish.isConfirming { try? await Task.sleep(for: .milliseconds(25)) }
+            print("debug-script: publish answer \(publish.isPublishing ? "started" : "not started") "
+                  + "issue '\(publish.startIssue ?? "-")'")
         case "stopatsent":
             publish.debugOnFullySent = { Task { @MainActor in model.publish.cancel() } }
         case "wait":
@@ -236,7 +241,9 @@ enum DebugPublishCommands {
         let service = publish.service
         lines.append("server '\(service?.name ?? "-")' address '\(service?.address ?? "-")' "
                      + "notEncrypted \(service?.serverAddress?.scheme == .http) servers \(publish.servers.map(\.name)) "
-                     + "removedLine '\(publish.chosenServerRemoved ? PublishText.chosenServerRemoved : "-")'")
+                     + "removedLine '\(publish.chosenServerRemoved ? PublishText.chosenServerRemoved : "-")' "
+                     + "changedLine '\(publish.connectionChangedLine ? PublishText.connectionChanged : "-")' "
+                     + "question \(publish.question.map { "up \($0.service.address)" } ?? "-")")
         switch publish.check {
         case .idle: lines.append("check idle checks \(publish.debugChecksStarted)")
         case .checking: lines.append("check checking checks \(publish.debugChecksStarted)")

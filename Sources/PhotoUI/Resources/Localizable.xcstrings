@@ -20716,6 +20716,17 @@
         }
       }
     },
+    "This server's address or certificate changed. Nothing was published." : {
+      "comment" : "Publishing (issue #28)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This server's address or certificate changed. Nothing was published."
+          }
+        }
+      }
+    },
     "Photos not yet uploaded when you stopped aren't included." : {
       "comment" : "Publishing (issue #28)",
       "localizations" : {

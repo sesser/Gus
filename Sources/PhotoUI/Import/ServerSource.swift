@@ -562,6 +562,16 @@ extension CardImportModel: ServerSheetHost {
         serverSheet = nil
     }
 
+    /// Save found the server being edited removed (publishing design D-16):
+    /// nothing was saved; the sheet closes, the servers are read again, and a
+    /// removed source is left as after Remove Server….
+    public func serverSheetFoundRemoved(_ service: RemoteServiceRecord) async {
+        serverSheet = nil
+        if let id = service.id, browse?.service.id == id { closeServer() }
+        await loadServers()
+        library?.remoteServersChanged()
+    }
+
     /// Remove Server… asked from the sheet: asked once the sheet has gone (S3).
     public func serverSheetRemove(_ service: RemoteServiceRecord) {
         removalAfterSheet = service

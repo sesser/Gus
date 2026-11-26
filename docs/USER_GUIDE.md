@@ -140,7 +140,11 @@ imported, with the reason. **Edit Server…** changes the name, address or key
 library has imported from or published to shows, under the address, **Photos
 imported from or published to the old address won't be recognized at the new
 one.**: nothing is carried over, and typing the old address back restores
-them. **Remove Server…** asks first, then deletes the key from the Keychain
+them. Saving only a new name changes the name and nothing else, even if the
+server's address or certificate was changed in another sheet meanwhile. If the
+server you are editing was removed while its sheet was open (from the other
+window), **Save** and **Trust Certificate** save nothing and keep no key for it:
+the sheet closes, and the server stays removed. **Remove Server…** asks first, then deletes the key from the Keychain
 (it still works on the server until you delete it in Immich), along with the
 server's folder map and publishing choices; every photo already imported
 stays, and so does the record of what was published. If the
@@ -1220,11 +1224,20 @@ press **Publish**. The sheet:
   `http://` is publishable too, with no second question, and the sheet always
   says **Not encrypted (http)** for it. If the chosen server's address or
   certificate is changed in the import window while the sheet is open, the
-  sheet checks it again and keeps your choices. If the chosen server is
+  sheet checks it again and keeps your choices. If that happens while
+  **Publish** is checking the server, or while the question about photos
+  already published is up, that Publish is given up: nothing is sent, the
+  question closes, and under **Server** the sheet says **This server's address
+  or certificate changed. Nothing was published.** until you press **Publish**
+  again (which uses the new address) or choose, add or save a server. A new name
+  or key alone gives nothing up. If the chosen server is
   removed there, the sheet chooses no other: **Server** reads **None** with
   **This server was removed.**, its albums, folder map and checks are gone,
   and **Publish** and **Check Originals** are dimmed until you choose or add a
   server; **Show in**, stacking, the file settings and the description stay.
+  The same happens if you were editing that server from this sheet: **Save**
+  saves nothing, and the publish sheet comes back as just described (or with
+  no saved server, if it was the last).
 - **Album**: **None**, **New Album…** (a name; an album of that name may already
   exist, and the sheet says a second one will be made), or one of your albums.
   **Show in**: **Timeline** or **Archive**, set when the photo is uploaded. With

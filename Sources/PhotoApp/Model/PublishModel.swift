@@ -82,6 +82,11 @@ final class PublishModel: ServerSheetHost {
     /// was open: the Server pop-up reads None with a line saying so, until
     /// another server is chosen or added (design §3.3, review D-13).
     private(set) var chosenServerRemoved = false
+    /// The chosen server's address or trusted certificate changed while
+    /// Publish was being confirmed or its Skip or New Copy question was up:
+    /// both were given up, and a line under Server says nothing was
+    /// published (design §3.3, review D-15).
+    private(set) var connectionChangedLine = false
     private(set) var check: CheckState = .idle
     /// Observed: `canPublish` reads it, and Publish N Photos must redraw when
     /// the check sets it (review F19).
@@ -213,6 +218,7 @@ final class PublishModel: ServerSheetHost {
         question = nil
         startIssue = nil
         chosenServerRemoved = false
+        connectionChangedLine = false
         // Nothing from the last opening counts until this one has checked
         // its server (review F9).
         check = .checking
@@ -259,8 +265,16 @@ final class PublishModel: ServerSheetHost {
             case .removed:
                 chosenServerWasRemoved()
             case .connectionChanged(let now):
+                // The destination a Publish being confirmed, or its question,
+                // was agreed to is gone: both are given up, as for a removal,
+                // and the line says so (review D-15).
+                if confirmingSession != nil || question != nil {
+                    cancelSheetWork()
+                    question = nil
+                    connectionChangedLine = true
+                }
                 // Only while the sheet shows it: nothing is contacted otherwise.
-                if library?.showsPublishSheet == true { await choose(now, keepingChoices: true) }
+                if library?.showsPublishSheet == true { await choose(now, keepingChoices: true, keepingLine: true) }
             }
         }
     }
@@ -286,6 +300,7 @@ final class PublishModel: ServerSheetHost {
         noneLinked = true
         question = nil
         startIssue = nil
+        connectionChangedLine = false
         if page == .folderMap {
             editingMap = []
             focusedMapping = nil
@@ -298,12 +313,14 @@ final class PublishModel: ServerSheetHost {
     /// Chooses a server and runs the check. Its remembered choices are
     /// loaded unless `keepingChoices` (back from editing the chosen server:
     /// the form stays as the person left it, review F5); its folder map,
-    /// links and names are read again either way.
-    func choose(_ service: RemoteServiceRecord, keepingChoices: Bool = false) async {
+    /// links and names are read again either way. D-15's line goes unless
+    /// `keepingLine` (the recheck after the change it reports).
+    func choose(_ service: RemoteServiceRecord, keepingChoices: Bool = false, keepingLine: Bool = false) async {
         guard let library, let id = service.id else { return }
         let opened = session
         serviceID = id
         chosenServerRemoved = false
+        if !keepingLine { connectionChangedLine = false }
         // Dimmed until this server's check passes (review F9).
         checkTask?.cancel()
         albumsTask?.cancel()
@@ -673,7 +690,9 @@ final class PublishModel: ServerSheetHost {
     /// Asks Skip or New Copy when any photo was published to this server,
     /// else starts. After every wait it gives up unless the same opening of
     /// the sheet is still there, and it works with the server and client it
-    /// checked, never one chosen since.
+    /// checked, never one chosen since. It never starts or asks with an
+    /// address or trusted certificate other than the saved ones (review
+    /// D-15).
     private func requestPublish() async -> Bool {
         guard canPublish, let library, let service else { return false }
         let opened = session
@@ -681,6 +700,7 @@ final class PublishModel: ServerSheetHost {
         resetOriginals()
         confirmingSession = opened
         startIssue = nil
+        connectionChangedLine = false
         defer { if confirmingSession == opened { confirmingSession = nil } }
         let outcome = await PublishConnection.connect(service, keys: library.remoteKeyStore, readsAccount: stacking)
         guard !Task.isCancelled, session == opened, serviceID == service.id else { return false }
@@ -707,6 +727,7 @@ final class PublishModel: ServerSheetHost {
             return false
         }
         guard !Task.isCancelled, session == opened else { return false }
+        guard await stillSaved(service, opened: opened), !Task.isCancelled, session == opened else { return false }
         let items = versionIDs.map {
             PublishItem(versionID: $0, name: names[$0] ?? "", album: albumChoiceForRun.usesAlbum, stacking: stacking)
         }
@@ -719,14 +740,53 @@ final class PublishModel: ServerSheetHost {
         return start(items: items, skipped: 0, service: service, client: client, info: info)
     }
 
-    /// Skip (true) or New Copy (false) for the question's photos.
+    /// Skip (true) or New Copy (false) for the question's photos. The run
+    /// starts only if the server is still saved with the address and trusted
+    /// certificate the question was asked for (review D-15); until that is
+    /// read, the answer counts as a Publish being confirmed, so a change or
+    /// removal arriving then gives it up.
     func answer(skip: Bool) {
-        guard let question else { return }
+        guard let question, let library else { return }
         self.question = nil
-        let items = skip ? question.items.filter { !question.alreadyPublished.contains($0.versionID) } : question.items
-        if start(items: items, skipped: skip ? question.published : 0, service: question.service,
-                 client: question.client, info: question.info) {
-            library?.showsPublishSheet = false
+        let opened = session
+        confirmTask?.cancel()
+        confirmingSession = opened
+        let task = Task { () -> Bool in
+            defer { if confirmingSession == opened { confirmingSession = nil } }
+            guard await stillSaved(question.service, opened: opened), !Task.isCancelled, session == opened else {
+                return false
+            }
+            let items = skip ? question.items.filter { !question.alreadyPublished.contains($0.versionID) } : question.items
+            return start(items: items, skipped: skip ? question.published : 0, service: question.service,
+                         client: question.client, info: question.info)
+        }
+        confirmTask = task
+        Task {
+            if await task.value { library.showsPublishSheet = false }
+        }
+    }
+
+    /// The server as saved now has the address and trusted certificate
+    /// `service` was checked with (review D-15). A change shows D-15's line;
+    /// a removal leaves D-13's reload to say so; a catalog that can't be read
+    /// says why and starts nothing.
+    private func stillSaved(_ service: RemoteServiceRecord, opened: Int) async -> Bool {
+        guard let library else { return false }
+        let change: PublishServerChange
+        do {
+            change = try await PublishServerChange.since(service, in: library.catalog)
+        } catch {
+            if session == opened { startIssue = error.localizedDescription }
+            return false
+        }
+        switch change {
+        case .unchanged:
+            return true
+        case .connectionChanged:
+            if session == opened { connectionChangedLine = true }
+            return false
+        case .removed:
+            return false
         }
     }
 
@@ -1044,4 +1104,14 @@ final class PublishModel: ServerSheetHost {
     }
 
     func serverSheetRemove(_ service: RemoteServiceRecord) {}
+
+    /// Save found the server being edited removed in the import window
+    /// (review D-16): nothing was saved; this sheet comes back in D-13's
+    /// removed state, and no other server is chosen.
+    func serverSheetFoundRemoved(_ service: RemoteServiceRecord) async {
+        serverSheet = nil
+        await loadServers()
+        // Already done when the import window's reload came first.
+        if serviceID == service.id { chosenServerWasRemoved() }
+    }
 }
