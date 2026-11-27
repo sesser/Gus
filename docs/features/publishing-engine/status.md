@@ -6,8 +6,13 @@ Owner: swift-macos-engineer. Branch `feature/publishing-engine` (off `develop`).
 Spec: the PRD (issue #28, **revision 7**, 2026-11-26) and [design.md](design.md)
 (rulings in its §16 and §17: D-1 to D-19 and the correction to §3.6).
 
-**State: Done** (2026-11-26, QA's Q7 after the QA recheck at c2ea497: a
-test-only change, under **Q7** below). Before it, the F30 to F33, C14 and
+**State: Done** (2026-11-27, the CI fix for pull request #307 under **CI fix
+(PR #307)** below: the AC23 tests made independent of wall time, `personsStop`
+made to stop where it says under load, the fixture's 5 s request timeout raised,
+with a testability hook in the source and no behaviour change; next a code-reviewer
+second pass, then qa-tester for the changed tests). Before it, 2026-11-26, QA's
+Q7 after the QA recheck at c2ea497: a
+test-only change, under **Q7** below. Before that, the F30 to F33, C14 and
 N9-wording round after D-17 to D-19: the design review's sixth pass (F30 to
 F33), the code review's sixth pass (C14 and two wording points on the proposed
 Network rule) and the security review's fourth pass (the library lock sentence,
@@ -21,6 +26,123 @@ checks **For a person** (review.md's M1 to M8), the owner's approval of the
 proposed `CLAUDE.md` Network rule, and **Follow-ups proposed**. Next: a
 code-reviewer pass on the Q7 commit (test only), then qa-tester confirms Q7 in
 `qa.md`. No designer pass: nothing in the UI changed.
+
+## CI fix (PR #307, 2026-11-27)
+
+Started from this file at df30e77. CI's "Build and test (macos-26)" job
+(Xcode 26.3) failed with two issues in "Publishing runs", both wall-clock
+bounds, in a run that took 531 s (about 100 s here):
+`notFullySentCancelledAtOnce` (elapsed 5.53 s, expected under 5 s) and
+`endingWaitsForFullySent`'s answered case (6.90 s, expected under 2 s).
+
+**Cause: the tests' timing, not the product.** Evidence:
+
+- In the failed answered case the upload was still accepted and recorded
+  (its other expectations passed), so the answer was taken and nothing waited
+  for the bound; the time went to steps after it. Structurally, the only wait
+  on the deadline is the detached `sleep, then cancel` in
+  `RemoteUploadEnding.end`, which nothing awaits: the upload returns when
+  URLSession completes the task, and the run when its group drains. A body not
+  fully sent is cancelled synchronously inside the cancellation handler.
+- Every step after the Stop (URLSession's completion resuming the upload, the
+  record's write, the group draining, the deadline's own cancel) needs a
+  cooperative-pool thread. On CI the pool has three threads, held for seconds
+  by synchronous suites (#259); trivial tests in the same log took 390 s from
+  start to end.
+- Reproduced here with the product unchanged: a scratch test (never committed)
+  that holds pool threads (three tasks each blocking 0.4 s, then yielding), with
+  `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1` (a one-thread pool). The old answered
+  case failed 2 of 2 runs at the same line (`elapsed < .seconds(2)`), accepted
+  each time. Measured under that hog: answered case 3.7 s from Stop to the run's
+  end (0.001 s unloaded); no-answer case 4.9 s (2.08 s unloaded) against the old
+  `< 6 s`.
+- A second limit of the same kind, found on the way: the fixture's client had a
+  5 s request timeout (`RemoteConnectionTests.client`'s default), an idle timer
+  URLSession keeps whatever the pool does. Held answers and the no-answer
+  case's 2 s bound raced it: with the deadline's cancel delayed 4 s (the watch
+  below sleeping 4 s past the deadline, standing in for a starved pool) the run
+  ended at 5.0 s by the timeout, the photo failed `uploadInterrupted` and the run
+  `.stopped(.unreachable)`. The app's own values are 30 s against a 10 s bound,
+  so this is the fixture's limit only.
+
+**Source change (testability only, no behaviour change).**
+`RemoteUploadEnding` takes its wait for the deadline as an internal closure
+(`waitUntil`, default `RemoteUploadEnding.sleep(until:)`, the same
+`Task.sleep(until:clock: .continuous)` as before), through an internal
+designated `init`; the public `init` is unchanged and passes the default.
+`end(_:by:)` (static) became `end(_:)` (instance), which takes `deadline()`
+first exactly as the call site did, so the first cancellation of the run still
+sets the deadline whether or not its body was fully sent. `PublishJob` has an
+internal test hook, `waitForEndingDeadline`, passed to its ending (as
+`beforeFirstPhoto`). Nothing in the app sets either.
+
+**Tests** (`PublishJobTests`). `DeadlineWatch` records each deadline the
+ending asks to wait for and when, and whether one came; it either sleeps as the
+app does or returns at once.
+
+| Test | Asserts now | Wall time left in it |
+|---|---|---|
+| `endingRecordsAnAnswer` (the answered half of `endingWaitsForFullySent`) | One wait asked for (left to answer, not cancelled at once); accepted and recorded; the run ended before its deadline (`endedAt < deadline`) and before the wait returned | The bound is 60 s, set by the test: the answer must come, and the run end, within 60 s of the Stop (worst seen: 6.9 s on CI, 3.7 s under the hog) |
+| `endingGivesUpAtTheBound` (the no-answer half) | One wait asked for; its deadline is the bound after the Stop (`deadline − bound` between the clock read just before `task.cancel()` and the moment the wait was asked for, an order no load can change); the run ended only after the wait returned (`watch.reached`) and `elapsed >= bound`; pending, no record, not published, `.stopped(.stopped)`, the answer still held | None in the assertions: no upper bound. The 120 s request timeout must not fire first (the deadline's cancel would have to be 118 s late) |
+| `notFullySentCancelledAtOnce` | The wait returns at once, so an upload wrongly left to wait ends quickly too; asserts `.remote(.cancelled)` (the cancel, not a timeout), the Stop reached the ending, no wait asked for, no awaiting change, nothing awaited | None in the assertions. The stalled body must not hit the 120 s timeout before the Stop |
+| `personsStop` | Its first photo's answer is now held until the Stop, then let go (it was answered at once); the bound is 60 s (it was 2 s); one upload when the Stop lands. Same assertions otherwise | The answer must come within 60 s of the Stop to be kept |
+| Fixture | `PublishJobTests.requestTimeout` = 120 s for the fixture's client and `notFullySentCancelledAtOnce`'s | No test here waits for it to fire: the whole suite runs in 2.3 s |
+
+A third load problem, found by the runs under load below: `personsStop`
+failed 3 of 34 starved runs (pool hog, one-thread pool), all three while CPU
+stress ran beside them, none of the 14 without. Printing what the server had when `onFullySent` came
+showed both uploads and the first photo's album request already there: the
+first upload, answered at once, had completed before URLSession delivered its
+last `didSendBodyData`, so the test's Stop landed on the second photo (or,
+when neither callback came in time, never: the run completed). Not a product
+fault: `upload` decides "fully sent" from `countOfBytesSent` when the
+cancellation comes, never from that callback (its doc comment says so); only
+the test's trigger (and the debug script's, which stops on the same callback)
+relies on it. The other tests that stop on `onFullySent` already hold the
+answer, which keeps the task alive until the callback comes. My change could
+not cause it (it only raised the bound and the client timeout).
+
+Other wall-clock limits in the branch's tests, checked with `git diff
+origin/develop...HEAD -- Tests`: none other asserts a duration. Tests that hold
+answers (`stepsFollowEachUpload`, `stackOrderWhicheverUploadFinishesFirst`,
+`stopKeepsEndingInEveryReport`) raced the 5 s client timeout and are covered by
+the fixture change; `stepsFollowEachUpload`'s 300 ms bound and
+`stopKeepsEndingInEveryReport`'s 2 s bound decide nothing they assert.
+`PublishLiveTests`' time-based seed and `PublishRulesTests`' ±25 h dates are not
+timing.
+
+**Each changed test against its behaviour broken** (mutate, build, run the
+three AC23 tests and `personsStop`, restore; the three source files compared
+with `cmp` against copies afterwards):
+
+| Mutation | Result |
+|---|---|
+| M1: a body not fully sent is left to wait for the deadline (`guard true \|\| isFullySent`) | `notFullySentCancelledAtOnce` 2 issues (a wait asked for; an awaiting change); the others pass |
+| M3: a fully sent body is cancelled at once (`guard false && isFullySent`) | `endingRecordsAnAnswer` and `endingGivesUpAtTheBound` fail (no wait asked for: 4 issues) |
+| M3′: the wait is asked for, but the body is cancelled at once as well | `endingGivesUpAtTheBound`: `watch.reached`, `elapsed >= bound`; `endingRecordsAnAnswer`: not accepted, not recorded; `personsStop` (before its rewrite) 5 issues |
+| M4: the deadline is twice the bound | `endingGivesUpAtTheBound`: the deadline check (1 issue); its `elapsed >= bound` passes, as it should |
+| M2: the run waits out the bound after the answer (an uncancellable sleep to `endedAt + bound` before the run returns) | `endingRecordsAnAnswer`: `endedAt < deadline` and `!watch.reached`, after 60 s |
+| M5: the deadline never cancels | `endingGivesUpAtTheBound`: not pending, not published, not `.stopped(.stopped)` (the request timeout ended it), after 121 s |
+| `personsStop` rewritten, M3 again | 5 issues (the first photo not accepted, not recorded, the retry's candidates and album step) |
+| M6: the next photo starts after a Stop (`startNext` ignores cancellation) | `personsStop` 5 issues (the second photo uploaded, two uploads) |
+
+**Determinism.** By structure, the assertions of the three AC23 tests
+are orders and events (what the ending was asked to wait for, whether the wait
+had returned when the run ended, the deadline against two clock readings taken
+in a fixed order, the item's state), except `endingRecordsAnAnswer`'s
+`endedAt < deadline`, which holds unless the steps from the Stop to the run's
+end take 60 s; `elapsed >= bound` can only grow with load. What still depends
+on time is listed in the table above, each with at least 8 times the worst
+delay seen. `personsStop` by structure: at concurrency 1 the second photo
+cannot start before the first upload ends, which needs its held answer, which
+the test lets go only after the Stop; the held task stays alive until
+URLSession reports the whole body sent. Runs (**Build and test**, CI fix
+rows): the AC23 tests passed 49 of 49 starved runs (15 of them with CPU stress
+on the final sources), 15 of 15 beside a full `swift test`, 30 of 30 unloaded;
+the rewritten `personsStop` 15 of 15 starved with stress (its old form failed 3
+of 20 such runs, about 15%: 15 clean runs alone would leave about 9% of
+missing such a rate, so the structural argument carries the claim) and 30 of
+30 unloaded.
 
 ## Q7 (2026-11-26)
 
@@ -623,7 +745,7 @@ the bundle copied with identifier `me.sesser.gus.debugtest.publish28`, a
 | AC20 | `personsStop` (the photo in progress is the only one without its album) | Pass |
 | AC21 | `lostConnection` (fault: unreached included), `personsStop` (own Stop: left out; uploaded photo finished), `PublishBoundaryTests.retryAndLaterRuns` (a later run's photo left out; a re-edit renders as saved at the retry); `oneAtATime` (the slot); revision 7: `stopDuringRetryCheck` (a Stop during the check sends no write request and leaves the ending and results as they were; the next retry covers the unreached), `retryCheckFailsOrRuns`, `PublishRulesTests.retryOutcomeRule`; scripted (review round): "A publish is already running." while a retry checks, "This server was removed." after Remove Server in the import window; second round: Stop during the retry's check, message and results unchanged, the next retry published them | Pass |
 | AC22 | By reading: the texts design §4.1 lists are changed (Server sheet captions and results by host, unencrypted notice, Import inspector captions, Remove Server alert, `Info.plist`); the user guide's import section and its Publishing section (trashed members and the former primary per revision 5, a lost answer, unfinished steps, the lost-answer exception to "uploads no photo twice") | Done, for the reviewers to read |
-| AC23 | `endingWaitsForFullySent` (answer within the bound: recorded; none: ends at the bound, no record), `notFullySentCancelledAtOnce`, `stopKeepsEndingInEveryReport` (two photos at once: every report after Stop is ending, awaiting an answer while one is); scripted: "Stopping. Waiting for “Home” to answer…" twice a second apart with three photos, Stop and File ▸ Stop Publishing dimmed, Publish dimmed | Pass; a quit during the wait not scripted |
+| AC23 | `endingRecordsAnAnswer` (answered while the run ends: recorded, the run ends before its deadline), `endingGivesUpAtTheBound` (no answer: ends once its deadline, the bound after the Stop, has come, no record), `notFullySentCancelledAtOnce` (cancelled, never left to wait), asserted by order and events, no duration but a 60 s bound the test sets (see **CI fix (PR #307)**), `stopKeepsEndingInEveryReport` (two photos at once: every report after Stop is ending, awaiting an answer while one is); scripted: "Stopping. Waiting for “Home” to answer…" twice a second apart with three photos, Stop and File ▸ Stop Publishing dimmed, Publish dimmed | Pass; a quit during the wait not scripted |
 | AC24 | `lostAlbumCreate`, both the automatic repeat and Retry Failed, with an older album of that name holding the first photo | Pass |
 | AC25 | `PublishBoundaryTests.purposes`; scripted: saved from Publish with two permissions, refused from Import with "To save a key made only for publishing…", the Import window shows "Can't Import from", a key lacking `asset.read` refused from Publish | Pass |
 
@@ -1343,6 +1465,14 @@ None open.
 | 2026-11-26, Q7 | `swift test --skip-build --filter "PublishJobTests/retryCalledOffWhenServerChanged"`, 30 runs | 30 of 30 passed |
 | 2026-11-26, Q7 | `swift test` | 1670 tests in 228 suites passed (92.6 s), on the final sources |
 | 2026-11-26, Q7 | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, exit 0, no error or warning in the changed file (`/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`). `Scripts/build-app.sh` not run: no source changed |
+| 2026-11-27, CI fix, baseline at df30e77 | `swift build --build-tests`; `swift test --filter PublishJobTests` | Built clean; 37 passed |
+| 2026-11-27, CI fix | the old tests, product unchanged, scratch pool hog (3 tasks blocking 0.4 s, then yielding) with `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1` | The answered case failed 2 of 2 at CI's line (`elapsed < .seconds(2)`) |
+| 2026-11-27, CI fix | each changed test against its behaviour broken (M1 to M6, table in **CI fix (PR #307)**) | Each failed as listed; sources restored and compared with `cmp` |
+| 2026-11-27, CI fix | `PublishJobTests` with the scratch hog and a one-thread pool, beside 14 `yes` processes (stopped afterwards), final sources | 15 of 15 passed. Before `personsStop`'s rewrite: the AC23 tests passed all 34 such runs (with and without stress); `personsStop` failed 3 |
+| 2026-11-27, CI fix | the publishing and connection suites (106 tests in 8 suites), 15 runs beside a full `swift test` and 14 `yes` processes | 15 of 15 passed (the full run beside them: 1672 tests passed). Before `personsStop`'s rewrite |
+| 2026-11-27, CI fix | the publishing and connection suites (106 tests), `--skip-build`, 30 runs, final sources | 30 of 30 passed |
+| 2026-11-27, CI fix | `swift test`, final sources, scratch hog file removed | 1671 tests in 228 suites passed (102.3 s) |
+| 2026-11-27, CI fix | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, exit 0, no error and no warning in the changed files (Swift 6.2.4; `/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`). `Scripts/build-app.sh` not run: the app's behaviour did not change (a test hook only) |
 
 Determinism of the new tests: none sleeps to synchronize. The stop tests
 (`personsStop`, `endingWaitsForFullySent`) stop at the client's own "fully
@@ -1353,6 +1483,10 @@ no-answer case measures the bound (2 s) with a 4 s margin above it.
 `notFullySentCancelledAtOnce` relies on a 48 MB body not fitting the loopback
 buffers (about 4 MB observed, status.md task 5). `PublishJobTests` passed 3 of
 3 runs in isolation and in 3 full runs; that rules out only a frequent flake.
+(Corrected by **CI fix (PR #307)**: the delegate queue does not always deliver
+the last "fully sent" callback before an answer that comes at once, so
+`personsStop` now holds its answer until the Stop; `endingWaitsForFullySent`
+is now two tests with no upper time bound.)
 
 Determinism of the review round's tests: none sleeps to synchronize.
 `stackOrderWhicheverUploadFinishesFirst` forces each order with the fake

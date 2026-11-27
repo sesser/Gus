@@ -110,6 +110,12 @@ struct PublishJobTests {
         }
     }
 
+    /// The client's request timeout: an idle timer URLSession keeps whatever the
+    /// load, so it is set far beyond any step on a loaded runner (worst seen on
+    /// CI: 7 s). Tests that hold an answer, or end a run at its bound, would
+    /// otherwise race it (CI fix, status.md). No test here waits for it to fire.
+    static let requestTimeout: TimeInterval = 120
+
     /// JPEGs in a folder, imported; a stays floating at 2024-05-01 10:00.
     static func fixture(_ root: URL, files: [String] = ["a.jpg", "b.jpg"]) async throws -> Fixture {
         let folder = root.appending(path: "Shoot")
@@ -130,7 +136,7 @@ struct PublishJobTests {
         let address = try RemoteConnectionTests.address(server.address)
         let service = try await catalog.saveRemoteService(RemoteServiceRecord(name: "Home", address: address.normalized,
                                                                               allowsUnencrypted: true))
-        let client = try RemoteConnectionTests.client(server)
+        let client = try RemoteConnectionTests.client(server, timeout: requestTimeout)
         return Fixture(root: root, folder: folder, catalog: catalog, server: server, client: client, service: service,
                        temporary: root.appending(path: "Temporary"))
     }
@@ -619,22 +625,22 @@ struct PublishJobTests {
             f.server.setAlbums([album])
             let run = try await f.makeRun(ids, album: .existing(id: album.id, name: "Kept"), stacking: false)
             // Stopped when the client has sent the first file whole: it waits
-            // for that answer, then does nothing more (design §9).
-            // (task, asked): whichever comes second cancels, so the order of
-            // the callback and the assignment doesn't matter.
-            let stop = Mutex<(task: Task<PublishRun, Never>?, asked: Bool)>((nil, false))
-            var job = f.job(stacking: false)
-            job.onFullySent = {
-                stop.withLock { state in
-                    state.asked = true
-                    state.task?.cancel()
-                }
-            }
+            // for that answer, then does nothing more (design §9). The answer
+            // is held until the Stop: an upload answered at once can end before
+            // URLSession reports its whole body sent, and the Stop then came at
+            // the second photo (CI fix, status.md).
+            f.server.add(.holdUploadAnswer)
+            // The answer must come within the bound to be kept: a bound far
+            // beyond any step on a loaded runner.
+            var job = f.job(stacking: false, bound: .seconds(60))
+            let sent = AsyncStream<Void>.makeStream()
+            job.onFullySent = { sent.continuation.yield() }
             let task = Task { await job.run(run) }
-            stop.withLock { state in
-                state.task = task
-                if state.asked { task.cancel() }
-            }
+            for await _ in sent.stream { break }
+            task.cancel()
+            while f.server.heldAnswerCount == 0 { await Task.yield() }
+            #expect(f.server.uploads.count == 1)
+            f.server.releaseHeldAnswers()
             var ended = await task.value
             #expect(ended.ending == .stopped(.stopped))
             #expect(ended.items[0].isAccepted && ended.items[0].album == .pending)
@@ -642,7 +648,7 @@ struct PublishJobTests {
             #expect(ended.counts.notFinished == 1 && ended.counts.notPublished == 1)
             #expect(try await f.catalog.publications(address: f.address, versionIDs: [ids[0]])[ids[0]]?.count == 1)
             #expect(ended.retryCandidates == [ids[0]])
-            f.server.onUploadReceived(nil)
+            f.server.remove(.holdUploadAnswer)
             ended = await f.job(stacking: false).run(ended, retrying: true)
             #expect(ended.items[0].album == .done)
             #expect(ended.items[1].upload == .pending)
@@ -693,42 +699,115 @@ struct PublishJobTests {
         }
     }
 
-    @Test("Ending: a fully sent upload answered within the bound is recorded; with no answer the run ends at the bound (AC23)")
-    func endingWaitsForFullySent() async throws {
-        for answers in [true, false] {
-            try await RepositoryFiles.withTemporaryDirectory { root in
-                let f = try await Self.fixture(root, files: ["a.jpg"])
-                let a = try await f.version("a.jpg")
-                f.server.add(.holdUploadAnswer)
-                let run = try await f.makeRun([a], stacking: false)
-                var job = f.job(stacking: false, bound: .seconds(2))
-                let sent = AsyncStream<Void>.makeStream()
-                job.onFullySent = { sent.continuation.yield() }
-                let task = Task { await job.run(run) }
-                // The client handed the whole body to the system; the server holds its answer.
-                for await _ in sent.stream { break }
-                let stoppedAt = ContinuousClock.now
-                task.cancel()
-                if answers {
-                    // Answered once the server has the body and the run is ending.
-                    while f.server.heldAnswerCount == 0 { await Task.yield() }
-                    f.server.releaseHeldAnswers()
-                }
-                let ended = await task.value
-                let elapsed = ContinuousClock.now - stoppedAt
-                let records = try await f.catalog.publications(address: f.address, versionIDs: [a])
-                if answers {
-                    #expect(ended.items[0].isAccepted)
-                    #expect(records[a]?.count == 1)
-                    #expect(elapsed < .seconds(2))
-                } else {
-                    #expect(ended.items[0].upload == .pending)
-                    #expect(records[a] == nil)
-                    #expect(elapsed >= .seconds(2) && elapsed < .seconds(6))
-                    #expect(ended.counts.notPublished == 1)
-                }
-                #expect((try? FileManager.default.contentsOfDirectory(atPath: f.temporary.path)) ?? [] == [])
-            }
+    /// Watches an ending's wait for its deadline (`RemoteUploadEnding`): each
+    /// deadline asked for and when it was asked, and whether one has come.
+    /// With `sleeps` it waits as the app does; without, it returns at once.
+    final class DeadlineWatch: Sendable {
+        struct Ask {
+            let deadline: ContinuousClock.Instant
+            let at: ContinuousClock.Instant
+        }
+
+        private struct State {
+            var asks: [Ask] = []
+            var reached = false
+        }
+
+        private let state = Mutex(State())
+        let sleeps: Bool
+
+        init(sleeps: Bool) {
+            self.sleeps = sleeps
+        }
+
+        var asks: [Ask] { state.withLock { $0.asks } }
+        /// A deadline came (set before the wait returns, so before the cancel it leads to).
+        var reached: Bool { state.withLock { $0.reached } }
+
+        func wait(until deadline: ContinuousClock.Instant) async {
+            state.withLock { $0.asks.append(Ask(deadline: deadline, at: .now)) }
+            if sleeps { await RemoteUploadEnding.sleep(until: deadline) }
+            state.withLock { $0.reached = true }
+        }
+    }
+
+    // The three AC23 tests below assert order and events, not how long a step
+    // took: CI's cooperative pool is starved by other suites (issue #259), so
+    // any step can take seconds there (status.md, "CI fix").
+
+    @Test("Ending: a fully sent upload answered while the run ends is recorded, and the run ends without waiting out the bound (AC23)")
+    func endingRecordsAnAnswer() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await Self.fixture(root, files: ["a.jpg"])
+            let a = try await f.version("a.jpg")
+            f.server.add(.holdUploadAnswer)
+            let run = try await f.makeRun([a], stacking: false)
+            // A bound far beyond any step on a loaded runner (the worst seen
+            // on CI: 7 s), so the answer always comes first; a run that waited
+            // the bound out would end after it and fail below.
+            var job = f.job(stacking: false, bound: .seconds(60))
+            let watch = DeadlineWatch(sleeps: true)
+            job.waitForEndingDeadline = { await watch.wait(until: $0) }
+            let sent = AsyncStream<Void>.makeStream()
+            job.onFullySent = { sent.continuation.yield() }
+            let task = Task { await job.run(run) }
+            // The client handed the whole body to the system; the server holds its answer.
+            for await _ in sent.stream { break }
+            task.cancel()
+            // Answered once the server has the body and the run is ending.
+            while f.server.heldAnswerCount == 0 { await Task.yield() }
+            f.server.releaseHeldAnswers()
+            let ended = await task.value
+            let endedAt = ContinuousClock.now
+            // Left to answer until the deadline, not cancelled at once...
+            #expect(watch.asks.count == 1)
+            let deadline = try #require(watch.asks.first?.deadline)
+            #expect(ended.items[0].isAccepted)
+            #expect(try await f.catalog.publications(address: f.address, versionIDs: [a])[a]?.count == 1)
+            #expect(ended.ending == .stopped(.stopped))
+            // ...and the run ended on the answer, before its deadline came.
+            #expect(endedAt < deadline, "the run waited out the bound")
+            #expect(!watch.reached)
+            #expect((try? FileManager.default.contentsOfDirectory(atPath: f.temporary.path)) ?? [] == [])
+        }
+    }
+
+    @Test("Ending: with no answer to a fully sent upload the run ends at the bound, not before (AC23)")
+    func endingGivesUpAtTheBound() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let f = try await Self.fixture(root, files: ["a.jpg"])
+            let a = try await f.version("a.jpg")
+            f.server.add(.holdUploadAnswer)
+            let run = try await f.makeRun([a], stacking: false)
+            let bound = Duration.seconds(2)
+            var job = f.job(stacking: false, bound: bound)
+            let watch = DeadlineWatch(sleeps: true)
+            job.waitForEndingDeadline = { await watch.wait(until: $0) }
+            let sent = AsyncStream<Void>.makeStream()
+            job.onFullySent = { sent.continuation.yield() }
+            let task = Task { await job.run(run) }
+            for await _ in sent.stream { break }
+            let stoppedAt = ContinuousClock.now
+            task.cancel()
+            // The server never answers.
+            let ended = await task.value
+            let elapsed = ContinuousClock.now - stoppedAt
+            // One wait, for the bound after the Stop: set by the Stop, so between
+            // the Stop and the moment the wait was asked for (never later).
+            #expect(watch.asks.count == 1)
+            let ask = try #require(watch.asks.first)
+            #expect(ask.deadline - bound >= stoppedAt && ask.deadline - bound <= ask.at)
+            // Not before: the run ended only once its deadline had come.
+            #expect(watch.reached)
+            #expect(elapsed >= bound)
+            // Given up by that cancel: nothing recorded, the photo not published.
+            #expect(ended.items[0].upload == .pending)
+            #expect(try await f.catalog.publications(address: f.address, versionIDs: [a])[a] == nil)
+            #expect(ended.counts.notPublished == 1)
+            #expect(ended.ending == .stopped(.stopped))
+            #expect(f.server.heldAnswerCount == 1)
+            #expect((try? FileManager.default.contentsOfDirectory(atPath: f.temporary.path)) ?? [] == [])
+            f.server.releaseHeldAnswers()
         }
     }
 
@@ -738,11 +817,18 @@ struct PublishJobTests {
             let server = try await FakeImmichServer()
             server.setPermissions(Self.publishing)
             server.add(.stallUploadBody)
-            let client = try RemoteConnectionTests.client(server)
+            // The stalled body must not time out before the Stop.
+            let client = try RemoteConnectionTests.client(server, timeout: Self.requestTimeout)
             let body = root.appending(path: "body")
             // Far more than the loopback buffers hold (status.md: about 4 MB).
             try Data(repeating: 7, count: 48 << 20).write(to: body)
-            let ending = RemoteUploadEnding(bound: .seconds(30))
+            // A wait for the deadline returns at once, so an upload wrongly
+            // left to wait ends quickly too, and is told apart by the ask.
+            let watch = DeadlineWatch(sleeps: false)
+            let awaiting = Mutex<[Bool]>([])
+            let ending = RemoteUploadEnding(bound: .seconds(30), onFullySent: nil,
+                                            onAwaitingChange: { change in awaiting.withLock { $0.append(change) } },
+                                            waitUntil: { await watch.wait(until: $0) })
             let task = Task { () async -> Result<RemoteUploadOutcome, PublishFailure> in
                 do throws(PublishFailure) {
                     return .success(try await client.upload(bodyFile: body, contentType: "multipart/form-data; boundary=x",
@@ -753,15 +839,19 @@ struct PublishJobTests {
             }
             while !server.requests.contains(where: { $0.path == "/api/assets" }) { try await Task.sleep(for: .milliseconds(20)) }
             try await Task.sleep(for: .milliseconds(200))
-            let start = ContinuousClock.now
             task.cancel()
             let result = await task.value
-            #expect(ContinuousClock.now - start < .seconds(5))
             guard case .failure(let failure) = result else {
                 Issue.record("the upload was cancelled")
                 return
             }
+            // Ended by the cancel itself (not the request's timeout, which is not
+            // `.cancelled`), with no wait for the deadline and no answer awaited.
             #expect(failure == .remote(.cancelled))
+            #expect(ending.endedAt != nil, "the Stop reached the ending")
+            #expect(watch.asks.isEmpty, "left to wait for the bound")
+            #expect(awaiting.withLock { $0 }.isEmpty)
+            #expect(!ending.isAwaitingAnswers)
         }
     }
 

@@ -39,6 +39,9 @@ public struct PublishJob: Sendable {
     /// Tests: awaited once the job's own reads are done and before its first
     /// photo starts, so a Stop can land there (code review C12).
     var beforeFirstPhoto: (@Sendable () async -> Void)?
+    /// Tests: replaces the ending's wait for its deadline (`RemoteUploadEnding`),
+    /// to see when it is asked for and when it returns.
+    var waitForEndingDeadline: (@Sendable (ContinuousClock.Instant) async -> Void)?
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "publish")
 
@@ -115,7 +118,8 @@ public struct PublishJob: Sendable {
         let total = versionIDs.count
         let counter = ProgressCounter(total: total, report: progress)
         let ending = RemoteUploadEnding(bound: endingBound, onFullySent: onFullySent,
-                                        onAwaitingChange: { counter.awaiting($0) })
+                                        onAwaitingChange: { counter.awaiting($0) },
+                                        waitUntil: waitForEndingDeadline ?? RemoteUploadEnding.sleep(until:))
 
         if let beforeFirstPhoto { await beforeFirstPhoto() }
 

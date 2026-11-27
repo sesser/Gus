@@ -247,7 +247,7 @@ public final class RemoteHTTPSession: Sendable {
                 task.resume()
             }
         } onCancel: {
-            let waits = RemoteUploadEnding.end(task, by: ending.deadline())
+            let waits = ending.end(task)
             wait.withLock { state in
                 guard waits, state == .running else { return }
                 state = .awaiting
@@ -575,12 +575,27 @@ public final class RemoteUploadEnding: Sendable {
     /// last one awaited has come or been given up (false): the run's
     /// "Waiting for … to answer" (publishing design §9, review D-1).
     private let onAwaitingChange: (@Sendable (Bool) -> Void)?
+    /// Returns once the deadline has come: `Task.sleep`, or a test's watch
+    /// on it, so a test can tell the wait from the cancel without timing
+    /// either (CI fix, status.md).
+    private let waitUntil: @Sendable (ContinuousClock.Instant) async -> Void
 
-    public init(bound: Duration = .seconds(10), onFullySent: (@Sendable () -> Void)? = nil,
-                onAwaitingChange: (@Sendable (Bool) -> Void)? = nil) {
+    public convenience init(bound: Duration = .seconds(10), onFullySent: (@Sendable () -> Void)? = nil,
+                            onAwaitingChange: (@Sendable (Bool) -> Void)? = nil) {
+        self.init(bound: bound, onFullySent: onFullySent, onAwaitingChange: onAwaitingChange,
+                  waitUntil: Self.sleep(until:))
+    }
+
+    init(bound: Duration, onFullySent: (@Sendable () -> Void)?, onAwaitingChange: (@Sendable (Bool) -> Void)?,
+         waitUntil: @escaping @Sendable (ContinuousClock.Instant) async -> Void) {
         self.bound = bound
         self.onFullySent = onFullySent
         self.onAwaitingChange = onAwaitingChange
+        self.waitUntil = waitUntil
+    }
+
+    @Sendable static func sleep(until deadline: ContinuousClock.Instant) async {
+        try? await Task.sleep(until: deadline, clock: .continuous)
     }
 
     func didSendAll() {
@@ -620,17 +635,20 @@ public final class RemoteUploadEnding: Sendable {
     /// When the run began to end, if it has.
     public var endedAt: ContinuousClock.Instant? { started.withLock { $0 } }
 
-    /// A body not fully sent is cancelled now; one fully sent is left to
-    /// answer until `deadline`, then cancelled (a no-op once it has ended).
-    /// True when it is left to answer.
+    /// Ends `task` as the run ends, setting the deadline if this is the run's
+    /// first cancellation: a body not fully sent is cancelled now; one fully
+    /// sent is left to answer until the deadline, then cancelled (a no-op
+    /// once it has ended). True when it is left to answer.
     @discardableResult
-    static func end(_ task: URLSessionTask, by deadline: ContinuousClock.Instant) -> Bool {
-        guard isFullySent(sent: task.countOfBytesSent, expected: task.countOfBytesExpectedToSend) else {
+    func end(_ task: URLSessionTask) -> Bool {
+        let deadline = deadline()
+        guard Self.isFullySent(sent: task.countOfBytesSent, expected: task.countOfBytesExpectedToSend) else {
             task.cancel()
             return false
         }
+        let waitUntil = self.waitUntil
         Task.detached {
-            try? await Task.sleep(until: deadline, clock: .continuous)
+            await waitUntil(deadline)
             task.cancel()
         }
         return true
