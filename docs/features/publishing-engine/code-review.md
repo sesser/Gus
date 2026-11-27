@@ -1165,3 +1165,37 @@ proves only a bound near 1 in 7, the structure below carries the claim).
 C15: **Fixed** in a1d37c3.
 
 `/security-review`: not needed (test only).
+
+### Eleventh pass, 2026-11-27: a1d37c3..5412951 (QA Q8)
+
+Reviewed only 5412951 (`PublishJobTests.swift` and `status.md`; nothing under
+`Sources/`, `Scripts/` or `Package.swift`). `swift test --filter
+PublishJobTests`: 37 of 37 passed in 2.3 s, `notFullySentCancelledAtOnce` in
+0.39 s.
+
+**Verdict, eleventh pass: Q8's fix is sound; ready for qa-tester.** No new finding.
+
+- **Closes Q8, by tracing.** `stoppedAt` is read before `task.cancel()`, which
+  runs the upload's cancellation handler (`RemoteHTTPSession.swift:249-256`)
+  synchronously; `end(_:)` calls `deadline()` first, so the deadline is at least
+  `stoppedAt + bound`. QA's mutant cancels only after a real
+  `Self.sleep(until: deadline)`, so the upload returns, and `endedAt` is read,
+  after `stoppedAt + 60 s`, and `endedAt < stoppedAt + bound` fails whatever the
+  load. The 120 s request timeout cannot end it first (the body stalled about
+  0.2 s before the Stop, so the timeout falls about 120 s after it). The engineer's
+  run of that mutant (1 issue, 61.0 s) agrees; M1 is still caught by the
+  existing assertions.
+- **No new order dependence.** Two clock reads in program order around the
+  cancel and `await task.value`; the deadline's start comes between them by the
+  structure above. No sleep added, no new shared state.
+- **No tighter wall time.** The one new limit is the 60 s bound the test sets,
+  the same `endingRecordsAnAnswer` and `personsStop` already accept (worst step
+  on CI about 7 s). The bound grew from 30 s, so the injected wait is unaffected
+  (it returns at once).
+- **Determinism.** Structural (status.md **Q8**): only the 60 s bound, which
+  correct code meets with a margin of about 8x the worst seen; the 30 of 30 runs
+  are supporting only.
+
+Q8 (QA's): fixed in 5412951, for qa-tester to confirm in `qa.md`.
+
+`/security-review`: not needed (test only).
