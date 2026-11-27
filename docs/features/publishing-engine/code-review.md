@@ -987,3 +987,142 @@ the right reason. No new findings.
 #### `/security-review`
 
 Not needed: the diff is a test and docs only.
+
+### Ninth pass, 2026-11-26: 21bdca7..250c744 (CI fix for PR #307)
+
+Commits: 250c744 (the fix: `RemoteHTTPSession.swift`, `PublishJob.swift`,
+`PublishJobTests.swift`, status.md). 0eac173, e73cb45, caa9466, 17d8527 and
+df30e77 are docs only (my eighth pass, QA, the `CLAUDE.md` Network rule, the
+sign-off, Ship): nothing under `Sources/`, `Tests/`, `Scripts/` or
+`Package.swift`. No merge of `develop`. Build and tests: `swift build
+--build-tests` clean; the CI toolchain build (`DEVELOPER_DIR=…Xcode_26.3…
+--scratch-path .build-xcode26.3`) up to date and clean at this HEAD; the
+publishing and connection suites (`PublishJobTests`, `PublishBoundaryTests`,
+`PublishKeyPairingTests`, `PublishRulesTests`, `PublishLiveTests`,
+`RemoteConnectionTests`, `RemoteSessionTests`, `ServerKeyPairingTests`) 107
+tests in 9 suites passed; `PublishJobTests` passed 30 of 30 runs with
+`--skip-build` on a one-thread pool (`LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`)
+beside 12 `yes` processes (stopped afterwards; none left running).
+
+**Verdict, ninth pass: ready for qa-tester.** The source change is a test seam
+with no behaviour change, CI's two failures were the tests' wall-clock bounds on
+a starved pool, and the rewritten tests fail when AC23 is broken. One nit (C15):
+one assertion still relies on the pool running a detached task's first line
+before a later chain of jobs finishes.
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C15 | Nit | `Tests/PhotoCoreTests/PublishJobTests.swift:763-764` (`endingRecordsAnAnswer`) | `watch.asks` is appended in the first line of the `Task.detached` that `RemoteUploadEnding.end` starts. Nothing awaits that task, so there is no happens-before edge between that append and the test's read after `await task.value`. The test assumes the detached job runs before the chain that ends the run: the answer, the upload's resumption, the record's write, the group draining. That chain is enqueued later, at the same priority (21 for a Swift Testing test, its unstructured tasks and a detached task, which I checked in a scratch package). Darwin's per-QoS FIFO makes the order hold in practice, but it is a pool order, which the status.md determinism argument says these assertions don't depend on. | The detached job is dequeued, but its thread is descheduled before the mutex append (CPU stress), and the run ends meanwhile. Then `#expect(watch.asks.count == 1)` fails and `#require(watch.asks.first?.deadline)` stops the test, though the product behaved correctly. I did not reproduce it: 30 of 30 loaded runs passed. The fix needs no ordering. Compare `endedAt < stoppedAt + bound` (with `stoppedAt` read just before `task.cancel()`, as `endingGivesUpAtTheBound` does). The deadline is the first cancel plus `bound`, and the first cancel comes after `stoppedAt`, so this is a stronger check than `< deadline`. Drop `asks.count == 1` here or wait for it: `isAccepted` and the record already show the upload was left to answer, since M3 and M3′ both fail on them. Or assert `awaitsAnswer` in the progress reports, which `beganAwaiting` sets synchronously inside the cancellation handler. `!watch.reached` is order-free as it is. | Determinism claims (WORKFLOW) |
+
+#### No behaviour change (checked)
+
+- `end(_:)` (an instance method now) calls `deadline()` first, as the old call
+  site did (`RemoteUploadEnding.end(task, by: ending.deadline())`). So the
+  run's first cancellation still sets the deadline whether or not its body
+  was fully sent. The not-fully-sent branch still cancels synchronously in the
+  handler. The fully-sent branch still starts one unawaited `Task.detached`
+  that waits until the deadline and then cancels. The default wait,
+  `RemoteUploadEnding.sleep(until:)`, is the same `try? await
+  Task.sleep(until:clock: .continuous)`. Nothing cancels the detached task,
+  so it never returns early, as before. Its captures (`waitUntil`, `deadline`,
+  `task`) are all Sendable; the new stored `let` is an `@Sendable` closure in
+  a `final class … : Sendable`. There is no new isolation, lock or suspension
+  point inside the cancellation handler.
+- The public `init` keeps its signature and defaults (now `convenience`), and
+  `ImmichPublishing`, `PublishLiveTests` and the app build unchanged. The
+  designated `init(…waitUntil:)`, `end(_:)` and
+  `PublishJob.waitForEndingDeadline` are internal, so PhotoApp cannot reach
+  them. The only setters are in `PublishJobTests` (grep). `PublishModel` still
+  sets only `onFullySent` (the debug script's hook, unchanged).
+
+#### "Not slow or wrong" (checked)
+
+- The CI log shows exactly one issue in each failing test, and each is a
+  duration (`:759` 5.53 s against 5 s; `:723` 6.90 s against 2 s). Each
+  test's `failure == .remote(.cancelled)`, `isAccepted` and record
+  expectations passed. A cancelled upload that ran into the 5 s request
+  timeout would have been `.unreachable`, not `.cancelled`. And an answered
+  upload is accepted only if the deadline's cancel hadn't run. So the product
+  did the right thing, late. Each test reported "failed after 405 s / 454 s",
+  and the run took 531 s against about 100 s here: a starved pool.
+- The `onFullySent` point holds as far as the code goes. `didSendAll()` feeds
+  only the hook (tests, debug script); `upload` decides "fully sent" from
+  `countOfBytesSent` when the cancellation comes. URLSession documents no order
+  between the last `didSendBodyData` on the delegate queue and an answer the
+  server sends as soon as it has the body, and the engineer's print (both
+  uploads and the album request already on the server when the first callback
+  came) fits that. I did not rerun it. Holding the answer removes the race,
+  because the upload cannot complete before the callback.
+- A pre-existing edge, not this commit's: if `countOfBytesSent` can lag the
+  same way, a Stop in that window cancels a body the server already has. That
+  is R17's accepted lost answer, which the user guide describes.
+
+#### The changed tests against broken behaviour (traced, not run: I don't edit `Sources/`)
+
+- `notFullySentCancelledAtOnce`. With a not-fully-sent body left to wait
+  (M1), the watch appends before its at-once return, and the upload can end
+  only after the cancel that follows. So `asks.isEmpty` fails, and so does
+  `awaiting` ([true, false]). A missing cancellation handler ends at the 120 s
+  timeout as `.unreachable`, so `== .remote(.cancelled)` fails. No duration is
+  asserted. The 200 ms sleep decides nothing asserted.
+- `endingGivesUpAtTheBound`. Cancelled at once (M3) gives no ask, so
+  `reached` is false and `elapsed < bound`. A wrong deadline (M4) fails
+  `deadline − bound` between `stoppedAt` and `ask.at`; both are clock reads in
+  a fixed order (`stoppedAt` before `task.cancel()`, whose handler runs
+  synchronously; `at` after `deadline()`). A deadline that never cancels (M5)
+  ends at the 120 s timeout as not pending or `.unreachable`. `elapsed >= bound`
+  can only grow with load. One time dependence is not in status.md's table:
+  `heldAnswerCount == 1` needs the fake server to have parsed a one-JPEG body
+  within the 2 s bound. The server runs on its own `DispatchQueue`, not the
+  pool, so the margin is huge.
+- `endingRecordsAnAnswer`. Waiting out the bound (M2) fails `endedAt <
+  deadline` and `!reached` after 60 s. Cancelled at once fails `isAccepted`
+  and the record. The 60 s bound is the only time it still depends on (about
+  8.7 times CI's worst 6.9 s), apart from C15.
+- `personsStop`. Concurrency is 1 and the first answer is held, so the second
+  photo cannot start before the Stop. `uploads.count == 1` is read once the
+  held answer exists. Ignoring the Stop (M6) uploads the second photo.
+  Cancelling at once fails the first photo's acceptance and its record.
+- The fixture's 120 s timeout. No branch test waits for a timeout to fire.
+  `.drop` closes the connection (the suite runs in 2.4 s). `stopDuringRetryCheck`'s
+  30 s `slowCheck` goes through `PublishConnection.connect`'s own client and is
+  cancelled. Other branch tests on the default 5 s client
+  (`PublishBoundaryTests`, `RemoteConnectionTests`) hold no answer, and the fake
+  server answers on its own queue, so a starved pool can't delay those answers
+  into the timer.
+
+#### Other branch tests
+
+`git diff develop...HEAD -- Tests` for `ContinuousClock`, `elapsed`,
+`Task.sleep`, `timeout` and held or stalled answers turns up nothing new. The
+only remaining duration assertion is `elapsed >= bound`. `stepsFollowEachUpload`'s
+300 ms bound and `stopKeepsEndingInEveryReport`'s 2 s bound decide nothing they
+assert: whether the deadline's cancel or the answer comes first, the reports
+go `awaitsAnswer` true then false, the run is `.stopped(.stopped)`, and b never
+passes its upload. `stopKeepsEndingInEveryReport` cancels inside the
+`onFullySent` callback while answers are held, so the callback race above does
+not reach it.
+
+#### Determinism claim
+
+status.md gives a structural argument plus counts, and says that its 15 clean
+`personsStop` runs alone don't cover the 15% rate it measured (3 divided by
+0.15 is 20 runs), so the structure carries the claim. That is the form
+WORKFLOW asks for. I accept the structure for `personsStop`,
+`endingGivesUpAtTheBound` and `notFullySentCancelledAtOnce`. For
+`endingRecordsAnAnswer` I accept it except for C15's pool-order read. My 30
+loaded runs of the whole suite rule out a flake rate of about 1 in 10 at about
+95%, and nothing rarer.
+
+#### For QA
+
+`qa.md`'s AC23 row (line 95) still names `endingWaitsForFullySent`, which is
+now `endingRecordsAnAnswer` and `endingGivesUpAtTheBound`. No app behaviour
+changed. The debug script's scripted Stop also stops on `onFullySent`, but
+`debugOnFullySent` is documented as used with a server that holds the next
+upload, so the callback race above doesn't touch it.
+
+#### `/security-review`
+
+Not needed: no parser, subprocess, request, file writing or network path
+changed; the source change is an internal test seam around an existing sleep.
