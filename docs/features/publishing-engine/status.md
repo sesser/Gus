@@ -6,9 +6,11 @@ Owner: swift-macos-engineer. Branch `feature/publishing-engine` (off `develop`).
 Spec: the PRD (issue #28, **revision 7**, 2026-11-26) and [design.md](design.md)
 (rulings in its §16 and §17: D-1 to D-19 and the correction to §3.6).
 
-**State: Done** (2026-11-26, code review C15 under **C15** below: a test-only
-change to `endingRecordsAnAnswer`; next a code-reviewer pass on it, then
-qa-tester for the changed test). Before it, 2026-11-27, the CI fix for pull
+**State: Done** (2026-11-27, QA's Q8 under **Q8** below: a test-only change
+to `notFullySentCancelledAtOnce`; next a code-reviewer pass on it, then
+qa-tester confirms Q8 in `qa.md`; no designer pass, nothing in the UI changed).
+Before it, 2026-11-26, code review C15 under **C15** below: a test-only
+change to `endingRecordsAnAnswer`. Before that, 2026-11-27, the CI fix for pull
 request #307 under **CI fix (PR #307)** below: the AC23 tests made independent
 of wall time, `personsStop` made to stop where it says under load, the
 fixture's 5 s request timeout raised, with a testability hook in the source and
@@ -28,6 +30,44 @@ checks **For a person** (review.md's M1 to M8), the owner's approval of the
 proposed `CLAUDE.md` Network rule, and **Follow-ups proposed**. Next: a
 code-reviewer pass on the Q7 commit (test only), then qa-tester confirms Q7 in
 `qa.md`. No designer pass: nothing in the UI changed.
+
+## Q8 (QA, test strength; 2026-11-27)
+
+Started from this file at bffefbc. Test only (`PublishJobTests.swift`).
+
+**Finding.** `notFullySentCancelledAtOnce` saw only waits made through the
+injected `waitUntil`. With the not-fully-sent branch of `RemoteUploadEnding.end`
+cancelling from a detached task after `await Self.sleep(until: deadline)`
+(still returning false) it passed, after the whole 30 s bound.
+
+**Fix, as QA suggested.** The bound is 60 s (it was 30 s), `stoppedAt` is read
+just before `task.cancel()` and `endedAt` once the upload's task has returned,
+and the test asserts `endedAt < stoppedAt + bound`, as `endingRecordsAnAnswer`
+does. Why it is sound: the deadline is the ending's first cancel plus `bound`,
+and that cancel (`end` calls `deadline()` first) comes after `stoppedAt`. Any
+wait for the deadline, injected or not, returns at or after it, so an upload
+cancelled only then ends after `stoppedAt + bound` and fails the assertion,
+whatever the load. Under correct code the assertion needs the cancel to reach
+URLSession and the upload to return within 60 s of the Stop: the same bound
+`endingRecordsAnAnswer` and `personsStop` already accept (worst step seen on
+CI: about 7 s), and nothing tighter. The 120 s request timeout is unchanged and
+still out of reach (a stalled body is cancelled before 60 s, or the test fails).
+The other assertions stay: `.remote(.cancelled)`, the Stop reached the ending,
+no wait asked for, no awaiting change.
+
+**Checked against broken behaviour** (mutate `RemoteHTTPSession.swift`, build,
+run `notFullySentCancelledAtOnce`, restore; the source compared with `cmp`
+against a copy, `git status` showing only the test file):
+
+| Mutation | Result |
+|---|---|
+| Q8: the not-fully-sent branch cancels from `Task.detached { await Self.sleep(until: deadline); task.cancel() }`, still returning false | 1 issue: `endedAt < stoppedAt + bound` (61.0 s) |
+| M1: a body not fully sent is left to wait for the deadline (`guard true \|\| isFullySent`) | 2 issues: `watch.asks.isEmpty`, the awaiting change (0.26 s), as before |
+
+**Determinism.** By structure: the new assertion is two clock readings in a
+fixed order against the 60 s bound the test sets; the rest are as in **CI fix
+(PR #307)**. Runs: `PublishJobTests` 30 of 30 (unloaded), which bounds an
+unloaded flake rate at about 1 in 10; the structure carries the claim.
 
 ## C15 (code review, ninth pass; 2026-11-26)
 
@@ -144,7 +184,7 @@ app does or returns at once.
 |---|---|---|
 | `endingRecordsAnAnswer` (the answered half of `endingWaitsForFullySent`) | Accepted and recorded (left to answer, not cancelled at once); the run ended before the bound after the Stop (`endedAt < stoppedAt + bound`, stricter than before its deadline; changed by **C15** below, which also dropped the count of waits asked for) and before the wait returned | The bound is 60 s, set by the test: the answer must come, and the run end, within 60 s of the Stop (worst seen: 6.9 s on CI, 3.7 s under the hog) |
 | `endingGivesUpAtTheBound` (the no-answer half) | One wait asked for; its deadline is the bound after the Stop (`deadline − bound` between the clock read just before `task.cancel()` and the moment the wait was asked for, an order no load can change); the run ended only after the wait returned (`watch.reached`) and `elapsed >= bound`; pending, no record, not published, `.stopped(.stopped)`, the answer still held | None in the assertions: no upper bound. The 120 s request timeout must not fire first (the deadline's cancel would have to be 118 s late) |
-| `notFullySentCancelledAtOnce` | The wait returns at once, so an upload wrongly left to wait ends quickly too; asserts `.remote(.cancelled)` (the cancel, not a timeout), the Stop reached the ending, no wait asked for, no awaiting change, nothing awaited | None in the assertions. The stalled body must not hit the 120 s timeout before the Stop |
+| `notFullySentCancelledAtOnce` | The wait returns at once, so an upload wrongly left to wait ends quickly too; asserts `.remote(.cancelled)` (the cancel, not a timeout), the Stop reached the ending, no wait asked for, no awaiting change, nothing awaited; since **Q8**, also that the upload ended before the bound after the Stop (`endedAt < stoppedAt + bound`, bound 60 s) | Since **Q8**: the cancel must end the upload within 60 s of the Stop. The stalled body must not hit the 120 s timeout before the Stop |
 | `personsStop` | Its first photo's answer is now held until the Stop, then let go (it was answered at once); the bound is 60 s (it was 2 s); one upload when the Stop lands. Same assertions otherwise | The answer must come within 60 s of the Stop to be kept |
 | Fixture | `PublishJobTests.requestTimeout` = 120 s for the fixture's client and `notFullySentCancelledAtOnce`'s | No test here waits for it to fire: the whole suite runs in 2.3 s |
 
@@ -191,7 +231,7 @@ are orders and events (what the ending was asked to wait for, whether the wait
 had returned when the run ended, the deadline against two clock readings taken
 in a fixed order, the item's state), except `endingRecordsAnAnswer`'s
 `endedAt < deadline` (since **C15**, `endedAt < stoppedAt + bound`), which holds unless the steps from the Stop to the run's
-end take 60 s; `elapsed >= bound` can only grow with load. What still depends
+end take 60 s (since **Q8**, `notFullySentCancelledAtOnce` has the same 60 s assertion); `elapsed >= bound` can only grow with load. What still depends
 on time is listed in the table above, each with at least 8 times the worst
 delay seen. `personsStop` by structure: at concurrency 1 the second photo
 cannot start before the first upload ends, which needs its held answer, which
@@ -1538,6 +1578,11 @@ None open.
 | 2026-11-26, C15 | `swift test --skip-build --filter PublishJobTests`, 30 runs, final sources | 30 of 30 passed (37 tests each) |
 | 2026-11-26, C15 | `swift test` | 1671 tests in 228 suites passed (99.8 s) |
 | 2026-11-26, C15 | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, exit 0, no error or warning (`/Applications/Xcode_26.3.app` a link to `/Applications/Xcode-26.3.0.app`). `Scripts/build-app.sh` not run: no source changed |
+| 2026-11-27, Q8, at bffefbc | `swift build --build-tests`; `notFullySentCancelledAtOnce` | Build complete, no warning; passed (0.26 s) |
+| 2026-11-27, Q8 | `notFullySentCancelledAtOnce` under Q8's mutation and M1 (table under **Q8**) | Each failed as listed; the source restored and compared with `cmp`, `git status` shows only the test file changed |
+| 2026-11-27, Q8 | `swift test --skip-build --filter PublishJobTests`, 30 runs, final sources | 30 of 30 passed (exit 0 each, about 2.3 s a run) |
+| 2026-11-27, Q8 | `swift test` | 1671 tests in 228 suites passed (104.0 s), no warning |
+| 2026-11-27, Q8 | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` | Build complete, exit 0. `Scripts/build-app.sh` not run: no source changed |
 
 Determinism of the new tests: none sleeps to synchronize. The stop tests
 (`personsStop`, `endingWaitsForFullySent`) stop at the client's own "fully

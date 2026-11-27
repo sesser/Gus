@@ -832,7 +832,11 @@ struct PublishJobTests {
             // left to wait ends quickly too, and is told apart by the ask.
             let watch = DeadlineWatch(sleeps: false)
             let awaiting = Mutex<[Bool]>([])
-            let ending = RemoteUploadEnding(bound: .seconds(30), onFullySent: nil,
+            // A bound far beyond any step on a loaded runner (the worst seen on
+            // CI: 7 s), as in `endingRecordsAnAnswer`: an upload that ended only
+            // at the deadline, by any wait, ends after it and fails below (QA Q8).
+            let bound = Duration.seconds(60)
+            let ending = RemoteUploadEnding(bound: bound, onFullySent: nil,
                                             onAwaitingChange: { change in awaiting.withLock { $0.append(change) } },
                                             waitUntil: { await watch.wait(until: $0) })
             let task = Task { () async -> Result<RemoteUploadOutcome, PublishFailure> in
@@ -845,8 +849,15 @@ struct PublishJobTests {
             }
             while !server.requests.contains(where: { $0.path == "/api/assets" }) { try await Task.sleep(for: .milliseconds(20)) }
             try await Task.sleep(for: .milliseconds(200))
+            let stoppedAt = ContinuousClock.now
             task.cancel()
             let result = await task.value
+            let endedAt = ContinuousClock.now
+            // Cancelled before the bound after the Stop. The deadline is the bound
+            // after the ending's first cancel, which comes after `stoppedAt`, so
+            // an upload left to end at the deadline, through the injected wait or
+            // any other, ends after this.
+            #expect(endedAt < stoppedAt + bound, "the upload waited for the bound")
             guard case .failure(let failure) = result else {
                 Issue.record("the upload was cancelled")
                 return
