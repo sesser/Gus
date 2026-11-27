@@ -1,37 +1,40 @@
 # Publish to Immich: QA
 
-Owner: qa-tester. Date: 2026-11-26. Step 4 of `docs/WORKFLOW.md`.
+Owner: qa-tester. Date: 2026-11-27. Step 4 of `docs/WORKFLOW.md`.
 Issue: #28. Spec: the issue body, PRD revision 7 (AC1 to AC25).
-Tested: `feature/publishing-engine` at 9d6336a, on an Apple M4 Pro, macOS
-27.2.1 (26B131), macOS SDK 27.2, Swift 6.4.2. Fourth pass, narrow: the CI fix
-for pull request #307 (250c744, a1d37c3), made after the sign-off. Earlier
-passes: e23d1ea (committed in bc54ded), c2ea497 and 0eac173. From e73cb45 (signed
-off) to 9d6336a the only changes under `Sources/`, `Tests/`, `Scripts/`,
-`Support/`, `Package.swift`, `Package.resolved`, `Branding.xcconfig` or the user
-guide are `PublishJobTests.swift` and an internal test seam in
-`RemoteHTTPSession.swift` and `PublishJob.swift` that changes no behaviour (read
-here; code review, ninth pass). So the app sessions, the live check, the bundle
-builds and the owner's checks hold and were not rerun.
+Tested: `feature/publishing-engine` at c7e8576, on an Apple M4 Pro, macOS
+27.2.1 (26B131), macOS SDK 27.2, Swift 6.4.2. Fifth pass, narrow: Q8's fix
+(5412951, test only). Earlier passes: 9d6336a (the CI fix for pull request
+#307), e23d1ea (committed in bc54ded), c2ea497 and 0eac173. From 9d6336a to
+c7e8576 the only change outside `docs/features/publishing-engine/` is one test
+in `PublishJobTests.swift` (`git diff`). From e73cb45 (signed off) to c7e8576
+the only changes under `Sources/`, `Tests/`, `Scripts/`, `Support/`,
+`Package.swift`, `Package.resolved`, `Branding.xcconfig` or the user guide are
+`PublishJobTests.swift` and an internal test seam in `RemoteHTTPSession.swift`
+and `PublishJob.swift` that changes no behaviour (read at 9d6336a; code review,
+ninth pass). So the app sessions, the live check, the bundle builds and the
+owner's checks hold and were not rerun.
 
 ## Verdict
 
-**Passes at 9d6336a, and the owner's sign-off of 2026-11-26 at e73cb45 stands:**
+**Passes at c7e8576, and the owner's sign-off of 2026-11-26 at e73cb45 stands:**
 no app behaviour has changed since. All 25 criteria are verified; AC17 by the
-owner, who ran P7 on their own server. AC23 is re-mapped to the rewritten tests,
-and each of its clauses that a unit test carried still has one that fails with the
-behaviour broken. One finding is open, **Q8** (minor, not blocking): one of those
-tests no longer catches every way of breaking its clause. Q1 to Q4 and Q7 are
-closed; Q5 and Q6 are filed as #301 and #302. The owner named no check as left
-open; P1 to P6 and P8 were not recorded one by one. The owner approved the
-proposed `CLAUDE.md` Network rule and the catalog table-list addition (R27). Also
-open: the known issue #303 (read **Known issues** before trying the branch), and
-**CI has not run on the fix**: on 2026-11-26 the head of pull request #307 on
-GitHub was still df30e77, whose macOS 26 build and test job had failed.
+owner, who ran P7 on their own server. No finding is open: **Q8** is fixed
+(5412951) and confirmed here, so Q1 to Q4, Q7 and Q8 are closed; Q5 and Q6 are
+filed as #301 and #302. The owner named no check as left open; P1 to P6 and P8
+were not recorded one by one. The owner approved the proposed `CLAUDE.md`
+Network rule and the catalog table-list addition (R27). Also open: the known
+issue #303 (read **Known issues** before trying the branch), and **CI has not
+passed on this commit**: on 2026-11-27, during this pass, the head of pull
+request #307 on GitHub was bffefbc, without Q8's fix; its app bundle job had
+passed and its build and test job was still running.
 
 ## What was run
 
 | At | What | Result |
 |---|---|---|
+| c7e8576 | `swift test`, once | 1671 tests in 228 suites passed (104.6 s), the AC23 tests and `personsStop` among them. `PublishLiveTests` and the other opt-in suites skipped; the RAW golden comparison skipped (as below) |
+| c7e8576 | `notFullySentCancelledAtOnce` in a scratch copy of HEAD outside the checkout: unmutated, with Q8's mutation, then restored | Passed (0.26 s); failed with 1 issue (61.0 s); passed (0.26 s). See **Q8** under **Findings** |
 | 9d6336a | `swift test`, once | 1671 tests in 228 suites passed (104.9 s), the AC23 tests among them. `PublishLiveTests` and the other opt-in suites skipped; the RAW golden comparison skipped (as below) |
 | 9d6336a | The four AC23 tests and `personsStop` in a scratch copy of HEAD outside the checkout: unmutated, then one change to the sources at a time | See **AC23 after the CI fix** |
 | 0eac173 | `swift test`, once | 1670 tests in 228 suites passed (98.4 s). `PublishLiveTests` and the other opt-in suites skipped; the RAW golden comparison skipped (goldens made on macOS build 26B123, this Mac is 26B131) |
@@ -102,7 +105,7 @@ test was read for whether it fails without the behaviour.
 | AC20 | Test | Runs `stepsFollowEachUpload` (a completed photo is in the album and stacked when the run is stopped on the next one's upload); with the album and stack steps deferred to the end of a run it fails (4 issues). S5: Stop partway, the two recorded photos are in the album | Pass |
 | AC21 | Script | Runs `lostConnection`, `personsStop`, `stopDuringRetryCheck`, `stopInsideRetryJobBeforeFirstPhoto`; Boundaries `retryAndLaterRuns`, `retryNothingLeftAfterLaterRun`. S6: Stop during a retry's check sent nothing and left message and results as they were, the next retry sent the unreached; the address-changed and server-removed refusals. S7a: "A publish is already running." S5: after the person's Stop no Retry for unreached photos | Pass |
 | AC22 | Script | By reading: `docs/USER_GUIDE.md` (including this pass's new import-section sentences against W1 to W5), design §4.1's strings (String Catalog unchanged since the first pass's script check), `Info.plist`'s local network text read from the built bundle. Left, as R27 assigns it: README line 66 still says the app only reads (Ship). The `CLAUDE.md` Network rule and table-list addition were approved by the owner on 2026-11-26 | Pass |
-| AC23 | Script | Runs `endingRecordsAnAnswer` (answered within the bound: recorded), `endingGivesUpAtTheBound` (no answer: ends once the bound has passed, no record, not published), `notFullySentCancelledAtOnce` (never left to wait; see Q8), `stopKeepsEndingInEveryReport`. The quit clause has no unit test: S6 (Stop and Quit with no answer) and S7a (a quit while ending asked nothing and waited), at c2ea497; S5: "Stopping. Waiting for “Home” to answer…", Stop dimmed. See **AC23 after the CI fix** | Pass |
+| AC23 | Script | Runs `endingRecordsAnAnswer` (answered within the bound: recorded), `endingGivesUpAtTheBound` (no answer: ends once the bound has passed, no record, not published), `notFullySentCancelledAtOnce` (never left to wait; ends before the bound), `stopKeepsEndingInEveryReport`. The quit clause has no unit test: S6 (Stop and Quit with no answer) and S7a (a quit while ending asked nothing and waited), at c2ea497; S5: "Stopping. Waiting for “Home” to answer…", Stop dimmed. See **AC23 after the CI fix** | Pass |
 | AC24 | Test | Runs `lostAlbumCreate`. S4: with the create's answer lost, one create per new album | Pass |
 | AC25 | Script | Boundaries `purposes`. S3: two permissions saved from Publish, refused from Import, **Can't Import from Home** (snapshot looked at), a key lacking `asset.read` refused from Publish, Album and Stacking name their permissions | Pass |
 
@@ -120,23 +123,24 @@ ideal height, so the smallest window stays with P2).
 
 ## AC23 after the CI fix
 
-At 9d6336a. CI failed two wall-clock bounds in these tests; they now assert
-events and order, and `endingWaitsForFullySent` is two tests. The source change
-is a seam: `RemoteUploadEnding` takes its wait for the deadline as an internal
-closure (default: the same `Task.sleep`), `end(_:)` sets the deadline first as
-the old call site did, still cancels a body not fully sent at once and still
-starts the same detached wait for a fully sent one; `PublishJob` has an internal
-hook only the tests set. Each test was read, and run in a scratch copy of HEAD
-outside the checkout against one change to the sources at a time. Unmutated, the
-five tests passed (2.2 s).
+At 9d6336a, with Q8's row brought to c7e8576. CI failed two wall-clock bounds
+in these tests; they now assert events and order, and `endingWaitsForFullySent`
+is two tests. The source change is a seam: `RemoteUploadEnding` takes its wait
+for the deadline as an internal closure (default: the same `Task.sleep`),
+`end(_:)` sets the deadline first as the old call site did, still cancels a body
+not fully sent at once and still starts the same detached wait for a fully sent
+one; `PublishJob` has an internal hook only the tests set. Each test was read,
+and run in a scratch copy of HEAD outside the checkout against one change to the
+sources at a time. Unmutated, the five tests passed (2.2 s, at 9d6336a). Since
+then only `notFullySentCancelledAtOnce` has changed.
 
 | Clause of AC23 | Test | With the behaviour broken | Result |
 |---|---|---|---|
 | Stop, then the answer within the bound: a record | `endingRecordsAnAnswer` | A fully sent upload cancelled at once: not accepted, not recorded. The record written inside the run's cancelled task: not recorded. The run made to wait out the bound after the answer: 2 issues, after 60 s | Pass |
-| No answer: the run ends once the bound passes | `endingGivesUpAtTheBound` | The deadline never cancels: 3 issues, after 121 s (the request timeout ended it). The deadline doubled: its deadline check fails. A fully sent upload cancelled at once: no wait asked for | Pass (limit in Q8) |
+| No answer: the run ends once the bound passes | `endingGivesUpAtTheBound` | The deadline never cancels: 3 issues, after 121 s (the request timeout ended it). The deadline doubled: its deadline check fails. A fully sent upload cancelled at once: no wait asked for | Pass (one limit, below) |
 | ...with no record and the photo counted as not published | `endingGivesUpAtTheBound` | A given-up upload counted as failed: not pending, not counted as not published. The absence of a record is asserted directly | Pass |
 | A quit during the wait behaves the same | None (the quit path is in the app, which has no test target) | By reading `applicationShouldTerminate` and `PublishModel.waitUntilDone`, unchanged since c2ea497 (`git diff`), so S6 and S7a hold | Pass |
-| An upload not fully sent is cancelled without waiting | `notFullySentCancelledAtOnce` | Left to wait for the deadline as a fully sent one is: 2 issues (a wait asked for, an answer reported awaited). Made to wait outside the injected wait: **passes** (Q8) | Pass (Q8) |
+| An upload not fully sent is cancelled without waiting | `notFullySentCancelledAtOnce` | Left to wait for the deadline as a fully sent one is: 2 issues (a wait asked for, an answer reported awaited; run at 9d6336a, those assertions unchanged). Made to wait outside the injected wait: 1 issue, `endedAt < stoppedAt + bound` (c7e8576; passed before the fix) | Pass |
 
 The other tests of that row and the fix:
 
@@ -148,9 +152,15 @@ The other tests of that row and the fix:
   task (2).
 - The tests' client timeout went from 5 s to 120 s, in the test fixture only.
 
+One limit, no change asked: in `endingGivesUpAtTheBound`, a cancel made 8 s
+after the deadline passes (run at 9d6336a). Nothing bounds how late the run ends
+short of the 120 s request timeout; the old `< 6 s` did, and a tight bound is
+what failed on CI. S6 saw the app quit about 10 s after Stop and Quit.
+
 Not repeated here: repeated or loaded runs for flakiness (`status.md`, **CI fix
-(PR #307)** and **C15**; `code-review.md`, ninth and tenth passes) and the
-Xcode 26.3 build (recorded in `status.md` under **C15**).
+(PR #307)**, **C15** and **Q8**; `code-review.md`, ninth to eleventh passes) and
+the Xcode 26.3 build (recorded in `status.md` under **Build and test**, the Q8
+rows).
 
 ## Changed since the first pass
 
@@ -175,33 +185,22 @@ scratch copy; every named test passes unchanged.
 
 ## Findings
 
-No failure of the app was found. One finding is open. The history of Q1 to Q7 is
+No failure of the app was found. No finding is open. The history of Q1 to Q8 is
 under **Follow-up**.
 
-**Q8 (minor, test strength; opened 2026-11-26 at 9d6336a).**
-`notFullySentCancelledAtOnce` catches an upload that is not fully sent only if it
-is left waiting through the injected wait.
+**Q8 (minor, test strength; opened 2026-11-26 at 9d6336a). Fixed in 5412951,
+confirmed 2026-11-27 at c7e8576.** `notFullySentCancelledAtOnce` caught an
+upload that was not fully sent only if it was left waiting through the injected
+wait. The test now has a 60 s bound and expects the upload to have ended before
+the bound after a clock read taken just before `task.cancel()`.
 
-- Steps, in a scratch copy: in `RemoteUploadEnding.end`, make the branch for a
-  body not fully sent cancel from a detached task after
+- Mutation, in a scratch copy: in `RemoteUploadEnding.end`, the branch for a
+  body not fully sent cancels from a detached task after
   `await Self.sleep(until: deadline)` instead of at once, still returning false.
-  Run the test.
-- Expected: it fails ("cancelled without waiting").
-- Actual: it passes, after 30.5 s, the whole bound. It checks that the injected
-  wait was not asked for, that no answer was reported awaited and that the
-  failure is `.cancelled`; nothing says the upload ended before the bound. By
-  reading, the old form (under 5 s with a 30 s bound) would have failed.
-- Suggested (not run here): give that test a 60 s bound and expect the upload to
-  have ended before the bound after a clock read taken just before
-  `task.cancel()`, as `endingRecordsAnAnswer` does. CI's worst delay seen was
-  about 7 s.
-- The app at 9d6336a cancels such an upload at once (read: `task.cancel()` in the
-  cancellation handler).
-
-A related limit, no change asked: in `endingGivesUpAtTheBound`, a cancel made
-8 s after the deadline passes (run here). Nothing bounds how late the run ends
-short of the 120 s request timeout; the old `< 6 s` did, and a tight bound is
-what failed on CI. S6 saw the app quit about 10 s after Stop and Quit.
+- With it: 1 issue, "the upload waited for the bound"
+  (`endedAt < stoppedAt + bound`, `PublishJobTests.swift` line 860), after 61.0 s.
+- Unmutated, and with the source restored and compared with the checkout's:
+  passed in 0.26 s.
 
 ## Known issues
 
@@ -678,6 +677,16 @@ and Stop while a retry checks a slow server (M6; S6).
 
 ## Safety of these runs
 
+Fifth pass (c7e8576): the app was not launched and `open` was not run; only
+builds and unit tests, once in the checkout and then in a scratch copy of HEAD
+outside it (built from the checkout's already fetched dependencies; the mutated
+source restored, its `Sources` and `Tests` compared with the checkout's
+afterwards). The live-server tests were skipped (their variables unset), so no
+server but the tests' fake ones was contacted, and the Keychain was not used.
+The pull request and its CI runs were read with `gh`, nothing written. The
+owner's library folder had no file newer than the start of the pass, and no
+instance of the app was running when checked after the runs.
+
 Fourth pass (9d6336a): the app was not launched and `open` was not run; only
 builds and unit tests, once in the checkout and then in a scratch copy of HEAD
 outside it (built from the checkout's already fetched dependencies; its sources
@@ -748,3 +757,10 @@ sign-off):
 | AC23 re-mapped to `endingRecordsAnAnswer`, `endingGivesUpAtTheBound`, `notFullySentCancelledAtOnce` and `stopKeepsEndingInEveryReport` | **Pass** (**AC23 after the CI fix**); full `swift test` 1671 of 1671 |
 | Q8, `notFullySentCancelledAtOnce` misses a wait made outside the injected one | Open, minor |
 | The owner's sign-off at e73cb45 | Stands: test changes and an internal seam, no behaviour change. No app session, live check or owner check was rerun, and none is newly asked |
+
+2026-11-27, confirmation of Q8's fix at c7e8576:
+
+| Item | Result |
+|---|---|
+| Q8, `notFullySentCancelledAtOnce` misses a wait made outside the injected one | **Fixed** (5412951, test only). With Q8's mutation in a scratch copy the test fails (1 issue, 61.0 s); unmutated and restored it passes; full `swift test` 1671 of 1671 |
+| The owner's sign-off at e73cb45 | Stands: a test change only since 9d6336a. No app session, live check or owner check was rerun, and none is newly asked |
