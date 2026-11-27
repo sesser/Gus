@@ -745,7 +745,8 @@ struct PublishJobTests {
             // A bound far beyond any step on a loaded runner (the worst seen
             // on CI: 7 s), so the answer always comes first; a run that waited
             // the bound out would end after it and fail below.
-            var job = f.job(stacking: false, bound: .seconds(60))
+            let bound = Duration.seconds(60)
+            var job = f.job(stacking: false, bound: bound)
             let watch = DeadlineWatch(sleeps: true)
             job.waitForEndingDeadline = { await watch.wait(until: $0) }
             let sent = AsyncStream<Void>.makeStream()
@@ -753,20 +754,25 @@ struct PublishJobTests {
             let task = Task { await job.run(run) }
             // The client handed the whole body to the system; the server holds its answer.
             for await _ in sent.stream { break }
+            let stoppedAt = ContinuousClock.now
             task.cancel()
             // Answered once the server has the body and the run is ending.
             while f.server.heldAnswerCount == 0 { await Task.yield() }
             f.server.releaseHeldAnswers()
             let ended = await task.value
             let endedAt = ContinuousClock.now
-            // Left to answer until the deadline, not cancelled at once...
-            #expect(watch.asks.count == 1)
-            let deadline = try #require(watch.asks.first?.deadline)
+            // Left to answer, not cancelled at once: the answer was taken and
+            // recorded. (Not `watch.asks`: the wait is asked for by a detached
+            // task nothing awaits, so nothing orders it before this read; code
+            // review C15.)
             #expect(ended.items[0].isAccepted)
             #expect(try await f.catalog.publications(address: f.address, versionIDs: [a])[a]?.count == 1)
             #expect(ended.ending == .stopped(.stopped))
-            // ...and the run ended on the answer, before its deadline came.
-            #expect(endedAt < deadline, "the run waited out the bound")
+            // ...and the run ended on the answer, before the bound after the
+            // Stop. The deadline is the bound after the run's first cancel,
+            // which comes after `stoppedAt`, so this is stricter than ending
+            // before the deadline.
+            #expect(endedAt < stoppedAt + bound, "the run waited out the bound")
             #expect(!watch.reached)
             #expect((try? FileManager.default.contentsOfDirectory(atPath: f.temporary.path)) ?? [] == [])
         }
