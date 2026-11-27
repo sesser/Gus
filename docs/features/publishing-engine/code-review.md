@@ -1126,3 +1126,42 @@ upload, so the callback race above doesn't touch it.
 
 Not needed: no parser, subprocess, request, file writing or network path
 changed; the source change is an internal test seam around an existing sleep.
+
+### Tenth pass, 2026-11-26: eb7176c..a1d37c3 (C15)
+
+Reviewed: a1d37c3 only (eb7176c..a1d37c3): `Tests/PhotoCoreTests/PublishJobTests.swift`
+and `status.md`; nothing under `Sources/`, `Scripts/` or `Package.swift`
+(`git diff --name-only eb7176c a1d37c3`). Build and tests: `swift build
+--build-tests` clean; `swift test --skip-build --filter PublishJobTests` 37
+tests passed; `endingRecordsAnAnswer` alone 20 of 20 (unloaded; this count
+proves only a bound near 1 in 7, the structure below carries the claim).
+
+**Verdict, tenth pass: C15 is fixed; ready for qa-tester.** No new finding.
+
+- **The read is gone.** `endingRecordsAnAnswer` no longer reads `watch.asks`.
+  What it asserts now (`isAccepted`, the record, `.stopped(.stopped)`, two
+  clock reads in program order, `!watch.reached`) is written by the run itself
+  before `await task.value` returns, or, for `reached`, can be written only after
+  the detached task's 60 s wait; none depends on when the detached task is
+  scheduled.
+- **Stricter, as claimed.** `deadline()` has one caller, `end(_:)`, called only
+  from the upload's cancellation handler, which runs only on a cancel; the
+  test's `task.cancel()` is the run's first. So the first `deadline()` read is
+  after `stoppedAt`, the deadline is at least `stoppedAt + bound`, and
+  `endedAt < stoppedAt + bound` implies the old `endedAt < deadline`.
+- **Still fails when broken** (traced against `RemoteHTTPSession.swift:643-655`;
+  the engineer's runs in status.md agree). M2 (an uncancellable wait to
+  `endedAt + bound` before the run returns): the run ends at or after the
+  deadline, so at or after `stoppedAt + bound`, and the bound check fails
+  deterministically (`!reached` may or may not fail too: it races the same
+  instant). M3 and M3′ (a fully sent body cancelled at once): not accepted and no
+  record. A mutant that leaves the body to answer but never starts the deadline's
+  wait passes here and is caught by `endingGivesUpAtTheBound` (no ask, never
+  reaches the bound), as before.
+- **No new time or order dependence.** The only time left is the same 60 s
+  bound, now measured from a moment microseconds earlier than the deadline's
+  start. No sleep, no new shared state.
+
+C15: **Fixed** in a1d37c3.
+
+`/security-review`: not needed (test only).
