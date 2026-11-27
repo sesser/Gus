@@ -12,12 +12,13 @@ second pass hold for 0eac173 and were not rerun.
 
 ## Verdict
 
-**Passes.** 24 of the 25 criteria are verified; AC17 is the owner's, on their own
-server. No finding of this feature is open: Q7, the last one, is closed (Q5 and
-Q6 are filed as #301 and #302). Open outside the findings: the checks under
-**For a person**, the owner's approval of the proposed `CLAUDE.md` Network rule
-(R27, `status.md`), and the known issue #303 (read **Known issues** before trying
-the branch).
+**Passes, and signed off by the owner** on 2026-11-26 at e73cb45. All 25 criteria
+are verified; AC17 by the owner, who ran P7 on their own server. No finding of
+this feature is open: Q7, the last one, is closed (Q5 and Q6 are filed as #301
+and #302). The owner named no check as left open; P1 to P6 and P8 were not
+recorded one by one. The owner approved the proposed `CLAUDE.md` Network rule and
+the catalog table-list addition (R27). Open outside the findings: the known issue
+#303 (read **Known issues** before trying the branch).
 
 ## What was run
 
@@ -85,19 +86,19 @@ test was read for whether it fails without the behaviour.
 | AC14 | Test | Runs `duplicateUsable`, `duplicateLeftAlone`, `duplicateReadFailsThenRetried`. S1: "already on the server" with album and stack | Pass |
 | AC15 | Script | S4: published assets are marked in the Import window (4 marked, none selectable). `RemoteReviewFixTests` `selectAllRule`. Seen after a Rescan; marks changing in a listing already loaded were not driven; ⌘A could not be sent (no key window) | Pass |
 | AC16 | Script | S5: a person's Stop, a 429 retried, one 400 among good photos, a rejected key and a dropped connection. S6: the quit question, Keep Publishing, Stop and Quit. Runs `faults`, `lostConnection`, `personsStop`. Temporary folder and originals: above | Pass |
-| AC17 | Person | P7 | Open |
+| AC17 | Person | P7: the owner ran it, publishing to their own Immich server, and answered "Yes, it worked" (2026-11-26) | Pass |
 | AC18 | Script | S2: a local http server saved once, published with no second question, "Not encrypted" shown. S8 and T: an https server publishes and shows no such line (snapshot looked at) | Pass |
 | AC19 | Script | S3: from both hosts, a new address on a server with records warns; a name only, the same address spelt differently, and a server with neither don't. W1: the warning for a server with an import link | Pass |
 | AC20 | Test | Runs `stepsFollowEachUpload` (a completed photo is in the album and stacked when the run is stopped on the next one's upload); with the album and stack steps deferred to the end of a run it fails (4 issues). S5: Stop partway, the two recorded photos are in the album | Pass |
 | AC21 | Script | Runs `lostConnection`, `personsStop`, `stopDuringRetryCheck`, `stopInsideRetryJobBeforeFirstPhoto`; Boundaries `retryAndLaterRuns`, `retryNothingLeftAfterLaterRun`. S6: Stop during a retry's check sent nothing and left message and results as they were, the next retry sent the unreached; the address-changed and server-removed refusals. S7a: "A publish is already running." S5: after the person's Stop no Retry for unreached photos | Pass |
-| AC22 | Script | By reading: `docs/USER_GUIDE.md` (including this pass's new import-section sentences against W1 to W5), design §4.1's strings (String Catalog unchanged since the first pass's script check), `Info.plist`'s local network text read from the built bundle. Left, as R27 assigns them: README line 66 still says the app only reads (Ship), and the `CLAUDE.md` Network rule (owner) | Pass |
+| AC22 | Script | By reading: `docs/USER_GUIDE.md` (including this pass's new import-section sentences against W1 to W5), design §4.1's strings (String Catalog unchanged since the first pass's script check), `Info.plist`'s local network text read from the built bundle. Left, as R27 assigns it: README line 66 still says the app only reads (Ship). The `CLAUDE.md` Network rule and table-list addition were approved by the owner on 2026-11-26 | Pass |
 | AC23 | Script | Runs `endingWaitsForFullySent`, `notFullySentCancelledAtOnce`, `stopKeepsEndingInEveryReport`. S5: "Stopping. Waiting for “Home” to answer…", Stop dimmed. S6: Stop and Quit with no answer. S7a: a quit while ending asked nothing and waited | Pass |
 | AC24 | Test | Runs `lostAlbumCreate`. S4: with the create's answer lost, one create per new album | Pass |
 | AC25 | Script | Boundaries `purposes`. S3: two permissions saved from Publish, refused from Import, **Can't Import from Home** (snapshot looked at), a key lacking `asset.read` refused from Publish, Album and Stacking name their permissions | Pass |
 
 Counts: passed by test 10 (AC6, 7, 8, 9, 10, 11, 12, 14, 20, 24), passed by
 script 14 (AC1, 2, 3, 4, 5, 13, 15, 16, 18, 19, 21, 22, 23, 25; AC22 partly by
-reading), open for a person 1 (AC17), failed 0.
+reading), passed by a person 1 (AC17, the owner), open 0, failed 0.
 
 Also shown by script, beyond the criteria: an untrusted and a changed
 certificate in the publish sheet with **Review Certificate…** and Publish dimmed
@@ -381,6 +382,10 @@ wait 3; sidebar all; wait 1; selectall; publish sheet; snapshot $QA/shots/L1-lon
 
 ## For a person
 
+**Status at sign-off (2026-11-26, e73cb45).** P7 is done: the owner ran it and
+answered "Yes, it worked". P1 to P6 and P8 were not recorded one by one. The
+owner named no check as left open. The steps below are kept as they were given.
+
 **Before you start (known issue #303).** Do not try this branch on a copy of your
 real library while your real server is saved in that copy or in the original, and
 don't run two copies of the app on one library: the copies share the server's
@@ -388,14 +393,14 @@ Keychain key. The steps below use new scratch libraries. (The branch also
 migrates a library, which can't be undone.)
 
 **What matters most.** **P7 is essential** (AC17, publishing to your own server,
-the one criterion not verified): do it first. Next P8, P5 and P3 (keys, window
+the one criterion no test or script could verify): do it first. Next P8, P5 and P3 (keys, window
 focus and sheet changes that scripts could not fully drive). P6 is mostly
 scripted; P1, P2 and P4 are by eye. This is the whole list; you may sign off with
 checks left open by naming them.
 
-One decision besides the checks: approve or change the proposed `CLAUDE.md`
-Network rule in `status.md`, to be committed on this branch before the pull
-request (R27).
+The one decision besides the checks is made: on 2026-11-26 the owner approved the
+proposed `CLAUDE.md` Network rule in `status.md` and the catalog table-list
+addition as written, to be committed on this branch before the pull request (R27).
 
 ### Setup
 
@@ -643,4 +648,15 @@ Of the checkout, each pass changed only this file (the build folders aside).
 |---|---|
 | Q7 missing test, D-17 | **Fixed** (21bdca7, test only): `PublishJobTests` `retryCalledOffWhenServerChanged`. In a scratch copy, the case `.changed, .unreadable` made to set `ended.ending` and return `.checkStopped(ended)` failed it with 6 issues (not called off, and the run replaced, for each of a new address, a removal and an unreadable catalog); `.changed` alone mutated, 4 issues; `.unreadable` alone, 2. The other 104 tests of the publishing and pairing suites passed under every mutation, and all 105 pass unmutated and restored |
 
-No P item has been reported done. No sign-off yet.
+2026-11-26, the owner's sign-off, as relayed by the main session:
+
+- The owner signed off in chat ("Signed off") at commit e73cb45. Code last
+  changed in 21bdca7 (a test); app source last changed at c2ea497 or earlier.
+- Asked separately, the owner answered that they ran P7, publishing to their own
+  Immich server: "Yes, it worked". AC17 is verified by the owner.
+- P1 to P6 and P8 were not recorded one by one. The owner named no check as left
+  open.
+- The owner reported no finding.
+- R27: asked in chat about the proposed `CLAUDE.md` Network rule and the catalog
+  table-list addition, the owner chose "Approve as written". The main session
+  commits it to `CLAUDE.md` on this branch.
