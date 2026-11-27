@@ -302,7 +302,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
   `metadataSync`, `sidecarQueue`, `adjustmentPreset`
   (with `collection` and `groups`, null for all), `lookTableCollection`,
   `lookTableEntry`, `exportPreset`, `maskRaster`, `remoteService`,
-  `remoteLink` (migration v16). Ratings 0–5, flags
+  `remoteLink` (migration v16), `remotePublication`,
+  `remotePublishSettings` (migration v18). Ratings 0–5, flags
   (-1 reject, 0 none, 1 pick) and color labels (0–7) live on versions.
   Never edit an existing migration; add a new one.
 - **Edit stack**: each version stores an ordered, versioned JSON list of
@@ -399,22 +400,63 @@ compatible and never put `#` comment lines inside pasted command snippets.
   existing ones), and does not mark duplicates.
 - **Network.** The app contacts one kind of host: an Immich server the user
   adds, and only the library app does it (the standalone importer, About and
-  `photocli` have no path to it). All of it is PhotoCore `Remote/`, behind
-  `RemotePhotoSource`. The key lives only in the Keychain (`KeychainKeyStore`,
-  service `<bundle id>.servers`, account the connection's uuid), never in the
-  catalog, preferences, logs, Activity or debug output. Only the allowlisted
-  requests are ever built (`RemoteRequestAllowlist`: GET, plus the one search
-  POST), checked before a request exists. The key goes only as `x-api-key` and
-  only to the connection's host. Redirects are never followed, and there are no
-  cookies, cache or credential storage. Bodies and downloads are capped.
-  Transport policy: `https://` by default; plain `http://` only to a
-  local-network host after the user confirms the notice. An untrusted
-  certificate is never accepted silently; the user may trust one fingerprint
-  per connection, a changed one fails, and nothing turns checking off. Nothing
-  else may use `URLSession`: `RemoteHTTPSession.swift` is the one HTTP path
-  (the fake server uses the Network framework). Tests use `FakeImmichServer`
-  and `InMemoryKeyStore`. A test launch always uses the in-memory store. No
-  package was added: Foundation and the Security framework.
+  `photocli` have no path to it). All of it is PhotoCore `Remote/`: import
+  reads behind `RemotePhotoSource` and never writes; publishing goes behind
+  `RemotePublishDestination`. The key lives only in the Keychain
+  (`KeychainKeyStore`, service `<bundle id>.servers`, account the
+  connection's uuid), never in the catalog, preferences, logs, Activity or
+  debug output. Only the allowlisted requests are ever built
+  (`RemoteRequestAllowlist`, matched against the whole path), checked before
+  a request exists: GET, the one search POST, and, for publishing only, four
+  writes (`RemoteRequestAllowlist.writes`: upload an asset, create an album,
+  add assets to an album, create a stack). An id a server gave goes into a
+  path only if it is 1 to 64 ASCII letters, digits and hyphens
+  (`RemoteAsset.isServerID`). No request updates or deletes anything on the
+  server; adding another write needs the owner's approval. Creating a stack
+  makes the server replace the stack it joins, so it names the original's
+  current primary and runs one at a time per original (`StackSequencer`); an
+  album create is never sent again before the album it may have made is
+  looked for (`AlbumCoordinator`). One publish runs at a time
+  (`PublishSlot`). An upload sends only the rendered temporary file and the
+  values publishing names (`PublishUploadBody`: date, name, visibility),
+  never an original or a sidecar; it streams from disk, and a stopped run
+  cancels it at once unless it was fully sent, then waits at most 10 s for
+  its answer (`RemoteUploadEnding`). Rendered files and upload bodies go
+  under the system's temporary folder, in a folder of this launch's inside
+  one base folder every copy of the app shares, named from the fixed
+  `AppBranding.bundleIdentifier` (`PublishTemporaryFolders`:
+  `<AppBranding.bundleIdentifier>.publish/<launch>`, each launch's held by a
+  lock for the life of its process, the base the user's alone, mode 0700);
+  each run removes its own when it ends, and a launch removes only the
+  folders of launches that have ended (their lock is free) and day-old
+  folders with no lock file, never following a symbolic link and nothing at
+  all unless the base is the user's own real folder. A launch that can't lock
+  a folder there works in one of its own beside the base. The key goes
+  only as `x-api-key` and only to the connection's host. Every read of a
+  saved key and every save of a key with its row go through the account's
+  `RemoteKeyGate`, so the key is always read with the row saved with it
+  (`RemoteSavedKey`: publishing's check, the import window's check and the
+  Server sheet's with its key field empty), and a key is given only while
+  the row still has the address and trusted certificate the caller holds
+  (publishing, the import window) or opened on (the Server sheet, whose check
+  then goes to the address its form shows), so a key saved for a new address
+  never reaches the previous one. The gate is per process and pairs the key
+  with that process's catalog only: nothing keeps a second copy of the app
+  off a library (the library lock only keeps `photocli`'s writes off a
+  library the app has open), and copies of a library name the same Keychain
+  item. A Server sheet behind the saved server writes nothing
+  (`Catalog.saveRemoteService(_:checkedWith:opened:keys:)`).
+  Response bodies and downloads are capped (an error's body at 64 KiB, read only for the
+  server's message). Redirects are never followed, and there are no cookies,
+  cache or credential storage. Transport policy: `https://` by default;
+  plain `http://` only to a local-network host after the user confirms the
+  notice. An untrusted certificate is never accepted silently; the user may
+  trust one fingerprint per connection, a changed one fails, and nothing
+  turns checking off. Nothing else may use `URLSession`:
+  `RemoteHTTPSession.swift` is the one HTTP path (the fake server uses the
+  Network framework). Tests use `FakeImmichServer` and `InMemoryKeyStore`. A
+  test launch always uses the in-memory store. No package was added:
+  Foundation and the Security framework.
 - **Dependencies**: GRDB, and LibRaw 0.22.3 vendored in `Sources/CLibRaw` (LGPL 2.1;
   `THIRD_PARTY_NOTICES.md`; never edit the vendored tree), which decodes only raws
   the system's RAW decoder gives no image for (`LibRawDecoder`, the fallback in
