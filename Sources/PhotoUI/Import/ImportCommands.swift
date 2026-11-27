@@ -41,9 +41,9 @@ public struct ImportCommands: Commands {
                 Button("Add Server…") { model?.showAddServer() }
                     .disabled(!can { !$0.isImporting })
                 Button("Edit Server…") { model?.showEditServer() }
-                    .disabled(!can { $0.isServer && !$0.isImporting })
+                    .disabled(!can { $0.isServer && !$0.isImporting && !$0.serverIsBusyPublishing })
                 Button("Remove Server…") { model?.askToRemoveServer() }
-                    .disabled(!can { $0.isServer && !$0.isImporting })
+                    .disabled(!can { $0.isServer && !$0.isImporting && !$0.serverIsBusyPublishing })
             }
             Button("Rescan") { model?.rescanSource() }
                 .keyboardShortcut("r", modifiers: .command)
@@ -154,6 +154,8 @@ struct ImportMenuState: Equatable {
     var showsOptions: Bool
     var canDeselectAll: Bool
     var isServer: Bool
+    /// The chosen server is being published to (publishing design §4).
+    var serverIsBusyPublishing: Bool
     var albumsLoaded: Bool
     var albumID: String?
     var albumCount: Int
@@ -162,6 +164,7 @@ struct ImportMenuState: Equatable {
     init(_ model: CardImportModel) {
         hasSource = model.hasSource
         isServer = model.browse != nil
+        serverIsBusyPublishing = model.serverIsBusyPublishing
         albumsLoaded = model.browse?.albumsLoaded == true
         albumID = model.browse?.albumID
         albumCount = model.browse?.albums.count ?? 0

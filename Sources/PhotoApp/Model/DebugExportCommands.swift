@@ -127,6 +127,9 @@ enum DebugExportCommands {
             // Issue #282: the SDR notice for photos with HDR on (design §10).
             print("debug-script: export hdr notice '\(export.hdrPhotos > 0 ? HDRText.exportNotice(export.hdrPhotos) : "")'")
             print("debug-script: export settings \((try? export.settings.jsonString()) ?? "")")
+            // The sheet's issue line, and the shared form's own watermark issue (code review C3).
+            print("debug-script: export issue '\(export.issue?.text ?? "-")' place \(export.issue.map { "\($0.place)" } ?? "-") "
+                  + "form '\(export.editor.watermarkIssue ?? "-")' watermark '\(export.settings.watermark?.name ?? "-")'")
         }
     }
 
@@ -184,7 +187,8 @@ enum DebugExportCommands {
             if value == "off" {
                 settings.watermarkEnabled = false
             } else {
-                export.useWatermark(at: URL(fileURLWithPath: (value as NSString).expandingTildeInPath))
+                // The route Choose Image… takes (code review C3).
+                export.editor.watermarkPicked(URL(fileURLWithPath: (value as NSString).expandingTildeInPath))
                 settings = export.settings
             }
         case "anchor":

@@ -14,7 +14,11 @@ public enum ServerText {
         public var concernsAddress: Bool
     }
 
-    public static func result(_ check: ConnectionCheckResult, host: String, name: String) -> Result? {
+    /// `purpose`: where the sheet (or window) checks from (publishing R1,
+    /// design §4.1); `keyCanPublish`: a key refused for importing holds
+    /// `asset.upload` and `asset.read`.
+    public static func result(_ check: ConnectionCheckResult, host: String, name: String,
+                              purpose: ServerSheetPurpose = .importing, keyCanPublish: Bool = false) -> Result? {
         switch check {
         case .passed, .untrustedCertificate:
             return nil
@@ -40,15 +44,32 @@ public enum ServerText {
                           concernsAddress: false)
         case .missingPermissions(let missing):
             let list = ListFormatter.localizedString(byJoining: missing)
+            var detail: String
+            switch purpose {
+            case .importing:
+                detail = String(localized: "Add \(list) to the key in Immich, or create a new key with the importing permissions listed above.",
+                                comment: "Server check from Import: missing permissions, detail; the argument lists them")
+                if keyCanPublish {
+                    detail += " " + String(localized: "To save a key made only for publishing, choose Publish… in the File menu.",
+                                           comment: "Server check from Import: the key holds publishing's two permissions")
+                }
+            case .publishing:
+                detail = String(localized: "Add \(list) to the key in Immich, or create a new key that has asset.upload and asset.read.",
+                                comment: "Server check from Publish: missing permissions, detail; the argument lists them")
+            }
             return Result(title: String(localized: "This API key is missing permissions", comment: "Server check: missing permissions"),
-                          detail: String(localized: "Add \(list) to the key in Immich, or create a new key with the five permissions listed above.",
-                                         comment: "Server check: missing permissions, detail; the argument lists them"),
-                          concernsAddress: false)
+                          detail: detail, concernsAddress: false)
         case .tooOld(let found, let needed):
+            let detail = switch purpose {
+            case .importing:
+                String(localized: "It runs version \(found.description). Importing needs version \(needed.description) or newer.",
+                       comment: "Server check: too old, detail; both versions")
+            case .publishing:
+                String(localized: "It runs version \(found.description). Publishing needs version \(needed.description) or newer.",
+                       comment: "Server check from Publish: too old, detail; both versions")
+            }
             return Result(title: String(localized: "This Immich server is too old", comment: "Server check: too old"),
-                          detail: String(localized: "It runs version \(found.description). Importing needs version \(needed.description) or newer.",
-                                         comment: "Server check: too old, detail; both versions"),
-                          concernsAddress: true)
+                          detail: detail, concernsAddress: true)
         case .certificateChanged:
             return Result(title: String(localized: "The server's certificate has changed", comment: "Server check: certificate changed"),
                           detail: String(localized: "It is no longer the certificate you trusted for “\(name)”. That is expected if the certificate was renewed, but it can also mean that someone is intercepting the connection. Nothing was sent to the server.",
@@ -58,6 +79,43 @@ public enum ServerText {
             return Result(title: String(localized: "The key couldn't be saved", comment: "Server check: Keychain failure"),
                           detail: keychainDetail(message), concernsAddress: false)
         }
+    }
+
+    /// The key caption's lines, by where the sheet was opened (publishing
+    /// design §4.1).
+    public static func keyCaptions(_ purpose: ServerSheetPurpose) -> [String] {
+        let importing = String(localized: "Importing needs asset.read, asset.view, asset.download, album.read and user.read.",
+                               comment: "Server sheet key caption: import's permissions")
+        let publishing = String(localized: "Publishing needs asset.upload and asset.read. Albums also need album.read and albumAsset.create, and a new album needs album.create. Stacking needs user.read and stack.create.",
+                                comment: "Server sheet key caption: publishing's permissions")
+        let create = String(localized: "Create the key in Immich, in your account settings.",
+                            comment: "Server sheet key caption: first sentence")
+        switch purpose {
+        case .importing:
+            return [create + " " + importing, publishing]
+        case .publishing:
+            return [create + " " + publishing,
+                    String(localized: "Importing from this server needs asset.read, asset.view, asset.download, album.read and user.read.",
+                           comment: "Server sheet from Publish: import's permissions, second line")]
+        }
+    }
+
+    /// Edit Server's warning under a changed address (publishing R26, design §4.2).
+    public static var addressChangeWarning: String {
+        String(localized: "Photos imported from or published to the old address won't be recognized at the new one.",
+               comment: "Edit Server: the address changed and the library has records or links for the old one")
+    }
+
+    /// The Import window when the server answered but the key lacks import's
+    /// permissions (publishing design §4.1).
+    public static func cantImport(_ name: String) -> String {
+        String(localized: "Can't Import from \(name)", comment: "Import window: the key lacks importing permissions")
+    }
+
+    public static func cantImportDetail(_ missing: [String]) -> String {
+        let list = ListFormatter.localizedString(byJoining: missing)
+        return String(localized: "Add \(list) to the key in Immich to import from this server, or choose Edit Server… to enter a key that has them.",
+                      comment: "Import window: the key lacks importing permissions; the argument lists them")
     }
 
     /// The system's text loses its own final period first (design §15, DQ-5).

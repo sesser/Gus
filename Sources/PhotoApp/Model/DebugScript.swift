@@ -854,6 +854,8 @@ enum DebugScript {
             await DebugCopyCommands.duplicate(rest, model: model)
         case "merge":
             await DebugMergeCommands.run(rest, model: model)
+        case "publish":
+            await DebugPublishCommands.run(rest, model: model)
         case "print" where rest.first == "merge":
             DebugMergeCommands.printState(model)
         case "print" where rest.first == "copysheet":
@@ -902,6 +904,8 @@ enum DebugScript {
             model.showsCopySheet = false
             model.showsLookTableSheet = false
             model.showsPresetSheet = false
+            // Publishing's sheets, its Server sheet and the results (QA Q3).
+            model.publish.closeSheetsForQuit()
             // The import window's own sheet, dialog and alert (QA Q1).
             model.cardImport.serverSheet = nil
             model.cardImport.removingServer = nil

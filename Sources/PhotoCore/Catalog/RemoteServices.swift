@@ -106,13 +106,37 @@ extension Catalog {
         }
     }
 
-    /// Inserts a new connection or updates an existing one.
+    /// The connection with this id as saved now; nil when it was removed.
+    public func remoteService(id: Int64) async throws -> RemoteServiceRecord? {
+        try await database.read { db in try RemoteServiceRecord.fetchOne(db, key: id) }
+    }
+
+    /// Inserts a new connection (no id) or updates an existing one. An
+    /// existing connection is never recreated: when its row is gone (removed
+    /// in another window), nothing is written and `RecordError.recordNotFound`
+    /// is thrown (publishing design D-16).
     @discardableResult
     public func saveRemoteService(_ service: RemoteServiceRecord) async throws -> RemoteServiceRecord {
         try await database.write { db in
             var record = service
-            try record.save(db)
+            if record.id == nil {
+                try record.insert(db)
+            } else {
+                try record.update(db)
+            }
             return record
+        }
+    }
+
+    /// A name-only Save (publishing design D-16): only the name of the row as
+    /// saved now changes, so an address or certificate another window saved
+    /// since the sheet opened is never written back. Nil when the row is gone;
+    /// nothing is written then.
+    public func renameRemoteService(id: Int64, to name: String) async throws -> RemoteServiceRecord? {
+        try await database.write { db in
+            try db.execute(sql: "UPDATE remoteService SET name = ? WHERE id = ?", arguments: [name, id])
+            guard db.changesCount > 0 else { return nil }
+            return try RemoteServiceRecord.fetchOne(db, key: id)
         }
     }
 
@@ -130,6 +154,15 @@ extension Catalog {
         /// The row could not be saved: the key store holds what it held
         /// before (the previous key, or none for a new connection).
         case catalogFailed(String)
+        /// The connection was removed (in another window) before its row was
+        /// written: nothing was written, and no key, typed or earlier, is left
+        /// for it (publishing design D-16).
+        case removed
+        /// A checked Save with no key typed found the server saved again
+        /// since its sheet opened (another address, trusted certificate or
+        /// key): nothing was written. The connection as saved now
+        /// (publishing design D-19).
+        case changed(RemoteServiceRecord)
     }
 
     /// Saves `service` and, when `key` is given, its key, as one change
@@ -137,29 +170,102 @@ extension Catalog {
     /// written, then the row; if the row fails, the previous key is put back
     /// (or the new one deleted when there was none). The key store is called
     /// off the main actor.
+    ///
+    /// An existing connection whose row is gone is never recreated (publishing
+    /// design D-16): checked before the key store is touched, and again by
+    /// the row's update; either way nothing is written and the account's key
+    /// is deleted, so none is left for a server that is no longer saved.
+    ///
+    /// The key's write, the row's and a failed row's key restore are made
+    /// under the account's `RemoteKeyGate`, so `RemoteSavedKey.read` never
+    /// pairs the new key with the previous row (security review N7).
     public func saveRemoteService(_ service: RemoteServiceRecord, key: String?, keys: any RemoteKeyStore) async
         -> ServiceSaveOutcome {
         let account = service.uuid
-        var previous: String?
-        if let key {
+        if let id = service.id {
+            do {
+                if try await remoteService(id: id) == nil {
+                    try? keys.deleteKey(account: account)
+                    return .removed
+                }
+            } catch {
+                return .catalogFailed(error.localizedDescription)
+            }
+        }
+        // The key and the row change as one pair for every reader of a key
+        // (security review N7): F2's order stays, behind the account's gate.
+        return await RemoteKeyGate.shared.holding(account) { () async -> ServiceSaveOutcome in
+            var previous: String?
+            if let key {
+                do throws(RemoteKeyStoreError) {
+                    previous = try keys.key(account: account)
+                    try keys.setKey(key, account: account)
+                } catch {
+                    return .keychainRefused(error)
+                }
+            }
+            do {
+                return .saved(try await saveRemoteService(service))
+            } catch RecordError.recordNotFound {
+                // Removed while the key was written: neither stays.
+                try? keys.deleteKey(account: account)
+                return .removed
+            } catch {
+                if key != nil {
+                    if let previous {
+                        try? keys.setKey(previous, account: account)
+                    } else {
+                        try? keys.deleteKey(account: account)
+                    }
+                }
+                return .catalogFailed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// A checked Save with the key field empty (publishing design D-19): the
+    /// row is written only if the stored key is still `checkedKey`, the one
+    /// the check used, and the row as saved now still has `opened`'s address
+    /// and trusted certificate, the ones the sheet opened on. The key, the
+    /// row and the write are read and made under the account's
+    /// `RemoteKeyGate`, which every Save of a key holds, so no other Save
+    /// lands between the comparison and the write. Otherwise nothing is
+    /// written: `.changed` with the row as saved now, or `.removed` (D-16:
+    /// no key is left for a server no longer saved). The key itself is never
+    /// written here.
+    public func saveRemoteService(_ service: RemoteServiceRecord, checkedWith checkedKey: String,
+                                  opened: RemoteServiceRecord, keys: any RemoteKeyStore) async -> ServiceSaveOutcome {
+        guard let id = service.id, opened.id == id else { return .removed }
+        let account = service.uuid
+        return await RemoteKeyGate.shared.holding(account) { () async -> ServiceSaveOutcome in
+            let stored: String?
             do throws(RemoteKeyStoreError) {
-                previous = try keys.key(account: account)
-                try keys.setKey(key, account: account)
+                stored = try keys.key(account: account)
             } catch {
                 return .keychainRefused(error)
             }
-        }
-        do {
-            return .saved(try await saveRemoteService(service))
-        } catch {
-            if key != nil {
-                if let previous {
-                    try? keys.setKey(previous, account: account)
-                } else {
-                    try? keys.deleteKey(account: account)
-                }
+            let now: RemoteServiceRecord?
+            do {
+                now = try await remoteService(id: id)
+            } catch {
+                return .catalogFailed(error.localizedDescription)
             }
-            return .catalogFailed(error.localizedDescription)
+            guard let now else {
+                try? keys.deleteKey(account: account)
+                return .removed
+            }
+            guard stored == checkedKey,
+                  PublishServerChange.after(reload: [now], chosenID: id, before: opened) == .unchanged else {
+                return .changed(now)
+            }
+            do {
+                return .saved(try await saveRemoteService(service))
+            } catch RecordError.recordNotFound {
+                try? keys.deleteKey(account: account)
+                return .removed
+            } catch {
+                return .catalogFailed(error.localizedDescription)
+            }
         }
     }
 
@@ -167,6 +273,11 @@ extension Catalog {
     /// store first, then the row. If the store refuses, nothing is removed and
     /// the refusal is returned; a key already gone counts as removed. Links
     /// stay (R16).
+    ///
+    /// The key is deleted once more after the row: a Save in another window's
+    /// Server sheet that wrote its key between the two, and its row before
+    /// the row went, leaves no key behind (publishing design D-16; a Save
+    /// whose row comes after finds none and deletes its own).
     public func removeRemoteService(_ service: RemoteServiceRecord, keys: any RemoteKeyStore) async throws
         -> RemoteKeyStoreError? {
         do throws(RemoteKeyStoreError) {
@@ -174,7 +285,10 @@ extension Catalog {
         } catch {
             return error
         }
-        if let id = service.id { try await deleteRemoteService(id: id) }
+        if let id = service.id {
+            try await deleteRemoteService(id: id)
+            try? keys.deleteKey(account: service.uuid)
+        }
         return nil
     }
 

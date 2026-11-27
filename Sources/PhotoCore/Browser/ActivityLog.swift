@@ -11,6 +11,9 @@ public struct ActivityLog: Hashable, Sendable {
         /// Something failed, as opposed to information.
         public var isWarning: Bool
         public var date: Date
+        /// What the row's button opens (a publish run's results, issue #28
+        /// design §10.1); nil for none.
+        public var actionID: String?
     }
 
     /// Newest last, at most `limit`.
@@ -29,10 +32,11 @@ public struct ActivityLog: Hashable, Sendable {
         self.limit = limit
     }
 
-    public mutating func post(_ text: String, title: String? = nil, isWarning: Bool = false, at date: Date = Date()) {
+    public mutating func post(_ text: String, title: String? = nil, isWarning: Bool = false, at date: Date = Date(),
+                              actionID: String? = nil) {
         // The same message again (a repeated error) moves to the end.
-        messages.removeAll { $0.text == text && $0.title == title }
-        messages.append(Message(id: nextID, title: title, text: text, isWarning: isWarning, date: date))
+        messages.removeAll { $0.text == text && $0.title == title && $0.actionID == actionID }
+        messages.append(Message(id: nextID, title: title, text: text, isWarning: isWarning, date: date, actionID: actionID))
         nextID += 1
         if messages.count > limit { messages.removeFirst(messages.count - limit) }
         unseenCount = min(unseenCount + 1, messages.count)

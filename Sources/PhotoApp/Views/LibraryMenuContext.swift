@@ -162,6 +162,13 @@ struct LibraryMenuState: Equatable {
     var canMerge: Bool
     /// An HDR merge runs (File ▸ Stop's title).
     var isMerging: Bool
+    /// File ▸ Publish…, the toolbar's Publish and the context menu's: the
+    /// targets include a photo and no publish runs (issue #28, design §2).
+    var canPublish: Bool
+    /// File ▸ Publish Results…: a run has ended since launch.
+    var hasPublishResults: Bool
+    /// A stopped publish waits for answers (File ▸ Stop Publishing dimmed).
+    var publishIsEnding: Bool
 
     /// The project, album, smart album or keyword selected in the sidebar,
     /// for File ▸ Rename, Delete, Edit Smart Album and Remove Project from
@@ -296,6 +303,11 @@ struct LibraryMenuState: Equatable {
         canDuplicate = model.canDuplicateTargets
         canMerge = model.canMerge
         isMerging = model.merge.isMerging
+        canPublish = ExportTargets.canExport(model.actionTargets.lazy.map { model.items[$0] },
+                                             isExporting: model.publish.isPublishing)
+            && !model.otherModalIsUp
+        hasPublishResults = !model.publish.endedRuns.isEmpty
+        publishIsEnding = model.publish.isEnding
     }
 
     /// Items with a bare key: only while the grid, loupe or video loupe has

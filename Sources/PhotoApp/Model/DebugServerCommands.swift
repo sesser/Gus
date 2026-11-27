@@ -10,20 +10,32 @@ import PhotoUI
 /// server's key is a fixed test string, and output names keys only as
 /// "entered" or "-".
 ///
-///     import server fake start [<count>] | stop | requests | fault drop|revoke|notimmich|clear
+///     import server fake start [<count>] | stop | requests [since] | mark | fault drop|revoke|notimmich|clear
 ///                  | fault delete|corrupt|truncate|external <index> | fault unavailable <index> <times> | fault slow <ms>
 ///                  | fault permissions <a,b,…>
 ///     import server add <name> <address>|fake [<key>]   (Add Server… with the notice confirmed; waits for the check)
-///     import server sheet add|edit|close|print|remove | field name|address|key <text> | confirm on|off | submit | trust | back
+///     import server sheet add|edit|close|print|remove | field name|address|key <text> | confirm on|off | submit
+///                        | trust [nowait] | back
+///                        (address `fake`, or `fakehost`: the fake server named localhost)
 ///                        | review [<seed>]   (the Edit sheet's changed-certificate page, a made-up certificate)
 ///     import server list | select <name> (waits) | check | edit | remove [<name>] | confirm yes|no | print
+///                  | rescan   (as Rescan, without waiting for the check)
 ///     import server keychain fail|ok   (the in-memory key store refuses, or works again)
 ///     import server project <text>   (as typing in the Project name field; `print` shows the DQ-13 note)
 ///     import album <name>|all (waits) | import dates <yyyy-mm-dd|-> <yyyy-mm-dd|->|clear (waits)
 /// (`import scroll <index>|end` is `ImportDebugCommands`'.)
+///     import server fake … | fault stack refuse|ok | fault lose <METHOD> <path> <times>
+///                  | fault answer <METHOD> <path> <status> <times> | fault hold on|off|release | uploads
+///                  | fault slowcheck <ms>|0   (each check's first answer takes that long)
+///     (publishing, issue #28: the fake server's refused stack, lost answers, canned statuses, held upload answers)
 @MainActor
 enum DebugServerCommands {
     private static var fake: FakeImmichServer?
+    /// The request count `fake mark` saw.
+    private static var requestMark = 0
+
+    /// The fake server the script started (publishing's commands use it too).
+    static var fakeServer: FakeImmichServer? { fake }
 
     /// Returns false for words it does not handle.
     static func run(_ words: [String], model: CardImportModel, window: NSWindow?) async -> Bool {
@@ -88,6 +100,11 @@ enum DebugServerCommands {
             }
             model.chooseServer(service)
             await waitForConnect(model)
+        case "rescan":
+            // As Rescan, returning at once (design review F30: a Save landing
+            // while the check is out).
+            model.rescanSource()
+            print("debug-script: import server rescan started")
         case "check":
             guard let browse = model.browse else { return print("debug-script: import server check: no server") }
             if let failure = browse.failure {
@@ -154,11 +171,25 @@ enum DebugServerCommands {
         case "stop":
             fake?.stop()
             fake = nil
-        case "requests":
-            for request in fake?.requests ?? [] {
-                print("debug-script: import server request \(request.method) \(request.path) "
-                      + "\(request.query.isEmpty ? "" : "?" + request.query) key \(request.sentKey ? "sent" : "-")")
+        case "uploads":
+            for upload in fake?.uploads ?? [] {
+                print("debug-script: import server upload \(upload.duplicate ? "duplicate" : "created") "
+                      + "name \(upload.fields["filename"] ?? "-") date \(upload.fields["fileCreatedAt"] ?? "-") "
+                      + "visibility \(upload.fields["visibility"] ?? "-") bytes \(upload.data.count)")
             }
+        case "mark":
+            // Where `requests since` starts (publishing design D-18, D-19).
+            requestMark = fake?.requests.count ?? 0
+            print("debug-script: import server fake mark \(requestMark)")
+        case "requests":
+            let all = fake?.requests ?? []
+            let shown = words.dropFirst().first == "since" ? Array(all.dropFirst(min(requestMark, all.count))) : all
+            for request in shown {
+                print("debug-script: import server request \(request.method) \(request.path) "
+                      + "\(request.query.isEmpty ? "" : "?" + request.query) key \(request.sentKey ? "sent" : "-") "
+                      + "host \(request.host ?? "-")")
+            }
+            if shown.isEmpty { print("debug-script: import server requests: none") }
         case "fault":
             guard let fake else { return print("debug-script: import server fault: no fake") }
             let rest = Array(words.dropFirst())
@@ -179,7 +210,29 @@ enum DebugServerCommands {
                     fake.add(.unavailable(id, times: rest.dropFirst(2).first.flatMap(Int.init) ?? 1))
                 }
             case "slow": fake.add(.slow(.milliseconds(rest.dropFirst().first.flatMap(Int.init) ?? 500)))
+            case "slowcheck":
+                fake.removeSlowCheck()
+                if let ms = rest.dropFirst().first.flatMap(Int.init), ms > 0 { fake.add(.slowCheck(.milliseconds(ms))) }
             case "permissions": fake.setPermissions(rest.dropFirst().first?.split(separator: ",").map(String.init) ?? [])
+            case "stack":
+                if rest.dropFirst().first == "refuse" { fake.add(.refuseStack) } else { fake.remove(.refuseStack) }
+            case "lose":
+                let parts = Array(rest.dropFirst())
+                guard parts.count >= 2 else { return }
+                fake.add(.loseAnswer(method: parts[0], path: parts[1], times: parts.dropFirst(2).first.flatMap(Int.init) ?? 1))
+            case "answer":
+                let parts = Array(rest.dropFirst())
+                guard parts.count >= 3, let status = Int(parts[2]) else { return }
+                fake.add(.answer(method: parts[0], path: parts[1], status: status,
+                                 times: parts.dropFirst(3).first.flatMap(Int.init) ?? 1))
+            case "hold":
+                switch rest.dropFirst().first {
+                case "on": fake.add(.holdUploadAnswer)
+                case "release": fake.releaseHeldAnswers()
+                default:
+                    fake.remove(.holdUploadAnswer)
+                    fake.releaseHeldAnswers()
+                }
             case "external":
                 // The asset at <index> is an external library's, its checksum the path's (RI-E2).
                 guard let id = asset(rest.dropFirst().first) else { return }
@@ -216,8 +269,15 @@ enum DebugServerCommands {
             let text = rest.dropFirst().joined(separator: " ")
             switch field {
             case "name": sheet.name = text
-            case "address": sheet.address = text == "fake" ? fake?.address ?? "" : text
-            case "key": sheet.setKey(text)
+            // `fakehost`: the fake server under the name localhost, another
+            // address for the same server (publishing review F28).
+            case "address":
+                sheet.address = switch text {
+                case "fake": fake?.address ?? ""
+                case "fakehost": fake?.address.replacingOccurrences(of: "127.0.0.1", with: "localhost") ?? ""
+                default: text
+                }
+            case "key": sheet.setKey(text == "fake" ? FakeImmichServer.validKey : text)
             default: print("debug-script: import server sheet field: unknown")
             }
             try? await Task.sleep(for: .milliseconds(150))
@@ -232,7 +292,8 @@ enum DebugServerCommands {
         case "trust":
             guard let sheet = model.serverSheet else { return }
             sheet.trustCertificate()
-            await waitForCheck(sheet)
+            // `nowait`: the script goes on during the check (publishing design D-19).
+            if rest.first != "nowait" { await waitForCheck(sheet) }
         case "back":
             model.serverSheet?.back()
         case "review":
@@ -284,9 +345,14 @@ enum DebugServerCommands {
         default: break
         }
         if let result = sheet.result,
-           let text = ServerText.result(result, host: sheet.parsedAddress?.host ?? "", name: sheet.effectiveName) {
-            parts.append("result \(result.kind) '\(text.title)' under \(text.concernsAddress ? "address" : "key")")
+           let text = ServerText.result(result, host: sheet.parsedAddress?.host ?? "", name: sheet.effectiveName,
+                                        purpose: sheet.purpose, keyCanPublish: sheet.keyCanPublish) {
+            parts.append("result \(result.kind) '\(text.title)' under \(text.concernsAddress ? "address" : "key") "
+                         + "detail '\(text.detail)'")
         }
+        // Publishing (issue #28): the host's captions and the address warning (R26).
+        parts.append("captions '\(ServerText.keyCaptions(sheet.purpose).joined(separator: "' '"))'")
+        if sheet.showsAddressWarning { parts.append("warning '\(ServerText.addressChangeWarning)'") }
         parts.append("checking \(sheet.isChecking) default \(sheet.canSubmit ? "enabled" : "dimmed")")
         // The sheet's size against its ideal (design §11, S2).
         let size = model.window?.attachedSheet?.frame.size
@@ -318,6 +384,11 @@ enum DebugServerCommands {
         parts.append("project '\(browse.projectName)' note \(model.addsToExistingProject ? "shown" : "hidden")"
                      + " done \(model.doneText ?? "-")")
         if let alert = model.serverAlert { parts.append("alert '\(alert.title)' '\(alert.message)'") }
+        // A running import (publishing design D-18: nothing here changes while it runs).
+        if model.isImporting {
+            let progress = model.progress.map { "\($0.filesDone)/\($0.filesTotal)" } ?? "-"
+            parts.append("importing \(progress)")
+        }
         print("debug-script: " + parts.joined(separator: " "))
     }
 

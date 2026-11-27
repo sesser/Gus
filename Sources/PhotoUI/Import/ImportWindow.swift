@@ -77,7 +77,7 @@ public struct ImportWindow: View {
                 Button("Remove", role: .destructive) { model.removeServer(service) }
                 Button("Cancel", role: .cancel) { model.removingServer = nil }
             } message: { _ in
-                Text("The API key is deleted from the Keychain. Photos you already imported stay in the library. The key itself still works on the server until you delete it in Immich.")
+                Text("The API key is deleted from the Keychain, along with this server's folder map and publishing choices. Photos you already imported stay in the library, and the record of what you published is kept. The key itself still works on the server until you delete it in Immich.")
             }
     }
 
@@ -371,7 +371,8 @@ private struct ImportGridArea: View {
                 Button("Show Them") { model.showsDuplicates = true }
             }
         case .shots:
-            ImportGridView(model: model, shots: model.visibleShots, selection: model.selection)
+            ImportGridView(model: model, shots: model.visibleShots, selection: model.selection,
+                           serverName: model.browse?.service.name)
         }
     }
 }
@@ -660,12 +661,12 @@ private struct ServerSection: View {
                     Text("Encrypted (https)")
                 }
             }
-            Caption(text: String(localized: "Photos are copied from the server. Nothing on the server is changed."))
+            Caption(text: String(localized: "Photos are copied from the server. Importing changes nothing on it."))
             if browse.info?.hasMoreThanNeeded == true {
-                Caption(text: String(localized: "This key can do more than importing needs. Only reading is used."))
+                Caption(text: String(localized: "This key can do more than importing needs. Importing only reads."))
             }
             Button("Edit Server…") { model.showEditServer() }
-                .disabled(model.isImporting)
+                .disabled(model.isImporting || model.serverIsBusyPublishing)
         }
     }
 }
@@ -689,16 +690,29 @@ private struct ServerGridArea: View {
         case .cantConnect(let result):
             let text = ServerText.result(result, host: browse.address?.host ?? "", name: name)
             ContentUnavailableView {
-                Label(ServerText.cantConnect(name), systemImage: "exclamationmark.triangle")
+                // The server answered, and the key may publish (publishing design §4.1).
+                if case .missingPermissions = result {
+                    Label(ServerText.cantImport(name), systemImage: "exclamationmark.triangle")
+                } else {
+                    Label(ServerText.cantConnect(name), systemImage: "exclamationmark.triangle")
+                }
             } description: {
-                Text([text?.title, text?.detail].compactMap { $0 }.joined(separator: "\n"))
-                    .textSelection(.enabled)
+                if case .missingPermissions(let missing) = result {
+                    Text([text?.title ?? "", ServerText.cantImportDetail(missing)].joined(separator: "\n"))
+                        .textSelection(.enabled)
+                } else {
+                    Text([text?.title, text?.detail].compactMap { $0 }.joined(separator: "\n"))
+                        .textSelection(.enabled)
+                }
             } actions: {
                 Button("Try Again") { model.rescanSource() }
+                // Dimmed while this server is being published to (publishing design §4, review F14).
                 if case .certificateChanged = result {
                     Button("Review Certificate…") { model.showEditServer(reviewingCertificate: true) }
+                        .disabled(model.serverIsBusyPublishing)
                 } else {
                     Button("Edit Server…") { model.showEditServer() }
+                        .disabled(model.serverIsBusyPublishing)
                 }
             }
         case .noPhotosAll:
@@ -732,7 +746,8 @@ private struct ServerGridArea: View {
                 Button("Show All Photos") { model.chooseAlbum(nil) }
             }
         case .photos:
-            ImportGridView(model: model, shots: model.visibleShots, selection: model.selection)
+            ImportGridView(model: model, shots: model.visibleShots, selection: model.selection,
+                           serverName: model.browse?.service.name)
         }
     }
 }

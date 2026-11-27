@@ -12,13 +12,18 @@ public enum QuitConfirmation: Equatable, Sendable {
     case exporting
     /// The library app: "Quit While Merging?" (issue #150).
     case merging
+    /// The library app: "Quit While Publishing?" (issue #28, design §9).
+    case publishing
 
     public enum App: Sendable { case library, importer }
     public enum Trigger: Sendable { case quit, closeImportWindow }
 
     /// Nil: go ahead without asking.
+    /// `isPublishing`: a publish runs and is not already ending (an ending
+    /// run asks nothing; the app waits out what remains of its bound).
     public static func needed(app: App, trigger: Trigger, isCopying: Bool, isAddingFolders: Bool = false,
-                              isExporting: Bool = false, isMerging: Bool = false) -> QuitConfirmation? {
+                              isExporting: Bool = false, isMerging: Bool = false,
+                              isPublishing: Bool = false) -> QuitConfirmation? {
         switch app {
         case .importer:
             // Closing the importer's only window quits it.
@@ -28,7 +33,8 @@ public enum QuitConfirmation: Equatable, Sendable {
             guard trigger == .quit else { return nil }
             if isCopying || isAddingFolders { return .importing }
             if isExporting { return .exporting }
-            return isMerging ? .merging : nil
+            if isMerging { return .merging }
+            return isPublishing ? .publishing : nil
         }
     }
 

@@ -1,9 +1,13 @@
 import Foundation
 
-/// The Immich requests the app makes, and nothing else (R7, design §3; the
-/// shapes are recorded in docs/features/immich-import/status.md, "API
-/// verification"). Every one only reads: the one POST is the metadata search,
-/// which changes nothing on the server.
+/// The Immich requests the app makes, and nothing else (issue #271 R7, design
+/// §3; the shapes are recorded in docs/features/immich-import/status.md, "API
+/// verification", and docs/features/publishing-engine/status.md, "Immich
+/// verification"). Importing only reads: its one POST is the metadata search,
+/// which changes nothing on the server. Publishing (issue #28, R9) adds four
+/// writes and no other: upload an asset, create an album, add assets to an
+/// album, create a stack. Nothing updates or deletes anything; adding another
+/// write needs the owner's approval.
 public enum ImmichEndpoint: Hashable, Sendable {
     /// `GET /server/version`, no key: is this Immich, and is it new enough.
     case serverVersion
@@ -20,9 +24,38 @@ public enum ImmichEndpoint: Hashable, Sendable {
     /// `GET /assets/{id}/original?edited=false` (`asset.download`): the
     /// original file, never the server's edit (R12, R21).
     case original(assetID: String)
+    /// `GET /assets/{id}` (`asset.read`): one asset with its owner, type,
+    /// visibility, trash, path, size and stack (publishing R11, R13, R14, R19).
+    case asset(id: String)
+    /// `GET /albums?isOwned=true&assetId=…` (`album.read`): the account's
+    /// albums holding the asset, to find an album whose create lost its
+    /// answer (publishing R22).
+    case ownAlbumsHolding(assetID: String)
+    /// Publishing's writes (R9). `POST /assets` (`asset.upload`): the rendered
+    /// file as multipart, streamed from disk (`RemoteHTTPSession.upload`).
+    case upload
+    /// `POST /albums` (`album.create`), the JSON body.
+    case createAlbum(Data)
+    /// `PUT /albums/{id}/assets` (`albumAsset.create`), the JSON body.
+    case addToAlbum(albumID: String, Data)
+    /// `POST /stacks` (`stack.create`), the JSON body. Immich replaces the
+    /// stacks whose primary is named (status.md, item 10).
+    case createStack(Data)
 
     public var method: String {
-        if case .search = self { "POST" } else { "GET" }
+        switch self {
+        case .search, .upload, .createAlbum, .createStack: "POST"
+        case .addToAlbum: "PUT"
+        default: "GET"
+        }
+    }
+
+    /// One of publishing's four writes (R9).
+    public var writes: Bool {
+        switch self {
+        case .upload, .createAlbum, .addToAlbum, .createStack: true
+        default: false
+        }
     }
 
     /// Relative to the API root (`<address>/api`).
@@ -35,6 +68,12 @@ public enum ImmichEndpoint: Hashable, Sendable {
         case .search: "/search/metadata"
         case .thumbnail(let id): "/assets/\(id)/thumbnail"
         case .original(let id): "/assets/\(id)/original"
+        case .asset(let id): "/assets/\(id)"
+        case .ownAlbumsHolding: "/albums"
+        case .upload: "/assets"
+        case .createAlbum: "/albums"
+        case .addToAlbum(let id, _): "/albums/\(id)/assets"
+        case .createStack: "/stacks"
         }
     }
 
@@ -43,6 +82,7 @@ public enum ImmichEndpoint: Hashable, Sendable {
         case .ownAlbums: [URLQueryItem(name: "isOwned", value: "true")]
         case .thumbnail: [URLQueryItem(name: "size", value: "thumbnail"), URLQueryItem(name: "edited", value: "false")]
         case .original: [URLQueryItem(name: "edited", value: "false")]
+        case .ownAlbumsHolding(let id): [URLQueryItem(name: "isOwned", value: "true"), URLQueryItem(name: "assetId", value: id)]
         default: []
         }
     }
@@ -58,6 +98,10 @@ public enum ImmichEndpoint: Hashable, Sendable {
         case .search: 32 << 20
         case .thumbnail: 16 << 20
         case .original: 64 << 10
+        case .asset: 1 << 20
+        case .ownAlbumsHolding: 16 << 20
+        case .upload: 64 << 10
+        case .createAlbum, .addToAlbum, .createStack: 16 << 20
         }
     }
 
@@ -65,7 +109,10 @@ public enum ImmichEndpoint: Hashable, Sendable {
     public var sendsKey: Bool { self != .serverVersion }
 
     public var body: Data? {
-        if case .search(let body) = self { body } else { nil }
+        switch self {
+        case .search(let body), .createAlbum(let body), .addToAlbum(_, let body), .createStack(let body): body
+        default: nil
+        }
     }
 
     /// The permission a 403 on this request means is missing.
@@ -77,13 +124,21 @@ public enum ImmichEndpoint: Hashable, Sendable {
         case .search: "asset.read"
         case .thumbnail: "asset.view"
         case .original: "asset.download"
+        case .asset: "asset.read"
+        case .ownAlbumsHolding: "album.read"
+        case .upload: "asset.upload"
+        case .createAlbum: "album.create"
+        case .addToAlbum: "albumAsset.create"
+        case .createStack: "stack.create"
         }
     }
 }
 
-/// The only method and path pairs a connection sends (R7, AC5). The HTTP
-/// layer checks every request against it before anything is sent, so a
-/// request built any other way fails with `RemoteError.notAllowed`.
+/// The only method and path pairs a connection sends (issue #271 R7, AC5;
+/// issue #28 R9, AC6). The HTTP layer checks every request against it before
+/// anything is sent, so a request built any other way fails with
+/// `RemoteError.notAllowed`. The reads, then publishing's four writes; no
+/// request that updates or deletes anything is on it.
 public enum RemoteRequestAllowlist {
     static let entries: [(method: String, pattern: String)] = [
         ("GET", #"^/server/version$"#),
@@ -93,11 +148,32 @@ public enum RemoteRequestAllowlist {
         ("POST", #"^/search/metadata$"#),
         ("GET", #"^/assets/[0-9A-Za-z-]{1,64}/thumbnail$"#),
         ("GET", #"^/assets/[0-9A-Za-z-]{1,64}/original$"#),
+        ("GET", #"^/assets/[0-9A-Za-z-]{1,64}$"#),
+        // Publishing's writes (R9): upload, create album, add to album, create stack.
+        ("POST", #"^/assets$"#),
+        ("POST", #"^/albums$"#),
+        ("PUT", #"^/albums/[0-9A-Za-z-]{1,64}/assets$"#),
+        ("POST", #"^/stacks$"#),
     ]
 
-    /// `path` is relative to the API root.
+    /// The writes on the list, as (method, path pattern): exactly the four
+    /// publishing may send (AC6).
+    public static var writes: [(method: String, pattern: String)] {
+        entries.filter { $0.method != "GET" && $0.pattern != #"^/search/metadata$"# }
+    }
+
+    /// `path` is relative to the API root. Matched by ICU itself
+    /// (`NSRegularExpression`), whose `$` also matches before a final line
+    /// terminator (a newline, U+2028, U+2029), so the match must cover the
+    /// whole path (security review N1). `String.range(of:options:)` agrees
+    /// on some macOS releases and not others; this answers alike on all.
     public static func permits(method: String, path: String) -> Bool {
-        entries.contains { $0.method == method && path.range(of: $0.pattern, options: .regularExpression) != nil }
+        let whole = NSRange(path.startIndex..<path.endIndex, in: path)
+        return entries.contains { entry in
+            guard entry.method == method, let expression = try? NSRegularExpression(pattern: entry.pattern),
+                  let match = expression.firstMatch(in: path, range: whole) else { return false }
+            return match.range == whole
+        }
     }
 }
 
@@ -235,6 +311,8 @@ extension ImmichDTO.Asset {
         // A name that could name a place, not just a file, is not listed
         // (security review F1).
         guard RemoteAsset.isPlainFileName(originalFileName) else { return nil }
+        // Its id goes into the thumbnail's and the original's paths (security review N1).
+        guard RemoteAsset.isServerID(id) else { return nil }
         guard let kind = FileKind(pathExtension: (originalFileName as NSString).pathExtension), kind != .video else {
             return nil
         }

@@ -302,7 +302,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
   `metadataSync`, `sidecarQueue`, `adjustmentPreset`
   (with `collection` and `groups`, null for all), `lookTableCollection`,
   `lookTableEntry`, `exportPreset`, `maskRaster`, `remoteService`,
-  `remoteLink` (migration v16). Ratings 0–5, flags
+  `remoteLink` (migration v16), `remotePublication`,
+  `remotePublishSettings` (migration v18). Ratings 0–5, flags
   (-1 reject, 0 none, 1 pick) and color labels (0–7) live on versions.
   Never edit an existing migration; add a new one.
 - **Edit stack**: each version stores an ordered, versioned JSON list of
@@ -399,22 +400,63 @@ compatible and never put `#` comment lines inside pasted command snippets.
   existing ones), and does not mark duplicates.
 - **Network.** The app contacts one kind of host: an Immich server the user
   adds, and only the library app does it (the standalone importer, About and
-  `photocli` have no path to it). All of it is PhotoCore `Remote/`, behind
-  `RemotePhotoSource`. The key lives only in the Keychain (`KeychainKeyStore`,
-  service `<bundle id>.servers`, account the connection's uuid), never in the
-  catalog, preferences, logs, Activity or debug output. Only the allowlisted
-  requests are ever built (`RemoteRequestAllowlist`: GET, plus the one search
-  POST), checked before a request exists. The key goes only as `x-api-key` and
-  only to the connection's host. Redirects are never followed, and there are no
-  cookies, cache or credential storage. Bodies and downloads are capped.
-  Transport policy: `https://` by default; plain `http://` only to a
-  local-network host after the user confirms the notice. An untrusted
-  certificate is never accepted silently; the user may trust one fingerprint
-  per connection, a changed one fails, and nothing turns checking off. Nothing
-  else may use `URLSession`: `RemoteHTTPSession.swift` is the one HTTP path
-  (the fake server uses the Network framework). Tests use `FakeImmichServer`
-  and `InMemoryKeyStore`. A test launch always uses the in-memory store. No
-  package was added: Foundation and the Security framework.
+  `photocli` have no path to it). All of it is PhotoCore `Remote/`: import
+  reads behind `RemotePhotoSource` and never writes; publishing goes behind
+  `RemotePublishDestination`. The key lives only in the Keychain
+  (`KeychainKeyStore`, service `<bundle id>.servers`, account the
+  connection's uuid), never in the catalog, preferences, logs, Activity or
+  debug output. Only the allowlisted requests are ever built
+  (`RemoteRequestAllowlist`, matched against the whole path), checked before
+  a request exists: GET, the one search POST, and, for publishing only, four
+  writes (`RemoteRequestAllowlist.writes`: upload an asset, create an album,
+  add assets to an album, create a stack). An id a server gave goes into a
+  path only if it is 1 to 64 ASCII letters, digits and hyphens
+  (`RemoteAsset.isServerID`). No request updates or deletes anything on the
+  server; adding another write needs the owner's approval. Creating a stack
+  makes the server replace the stack it joins, so it names the original's
+  current primary and runs one at a time per original (`StackSequencer`); an
+  album create is never sent again before the album it may have made is
+  looked for (`AlbumCoordinator`). One publish runs at a time
+  (`PublishSlot`). An upload sends only the rendered temporary file and the
+  values publishing names (`PublishUploadBody`: date, name, visibility),
+  never an original or a sidecar; it streams from disk, and a stopped run
+  cancels it at once unless it was fully sent, then waits at most 10 s for
+  its answer (`RemoteUploadEnding`). Rendered files and upload bodies go
+  under the system's temporary folder, in a folder of this launch's inside
+  one base folder every copy of the app shares, named from the fixed
+  `AppBranding.bundleIdentifier` (`PublishTemporaryFolders`:
+  `<AppBranding.bundleIdentifier>.publish/<launch>`, each launch's held by a
+  lock for the life of its process, the base the user's alone, mode 0700);
+  each run removes its own when it ends, and a launch removes only the
+  folders of launches that have ended (their lock is free) and day-old
+  folders with no lock file, never following a symbolic link and nothing at
+  all unless the base is the user's own real folder. A launch that can't lock
+  a folder there works in one of its own beside the base. The key goes
+  only as `x-api-key` and only to the connection's host. Every read of a
+  saved key and every save of a key with its row go through the account's
+  `RemoteKeyGate`, so the key is always read with the row saved with it
+  (`RemoteSavedKey`: publishing's check, the import window's check and the
+  Server sheet's with its key field empty), and a key is given only while
+  the row still has the address and trusted certificate the caller holds
+  (publishing, the import window) or opened on (the Server sheet, whose check
+  then goes to the address its form shows), so a key saved for a new address
+  never reaches the previous one. The gate is per process and pairs the key
+  with that process's catalog only: nothing keeps a second copy of the app
+  off a library (the library lock only keeps `photocli`'s writes off a
+  library the app has open), and copies of a library name the same Keychain
+  item. A Server sheet behind the saved server writes nothing
+  (`Catalog.saveRemoteService(_:checkedWith:opened:keys:)`).
+  Response bodies and downloads are capped (an error's body at 64 KiB, read only for the
+  server's message). Redirects are never followed, and there are no cookies,
+  cache or credential storage. Transport policy: `https://` by default;
+  plain `http://` only to a local-network host after the user confirms the
+  notice. An untrusted certificate is never accepted silently; the user may
+  trust one fingerprint per connection, a changed one fails, and nothing
+  turns checking off. Nothing else may use `URLSession`:
+  `RemoteHTTPSession.swift` is the one HTTP path (the fake server uses the
+  Network framework). Tests use `FakeImmichServer` and `InMemoryKeyStore`. A
+  test launch always uses the in-memory store. No package was added:
+  Foundation and the Security framework.
 - **Dependencies**: GRDB, and LibRaw 0.22.3 vendored in `Sources/CLibRaw` (LGPL 2.1;
   `THIRD_PARTY_NOTICES.md`; never edit the vendored tree), which decodes only raws
   the system's RAW decoder gives no image for (`LibRawDecoder`, the fallback in
@@ -1388,7 +1430,8 @@ the name, address and trusted-certificate fingerprint in the catalog. The
 Server sheet checks the server (reachable, is Immich, version 3.2.0 or newer,
 key accepted, and the five permissions `asset.read`, `asset.view`,
 `asset.download`, `album.read`, `user.read`, or `all`: RI-E1 added `user.read`
-so only the key's own account's photos are listed) and names each failure.
+so only the key's own account's photos are listed; a sheet opened from Publish
+asks for others, see Publish to Immich below) and names each failure.
 Browsing shows the account's images only (no video, archived, hidden, locked,
 trashed or partners' photos), newest capture first, in pages as the grid
 scrolls, with thumbnails fetched on demand (six at once, memory only), a scope
@@ -1416,8 +1459,8 @@ remote fingerprint; one link per version, deleted with the photo in
 `LibraryRemoval`'s transaction; kept when a connection is removed, so
 re-adding the server finds them again; a virtual copy carries none). No
 product name in any stored name; the provider is a value (`immich`), so a later
-source adds a row, not a table, and publishing (#28) is meant to build on
-these tables and the connection layer. Transport (R5 to R7): `https://` by
+source adds a row, not a table; publishing (#28, below) builds on these tables
+and the connection layer. Transport (R5 to R7): `https://` by
 default; plain `http://` only to a local-network host (private ranges,
 loopback, link-local, `.local`, single-label names, numeric forms decoded) and
 only after the person confirms the notice that the key and photos cross the
@@ -1427,8 +1470,9 @@ the Server sheet shows its SHA-256 fingerprint and the person may trust that
 one certificate; it is then the only one accepted for that server, and a
 different one fails as "certificate changed" with Review Certificate…, never a
 prompt in the middle of an import. There is no switch that turns checking off.
-Only the seven allowlisted requests are ever built (GET only, plus the one
-search POST), checked before a request exists; the key is sent only as
+As #271 shipped, only seven allowlisted requests were ever built (GET only,
+plus the one search POST; publishing added one GET and four writes, below),
+checked before a request exists; the key is sent only as
 `x-api-key` and only to the connection's host; redirects are never followed;
 no cookies, cache or credential storage; bodies and downloads are capped.
 Code: PhotoCore `Remote/` (`ServerAddress`, `RemoteKeyStore`, `RemoteTrust`,
@@ -1439,8 +1483,8 @@ Import window's server states; PhotoApp `DebugServerCommands.swift`;
 `Sources/PhotoFixtures/FakeImmichServer.swift` (an Immich in the test
 process). The library app's `Support/Info.plist` has `NSAppTransportSecurity`
 ▸ `NSAllowsLocalNetworking` and `NSLocalNetworkUsageDescription`; the
-standalone importer has neither and no server code (R24; AC16 reads "no path to
-the connection code", RI-E3). A test launch (`--debug-script`, another bundle
+standalone importer has neither and no path to the server code, which it still
+links (R24; AC16 reads "no path to the connection code", RI-E3; #273). A test launch (`--debug-script`, another bundle
 identifier, no bundle) uses an in-memory key store, never the Keychain. About
 and the user guide say the About window contacts nothing and the app contacts
 only a server the person adds. Project reuse (owner finding O1, DQ-12, 2026-11-24):
@@ -1574,16 +1618,107 @@ the owner signed off 2026-11-25 at 84791f7, no check named as left open (P1 to
 P6 were not recorded one by one, `docs/features/gain-map-hdr-editing/qa.md`).
 VoiceOver and macOS 26 are left to CI; nothing checks macOS 15.
 
-Not yet: publishing back to Immich or Apple Photos (#28; it will build on the
-`remoteService` and `remoteLink` tables and the connection layer, widen the
-key's permissions and the read-only allowlist, and change the network wording
-again), servers other than Immich, Apple Photos as a source, Immich in the
-standalone importer or `photocli`, videos, Live Photo motion, Immich's edits,
+Publish to Immich (`docs/features/publishing-engine/`, issue #28, branch
+`feature/publishing-engine`): File ▸ Publish… (⌥⌘E; the toolbar's Publish and a
+photo's context menu; the library app only, not the standalone importer or
+`photocli`) uploads the selected photos, or the loupe's, to one saved Immich
+server per run, rendered as an export with `ExportSettings` unchanged (the
+sheet's File Settings or an export preset, always SDR, the naming setting's
+file name). Targets follow Export: videos left out and counted, a RAW+JPEG pair
+once from its RAW, each virtual copy on its own, an offline original failing
+that photo only. The sheet chooses the server (Add Server… and Edit open the
+shared Server sheet), an album (none, new, or one of the account's own),
+Timeline or Archive (set by the upload; a stacked original leaves the timeline
+with an archived edit), Stack with original (on), Edit Folder Map…, Check
+Originals, and a description for the run that replaces each file's without
+changing the library; it remembers settings, album, visibility and stacking per
+server, not the description. Only the file, its name, capture date and
+visibility are uploaded; with no date in the file (Copyright and contact only,
+None) the capture's wall-clock time is sent labelled UTC. Ratings, flags and
+labels are never sent. An original is the asset the photo was imported from (a
+copy takes its original's link, then the pair partner's; only one is tried),
+else one found by the folder map (this Mac's folder to the server's path,
+longest folder first, matched by volume identity, NFC and NFD, case counts,
+same byte size); only the account's own image assets that are not trashed,
+hidden, locked or published by this library qualify, and a photo with none is
+published unstacked with the reason. The edit becomes the primary of the
+original's stack: Immich replaces the stack it joins (the create names the
+current primary, one stack at a time per original, the last edit in grid order
+on top), and members in its trash drop out, except a trashed primary, which the
+create must name. Every accepted upload is recorded at once (migration v18:
+`remotePublication`, and `remotePublishSettings` for the remembered choices and
+folder map, removed with the server; records survive removing the server and
+apply again at the same address, and go with a photo removed from the library).
+Photos already published to that server are asked about once, Skip (default) or
+New Copy; there is no Replace. A file the server already has is reported as
+already on the server and filed and stacked only if it can be read and is
+neither trashed nor hidden. The Import window shows published assets In Library.
+The run is one background Activity job (one publish at a time, Stop, File ▸ Stop
+Publishing ⌘., the quit question, not on the undo stack); each photo's album and
+stack follow its upload; a fully sent upload is waited on for up to 10 s when a
+run ends, others are cancelled at once. Temporary faults are retried; a rejected
+key, changed certificate, missing permission or unreachable server stops the
+run; a lost album create never makes a second album. Results (Show Results…,
+File ▸ Publish Results…) list every failed, unfinished and unstacked photo;
+Retry Failed repeats only unfinished steps with the run's choices, covers
+unreached photos only after a fault, is called off with nothing changed by a
+Stop during its server check, and lasts until quit. Keys: a sheet opened from
+Publish needs only `asset.upload` and `asset.read` (an album adds `album.read`
+and `albumAsset.create`, a new one `album.create`; stacking `user.read` and
+`stack.create`; a missing one is named under its option), a local `http://`
+server's consent covers publishing and the sheet says Not encrypted, and Edit
+Server… warns when a new address would leave publish records or import links
+behind (#300). The allowlist gained `GET /assets/{id}` and the only four writes
+(upload, create album, add to album, create stack); nothing updates or deletes.
+Rendered files go in a per-launch folder under the system's temporary folder,
+held by a lock, and are removed when the run ends; originals and sidecars are
+never written. Import changed with it: every saved key is read with its
+server's row under a per-account gate (`RemoteKeyGate`), the Import window
+follows a server saved again from Publish (a rename in place, a new address or
+certificate chosen afresh, a running import finishing first), and a Server sheet
+behind the saved server, key field empty, saves nothing and closes. Code:
+PhotoCore `Remote/` (`ImmichPublishing`, `PublishJob`, `PublishRun`,
+`PublishRetry`, `PublishOriginals`, `PublishSettings`,
+`PublishTemporaryFolders`, `PublishCheckRecovery`, `RemoteKeyPairing`,
+`RemoteServerChecks`), `Catalog/RemotePublications.swift`; PhotoApp
+`Model/PublishModel.swift`, `PublishText.swift`,
+`DebugPublishCommands.swift`, `Views/PublishSheet.swift`,
+`PublishResultsSheet.swift`; Export's settings state and form are shared with
+the publish sheet. Debug script: `publish …`. The opt-in `PublishLiveTests`
+(`PUBLISH_LIVE_SERVER`, `PUBLISH_LIVE_KEY_FILE`) runs against a throwaway
+Immich; behavior was checked live on 3.2.0 and 3.4.2 with synthetic data. No
+`PreviewCacheKey.currentPipelineVersion` bump (13), no golden moved, no
+rendering changed, no new package. Known and left: the Keychain item doesn't
+record the address its key was saved for, so a copy of a library, a second app
+process or a failed rollback can send a new key to a previous address (#303);
+an unchanged photo with a caption or capture time may export to different bytes
+after a relaunch, so New Copy adds a second copy (#302); an upload whose answer
+is lost as a run ends leaves a photo with no record; unfinished steps are not
+kept after quitting; after its own Server sheet is cancelled the publish sheet
+can keep an earlier check when the address was changed in the import window
+(Publish still uses the saved one); a key changed alone in the import window
+isn't noticed by an open sheet; a name-only Save whose catalog write fails says
+nothing; a Server sheet or Remove alert already up when a run starts isn't
+checked again, and removing doesn't stop a use of the key under way. Shipped;
+the owner signed off 2026-11-26 at e73cb45 and published to their own server
+(AC17), no check named as left open (P1 to P6 and P8 were not recorded one by
+one, `docs/features/publishing-engine/qa.md`). Covered by CI only: VoiceOver,
+macOS 15 and macOS 26.
+
+Not yet: publishing to Apple Photos (#299) or to servers other than Immich,
+Immich share links (#297), Published to and Changed since published filters
+(#298), named publish destinations, several servers or destinations in one run,
+replacing or syncing what was published (no update or delete is sent), keeping
+import links and publish records when a server's address changes (#300),
+keeping unfinished publish steps across launches, publishing videos or HDR,
+separate keys for importing and publishing, importing from servers other than
+Immich, Apple Photos as a source, Immich in the standalone importer or
+`photocli`, importing videos, Live Photo motion, Immich's edits,
 favorites, tags, albums and people, archived photos, search, other users' and
 partners' photos, a photo count for All Photos (the server gives none),
 re-downloading a photo changed on the server, resuming a download across
 launches, moving the connection code to a library-only target (so the
-standalone importer links none; with #28), a stacked Job code field, Copy
+standalone importer links none; #273), a stacked Job code field, Copy
 Adjustments' remembering choices, copying without asking, masks
 (#92) and remapping a crop or spots to another frame size, local Black & White through masks, Lightroom Black & White mapping on
 import, Black & White items for a grid selection, sky and named-object masks,

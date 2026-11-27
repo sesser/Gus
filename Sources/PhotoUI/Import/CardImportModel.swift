@@ -56,6 +56,12 @@ public protocol CardImportLibrary: AnyObject {
     /// Where server keys are kept (issue #271, R1): the Keychain, or memory in
     /// a scripted launch.
     var remoteKeyStore: any RemoteKeyStore { get }
+    /// The server a publish runs to (issue #28, design §4: its Edit Server…
+    /// and Remove Server… are dimmed meanwhile), by its connection's uuid.
+    var publishingServerUUID: String? { get }
+    /// A server was added, edited or removed here: publishing reads its
+    /// servers again (publishing review F4).
+    func remoteServersChanged()
 }
 
 /// State of the import window.

@@ -168,6 +168,8 @@ final class LibraryModel {
     let export = ExportModel()
     /// File ▸ Merge to HDR…: the sheet's state and the merge running behind it (issue #150).
     let merge = MergeModel()
+    /// File ▸ Publish…: the sheet, its pages and the runs behind it (issue #28).
+    let publish = PublishModel()
     /// The video loupe's player (View ▸ Play / Pause).
     let playback = VideoPlayback()
     /// What Copy Adjustments… took: the checked items and their values (issue #243).
@@ -235,6 +237,13 @@ final class LibraryModel {
             }
         }
     }
+    /// The Publish sheet is up (`LibraryModal.publish`). Closing it by any
+    /// route stops what it asked for (publishing review F1).
+    var showsPublishSheet = false {
+        didSet { if oldValue, !showsPublishSheet { publish.sheetClosed() } }
+    }
+    /// The Publish Results sheet is up (`LibraryModal.publishResults`).
+    var showsPublishResults = false
     /// The Merge to HDR sheet is up (`LibraryModal.merge`).
     var showsMergeSheet = false {
         didSet { if !showsMergeSheet { merge.sheetClosed() } }
@@ -701,9 +710,9 @@ final class LibraryModel {
     }
 
     /// Posts to Activity; VoiceOver hears `announcing`, such as a long
-    /// message's first sentence.
-    func report(_ text: String, action: String, warning: Bool, announcing: String) {
-        activity.post(text, title: action, isWarning: warning)
+    /// message's first sentence. `actionID`: what the row's button opens.
+    func report(_ text: String, action: String, warning: Bool, announcing: String, actionID: String? = nil) {
+        activity.post(text, title: action, isWarning: warning, actionID: actionID)
         AccessibilityText.announce(announcing, priority: .medium)
     }
     /// Photos in the selected source before rating, flag and search.
@@ -836,6 +845,8 @@ final class LibraryModel {
         presetPreviews.library = self
         export.library = self
         merge.library = self
+        publish.library = self
+        PublishJob.removeLeftovers()
     }
 
     /// Opens the catalog at the standard location (or `--library-root`).
@@ -1317,7 +1328,22 @@ final class LibraryModel {
         running[.addFolders] = importProgress == nil ? nil : importStarted
         running[.cardImport] = cardImport.progressStarted
         running[.merge] = merge.started
+        running[.publish] = publish.started
         return StoppableJob.newest(running)
+    }
+
+    /// The library window, while it exists.
+    var window: NSWindow? { windowObserver.window }
+
+    /// The server a publish runs to (the import window dims its Edit and Remove Server…).
+    var publishingServerUUID: String? { publish.runningServerUUID }
+
+    /// The import window added, edited or removed a server (publishing review F4).
+    func remoteServersChanged() { publish.serversChanged() }
+
+    /// Catalog volumes by identity (the folder map's Mac folders, R12).
+    var volumesByIdentity: [String: VolumeRecord] {
+        Dictionary(volumesByID.values.map { ($0.identity, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     func stop(_ job: StoppableJob) {
@@ -1326,6 +1352,7 @@ final class LibraryModel {
         case .addFolders: cancelImport()
         case .cardImport: cardImport.cancelImport()
         case .merge: merge.cancel()
+        case .publish: publish.cancel()
         }
     }
 

@@ -79,11 +79,11 @@ struct RemoteSessionTests {
         #expect(usual.received(Data("{}".utf8)))
         usual.finished(nil, takeRefused: { nil })
         usual.finished(URLError(.timedOut), takeRefused: { nil })
-        guard case .success(let data)? = await waited else {
+        guard case .success(let answer)? = await waited else {
             Issue.record("The answer was lost")
             return
         }
-        #expect(data == Data("{}".utf8))
+        #expect(answer.body == Data("{}".utf8))
     }
 
     @Test("A call made from a task that is already cancelled returns cancelled, and never hangs (C22)")

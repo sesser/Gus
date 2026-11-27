@@ -102,13 +102,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// ⌘Q while an import, an export or a merge runs asks first (section 8, "Quitting
     /// while copying"); closing the Import window keeps copying.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let library = Self.library, !QuitGuard.allowsQuit,
-              let confirmation = QuitConfirmation.needed(app: .library, trigger: .quit,
+        guard let library = Self.library, !QuitGuard.allowsQuit else { return .terminateNow }
+        guard let confirmation = QuitConfirmation.needed(app: .library, trigger: .quit,
                                                          isCopying: library.cardImport.isImporting,
                                                          isAddingFolders: library.isImporting,
                                                          isExporting: library.export.isExporting,
-                                                         isMerging: library.merge.isMerging)
-        else { return .terminateNow }
+                                                         isMerging: library.merge.isMerging,
+                                                         isPublishing: library.publish.isPublishing
+                                                             && !library.publish.isEnding)
+        else {
+            // A publish already ending asks nothing: the app waits out what
+            // remains of its bound, records what was accepted, then quits
+            // (publishing design §9).
+            guard library.publish.isPublishing else { return .terminateNow }
+            Task { @MainActor in
+                await library.publish.waitUntilDone(timeout: .seconds(15))
+                QuitGuard.allowsQuit = true
+                NSApp.terminate(nil)
+            }
+            return .terminateCancel
+        }
         Task { @MainActor in
             // The window ⌘Q came from, a visible one if none is key; the
             // library window (or the sheet on it) rather than the About or
@@ -120,6 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             library.cancelImport()
             library.export.cancel()
             library.merge.cancel()
+            library.publish.cancel()
             // A stopped merge removes its hidden partial file, or finishes the
             // photo it already put beside the masters (design §7.1), before the
             // app goes: at most one band or the catalog step (code review C2).
@@ -128,6 +142,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // finishes cataloging the photo it verified, before the app goes
             // (code review C7).
             await library.cardImport.waitUntilDone(timeout: .seconds(10))
+            // A stopped publish waits for answers to fully sent files, at most
+            // its bound from when it began to end, records accepted uploads and
+            // removes its rendered files (R17, R24). The bound is its own.
+            await library.publish.waitUntilDone(timeout: .seconds(15))
             NSApp.terminate(nil)
         }
         // Cancelled now and asked again after Stop and Quit: with

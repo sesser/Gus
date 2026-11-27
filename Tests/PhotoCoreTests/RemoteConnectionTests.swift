@@ -1,6 +1,8 @@
 import Foundation
+import GRDB
 import PhotoFixtures
 import Security
+import Synchronization
 import Testing
 @testable import PhotoCore
 
@@ -212,9 +214,14 @@ struct RemoteCheckTests {
         }
         // Anything off the list fails before a byte is sent.
         let http = try RemoteHTTPSession(connection: client.connection)
+        // No update or delete of anything (issue #28, R9): only publishing's
+        // four writes are on the list (`RemoteRequestAllowlist.writes`).
         for (method, path) in [("DELETE", "/assets"), ("PUT", "/assets/abc"), ("PATCH", "/albums/abc"),
-                               ("POST", "/assets"), ("GET", "/server/about"), ("GET", "/assets/abc/original/../x"),
-                               ("POST", "/albums")] {
+                               ("PUT", "/assets"), ("GET", "/server/about"), ("GET", "/assets/abc/original/../x"),
+                               ("DELETE", "/albums/abc"), ("PATCH", "/albums/abc"), ("DELETE", "/albums/abc/assets"),
+                               ("PUT", "/stacks/abc"), ("DELETE", "/stacks/abc"), ("DELETE", "/stacks"),
+                               ("POST", "/albums/abc/assets"), ("PUT", "/albums"), ("POST", "/assets/abc"),
+                               ("POST", "/trash/restore"), ("PUT", "/albums/abc/users")] {
             await #expect(throws: RemoteError.notAllowed(method: method, path: path)) {
                 _ = try await http.send(method: method, path: path)
             }
@@ -230,6 +237,8 @@ struct RemoteCheckTests {
             #expect(request.sentKey == (path != "/server/version"))
         }
         #expect(requests.count == 7)
+        let writes = RemoteRequestAllowlist.writes.map { "\($0.method) \($0.pattern)" }
+        #expect(writes == ["POST ^/assets$", "POST ^/albums$", "PUT ^/albums/[0-9A-Za-z-]{1,64}/assets$", "POST ^/stacks$"])
     }
 
     @Test("A redirect is not followed, so another host never gets the key (AC5, R7)")
@@ -295,5 +304,139 @@ struct RemoteCheckTests {
         let other = try await catalog.saveRemoteService(RemoteServiceRecord(name: "Other", address: "https://other.example.com"))
         #expect(try await catalog.removeRemoteService(other, keys: store) == nil)
         #expect(try await catalog.remoteServices().isEmpty)
+    }
+
+    @Test("Save never recreates a server removed in the other window: no row, no key, typed or earlier (publishing design D-16)")
+    func saveNeverRecreatesRemoved() async throws {
+        let catalog = try Catalog.makeInMemory()
+        let store = InMemoryKeyStore()
+        let home = RemoteServiceRecord(name: "Home", address: "https://photos.example.com")
+        guard case .saved(let saved) = await catalog.saveRemoteService(home, key: "k", keys: store) else {
+            Issue.record("not saved")
+            return
+        }
+        let id = try #require(saved.id)
+        // The Server sheet holds `saved`; the import window removes it.
+        #expect(try await catalog.removeRemoteService(saved, keys: store) == nil)
+
+        // Save with a typed key, after a passing check: nothing written, the typed key gone.
+        var edited = saved
+        edited.address = "https://new.example.com"
+        guard case .removed = await catalog.saveRemoteService(edited, key: "typed", keys: store) else {
+            Issue.record("recreated")
+            return
+        }
+        #expect(try await catalog.remoteServices().isEmpty)
+        #expect(try store.key(account: saved.uuid) == nil)
+        // Save with no typed key, and Trust Certificate's save (the earlier key is read, not written).
+        var pinned = saved
+        pinned.certificateFingerprint = String(repeating: "c", count: 64)
+        guard case .removed = await catalog.saveRemoteService(pinned, key: nil, keys: store) else {
+            Issue.record("recreated")
+            return
+        }
+        #expect(try await catalog.remoteServices().isEmpty)
+        // The plain write and a name-only Save don't insert it either.
+        await #expect(throws: RecordError.self) { _ = try await catalog.saveRemoteService(edited) }
+        #expect(try await catalog.renameRemoteService(id: id, to: "Cellar") == nil)
+        #expect(try await catalog.remoteServices().isEmpty)
+        #expect(try store.key(account: saved.uuid) == nil)
+        // Add is unaffected.
+        guard case .saved(let added) = await catalog.saveRemoteService(RemoteServiceRecord(name: "Home", address: home.address),
+                                                                       key: "k2", keys: store) else {
+            Issue.record("not added")
+            return
+        }
+        #expect(try await catalog.remoteServices().map(\.id) == [added.id])
+        #expect(try store.key(account: added.uuid) == "k2")
+    }
+
+    @Test("A removal landing while Save writes its key leaves neither the row nor the key, in either order (publishing design D-16)")
+    func saveAndRemoveInterleaved() async throws {
+        let catalog = try Catalog.makeInMemory()
+        let database = catalog.database
+        // Removed after Save's existence check, as its key is written: the row's update finds nothing.
+        let first = try await catalog.saveRemoteService(RemoteServiceRecord(name: "Home", address: "https://a.example"))
+        let firstID = try #require(first.id)
+        let removing = HookedKeyStore()
+        removing.onSet = { try? database.write { _ = try RemoteServiceRecord.deleteOne($0, key: firstID) } }
+        guard case .removed = await catalog.saveRemoteService(first, key: "typed", keys: removing) else {
+            Issue.record("recreated")
+            return
+        }
+        #expect(try await catalog.remoteServices().isEmpty)
+        #expect(try removing.key(account: first.uuid) == nil)
+
+        // Save's key and row written between Remove's key and Remove's row: Remove deletes the key once more.
+        let second = try await catalog.saveRemoteService(RemoteServiceRecord(name: "Away", address: "https://b.example"))
+        let secondID = try #require(second.id)
+        let saving = HookedKeyStore()
+        saving.onFirstDelete = {
+            try? saving.inner.setKey("typed", account: second.uuid)
+            try? database.write { db in
+                try db.execute(sql: "UPDATE remoteService SET address = ? WHERE id = ?",
+                               arguments: ["https://c.example", secondID])
+            }
+        }
+        #expect(try await catalog.removeRemoteService(second, keys: saving) == nil)
+        #expect(try await catalog.remoteServices().isEmpty)
+        #expect(try saving.key(account: second.uuid) == nil)
+    }
+
+    @Test("A name-only Save changes only the name of the server as saved now (publishing design D-16)")
+    func renameKeepsWhatAnotherWindowSaved() async throws {
+        let catalog = try Catalog.makeInMemory()
+        // The Server sheet opened on this record.
+        // Whole seconds, so a date read back compares equal.
+        let opened = try await catalog.saveRemoteService(RemoteServiceRecord(name: "Home", address: "http://10.0.0.2:2283",
+                                                                             allowsUnencrypted: true,
+                                                                             createdAt: Date(timeIntervalSince1970: 1_700_000_000)))
+        let id = try #require(opened.id)
+        // The import window then moved it and trusted a certificate.
+        var moved = opened
+        moved.address = "https://photos.example.com"
+        moved.allowsUnencrypted = false
+        moved.certificateFingerprint = String(repeating: "d", count: 64)
+        moved.certificateTrustedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        moved = try await catalog.saveRemoteService(moved)
+        // Save with only the name changed.
+        let renamed = try #require(try await catalog.renameRemoteService(id: id, to: "Cellar"))
+        var expected = moved
+        expected.name = "Cellar"
+        #expect(renamed == expected)
+        #expect(try await catalog.remoteServices() == [expected])
+    }
+}
+
+/// A key store that runs a step when a key is written or first deleted, to
+/// put another window's change between two of a save's or removal's steps.
+private final class HookedKeyStore: RemoteKeyStore {
+    let inner = InMemoryKeyStore()
+    private let hooks = Mutex<(set: (@Sendable () -> Void)?, firstDelete: (@Sendable () -> Void)?)>((nil, nil))
+
+    var onSet: (@Sendable () -> Void)? {
+        get { hooks.withLock { $0.set } }
+        set { hooks.withLock { $0.set = newValue } }
+    }
+
+    var onFirstDelete: (@Sendable () -> Void)? {
+        get { hooks.withLock { $0.firstDelete } }
+        set { hooks.withLock { $0.firstDelete = newValue } }
+    }
+
+    func key(account: String) throws(RemoteKeyStoreError) -> String? { try inner.key(account: account) }
+
+    func setKey(_ key: String, account: String) throws(RemoteKeyStoreError) {
+        try inner.setKey(key, account: account)
+        onSet?()
+    }
+
+    func deleteKey(account: String) throws(RemoteKeyStoreError) {
+        try inner.deleteKey(account: account)
+        let hook = hooks.withLock { hooks in
+            defer { hooks.firstDelete = nil }
+            return hooks.firstDelete
+        }
+        hook?()
     }
 }

@@ -35,6 +35,21 @@ public final class FakeImmichServer: Sendable {
         /// Listed as a favorite, with these tags (the app maps neither, R17).
         public var isFavorite = false
         public var tags: [String] = []
+        /// The path the server reads the file from (publishing R12): an
+        /// external library's real path, or the upload's place.
+        public var originalPath: String?
+        /// The stack it is in (publishing R14).
+        public var stackID: String?
+        /// An upload of the account (not an external library's file): the
+        /// only kind an upload of the same bytes is answered as a duplicate
+        /// of (status.md, item 9).
+        public var isUpload: Bool
+        /// False for another account that shares nothing with the key's: its
+        /// assets are neither searched nor read. True (the default) for the
+        /// key's own and a partner's (status.md, item 6).
+        public var visibleToAccount = true
+        /// What the upload that made it sent, besides the file.
+        public var uploadFields: [String: String] = [:]
 
         public init(id: String = UUID().uuidString.lowercased(), fileName: String, data: Data, type: String = "IMAGE",
                     visibility: String = "timeline", isTrashed: Bool = false, isEdited: Bool = false,
@@ -57,7 +72,11 @@ public final class FakeImmichServer: Sendable {
             self.reportsSize = reportsSize
             self.libraryID = libraryID
             self.checksumOverride = checksumOverride
+            self.isUpload = libraryID == nil
         }
+
+        /// The bytes' size, as `exifInfo.fileSizeInByte` gives it.
+        public var byteCount: Int { data.count }
 
         public var checksum: String { checksumOverride ?? Data(Insecure.SHA1.hash(data: data)).base64EncodedString() }
 
@@ -73,11 +92,17 @@ public final class FakeImmichServer: Sendable {
         public var name: String
         /// What the server says it holds (videos included).
         public var assetCount: Int
+        public var createdAt: Date
+        /// Another account's album shared with the key's (never "owned").
+        public var isOwned: Bool
 
-        public init(id: String = UUID().uuidString.lowercased(), name: String, assetCount: Int) {
+        public init(id: String = UUID().uuidString.lowercased(), name: String, assetCount: Int,
+                    createdAt: Date = Date(timeIntervalSince1970: 1_700_000_000), isOwned: Bool = true) {
             self.id = id
             self.name = name
             self.assetCount = assetCount
+            self.createdAt = createdAt
+            self.isOwned = isOwned
         }
     }
 
@@ -89,6 +114,9 @@ public final class FakeImmichServer: Sendable {
         public var body: Data
         /// The request's `Accept-Encoding`, if it sent one.
         public var acceptEncoding: String?
+        /// The request's `Host`: which of the server's addresses (127.0.0.1 or
+        /// localhost) the client connected to (publishing design D-18, D-19).
+        public var host: String?
 
         public var description: String { "\(method) \(path)" + (query.isEmpty ? "" : "?\(query)") }
     }
@@ -112,6 +140,9 @@ public final class FakeImmichServer: Sendable {
         case unavailable(String, times: Int)
         /// Originals are sent in pieces, with this pause between them.
         case slow(Duration)
+        /// `/server/version`, the first request of a check, is answered in
+        /// two pieces with this pause between them (a check caught running).
+        case slowCheck(Duration)
         /// The answer at `path` (without `/api`) is `bytes` long, whatever it
         /// should be.
         case huge(path: String, bytes: Int)
@@ -125,6 +156,32 @@ public final class FakeImmichServer: Sendable {
         /// that read it would get the answer; any other coding labels the body
         /// as it is.
         case contentEncoding(String)
+        /// Publishing: `POST /stacks` is refused, as for a locked primary
+        /// (400 "Not found or no asset.update access").
+        case refuseStack
+        /// The request at `method` `path` (without `/api`; a prefix ending
+        /// in `/` matches below it) is carried out, then its connection is
+        /// closed without an answer, this many times.
+        case loseAnswer(method: String, path: String, times: Int)
+        /// The request is answered `status` without being carried out, this
+        /// many times (429, 503 for a temporary condition).
+        case answer(method: String, path: String, status: Int, times: Int)
+        /// Uploads are carried out and their answers held until
+        /// `releaseHeldAnswers()` (R17, AC23).
+        case holdUploadAnswer
+        /// An upload's body is not read past its head: the client can't send
+        /// it all (R17: not fully sent).
+        case stallUploadBody
+    }
+
+    /// What one upload sent (publishing R4, R24): its fields and the file.
+    public struct Upload: Sendable {
+        public var fields: [String: String]
+        public var partFileName: String?
+        public var partContentType: String?
+        public var data: Data
+        public var assetID: String
+        public var duplicate: Bool
     }
 
     public static let ownerID = "11111111-1111-4111-8111-111111111111"
@@ -142,6 +199,14 @@ public final class FakeImmichServer: Sendable {
         var onOriginal: (@Sendable (String) -> Void)?
         var onRequest: (@Sendable (String) -> Void)?
         var onAnswered: (@Sendable (String) -> Void)?
+        var lostLeft: [String: Int] = [:]
+        var answerLeft: [String: Int] = [:]
+        /// Held upload answers, with the uploaded file's name.
+        var held: [(fileName: String, send: @Sendable () -> Void)] = []
+        var uploads: [Upload] = []
+        /// Stack id to its primary.
+        var stacks: [String: String] = [:]
+        var onUploadReceived: (@Sendable (String) -> Void)?
     }
 
     private let state = Mutex(State())
@@ -195,12 +260,102 @@ public final class FakeImmichServer: Sendable {
     public func setVersion(_ major: Int, _ minor: Int, _ patch: Int) { state.withLock { $0.version = (major, minor, patch) } }
     public func setPermissions(_ permissions: [String]) { state.withLock { $0.permissions = permissions } }
     public func setKey(_ key: String) { state.withLock { $0.key = key } }
-    public func clearFaults() { state.withLock { $0.faults = []; $0.unavailableLeft = [:] } }
+    public func clearFaults() {
+        state.withLock {
+            $0.faults = []
+            $0.unavailableLeft = [:]
+            $0.lostLeft = [:]
+            $0.answerLeft = [:]
+        }
+    }
 
     public func add(_ fault: Fault) {
         state.withLock { state in
             state.faults.append(fault)
-            if case .unavailable(let id, let times) = fault { state.unavailableLeft[id] = times }
+            switch fault {
+            case .unavailable(let id, let times): state.unavailableLeft[id] = times
+            case .loseAnswer(let method, let path, let times): state.lostLeft[method + " " + path] = times
+            case .answer(let method, let path, _, let times): state.answerLeft[method + " " + path] = times
+            default: break
+            }
+        }
+    }
+
+    public func remove(_ fault: Fault) { state.withLock { $0.faults.removeAll { $0 == fault } } }
+
+    /// Ends any `slowCheck`.
+    public func removeSlowCheck() {
+        state.withLock { state in state.faults.removeAll { if case .slowCheck = $0 { true } else { false } } }
+    }
+
+    /// Sends the upload answers `holdUploadAnswer` held (to connections the
+    /// client may have closed).
+    public func releaseHeldAnswers() {
+        let held = state.withLock { state -> [@Sendable () -> Void] in
+            defer { state.held = [] }
+            return state.held.map(\.send)
+        }
+        for send in held { send() }
+    }
+
+    /// Sends the held answer to the upload of the file named `fileName` (its
+    /// `filename` field), so a test decides the order uploads finish in.
+    /// False when none is held.
+    @discardableResult
+    public func releaseHeldAnswer(fileName: String) -> Bool {
+        let send = state.withLock { state -> (@Sendable () -> Void)? in
+            guard let index = state.held.firstIndex(where: { $0.fileName == fileName }) else { return nil }
+            return state.held.remove(at: index).send
+        }
+        send?()
+        return send != nil
+    }
+
+    /// Answers held now.
+    public var heldAnswerCount: Int { state.withLock { $0.held.count } }
+
+    /// The file names of the uploads whose answers are held, in arrival order.
+    public var heldFileNames: [String] { state.withLock { $0.held.map(\.fileName) } }
+
+    /// Every upload the server carried out, in order.
+    public var uploads: [Upload] { state.withLock { $0.uploads } }
+
+    /// Called (on the server's queue) once an upload's whole body arrived,
+    /// with the new or existing asset's id.
+    public func onUploadReceived(_ handler: (@Sendable (String) -> Void)?) { state.withLock { $0.onUploadReceived = handler } }
+
+    /// The asset with `id`, as the server holds it.
+    public func asset(_ id: String) -> Asset? { state.withLock { $0.assets.first { $0.id == id } } }
+
+    /// Changes an asset in place (a test trashing, hiding or locking it).
+    public func update(_ id: String, _ change: (inout Asset) -> Void) {
+        state.withLock { state in
+            guard let index = state.assets.firstIndex(where: { $0.id == id }) else { return }
+            change(&state.assets[index])
+        }
+    }
+
+    /// The albums as the server holds them, with their members.
+    public var albums: [(album: Album, assetIDs: [String])] {
+        state.withLock { state in
+            state.albums.map { album in (album, state.assets.filter { $0.albumIDs.contains(album.id) }.map(\.id)) }
+        }
+    }
+
+    /// The listed (not trashed) members of `id`'s stack and its primary, or
+    /// nil when it is in none that lists two.
+    public func stack(of id: String) -> (id: String, primary: String, members: [String])? {
+        state.withLock { state in Self.stackRef(of: id, state: state).map { ($0.id, $0.primary, $0.members) } }
+    }
+
+    /// Makes a stack directly (test setup), the first id primary.
+    public func makeStack(_ ids: [String]) {
+        state.withLock { state in
+            let stackID = UUID().uuidString.lowercased()
+            state.stacks[stackID] = ids[0]
+            for index in state.assets.indices where ids.contains(state.assets[index].id) {
+                state.assets[index].stackID = stackID
+            }
         }
     }
 
@@ -254,6 +409,15 @@ public final class FakeImmichServer: Sendable {
             guard let self else { return connection.cancel() }
             var buffer = buffer
             if let data { buffer.append(data) }
+            if self.stallsUpload(buffer) {
+                // The head is in; the body is never read (the connection stays
+                // open until the client closes it).
+                self.state.withLock { state in
+                    state.requests.append(Request(method: "POST", path: "/api/assets", query: "", sentKey: true,
+                                                  body: Data(), acceptEncoding: nil))
+                }
+                return
+            }
             if let request = Self.parse(buffer) {
                 self.respond(to: request, on: connection)
             } else if complete || error != nil {
@@ -262,6 +426,12 @@ public final class FakeImmichServer: Sendable {
                 self.receive(on: connection, buffer: buffer)
             }
         }
+    }
+
+    private func stallsUpload(_ buffer: Data) -> Bool {
+        guard state.withLock({ $0.faults.contains(.stallUploadBody) }),
+              buffer.range(of: Data("\r\n\r\n".utf8)) != nil else { return false }
+        return buffer.starts(with: Data("POST /api/assets ".utf8))
     }
 
     private struct ParsedRequest {
@@ -311,12 +481,49 @@ public final class FakeImmichServer: Sendable {
         let snapshot = state.withLock { state -> State in
             state.requests.append(Request(method: request.method, path: request.path, query: request.query,
                                           sentKey: key != nil, body: request.body,
-                                          acceptEncoding: request.headers["accept-encoding"]))
+                                          acceptEncoding: request.headers["accept-encoding"], host: request.headers["host"]))
             return state
         }
         snapshot.onRequest?(request.path)
         if snapshot.faults.contains(.drop) { return connection.cancel() }
+        let route = request.method + " " + (request.path.hasPrefix("/api") ? String(request.path.dropFirst(4)) : request.path)
+        let canned: Int? = state.withLock { state in
+            guard let key = state.answerLeft.keys.first(where: { Self.route(route, matches: $0) }),
+                  let left = state.answerLeft[key], left > 0 else { return nil }
+            state.answerLeft[key] = left - 1
+            for case .answer(let method, let path, let status, _) in state.faults where method + " " + path == key {
+                return status
+            }
+            return nil
+        }
+        if let canned {
+            let answered = snapshot.onAnswered
+            let path = request.path
+            send(.json(["message": "Status \(canned)", "statusCode": canned], status: canned), on: connection) { answered?(path) }
+            return
+        }
         var response = answer(request, key: key, state: snapshot)
+        if route == "GET /server/version" {
+            for case .slowCheck(let pause) in snapshot.faults { response.pause = pause }
+        }
+        let lose = state.withLock { state -> Bool in
+            guard let key = state.lostLeft.keys.first(where: { Self.route(route, matches: $0) }),
+                  let left = state.lostLeft[key], left > 0 else { return false }
+            state.lostLeft[key] = left - 1
+            return true
+        }
+        if lose { return connection.cancel() }
+        if route == "POST /assets", snapshot.faults.contains(.holdUploadAnswer), (200..<300).contains(response.status) {
+            let answered = snapshot.onAnswered
+            let path = request.path
+            let held = response
+            let assetID = (try? JSONSerialization.jsonObject(with: response.body) as? [String: Any])?["id"] as? String
+            state.withLock { state in
+                let fileName = state.uploads.last { $0.assetID == assetID }?.fields["filename"] ?? ""
+                state.held.append((fileName, { [weak self] in self?.send(held, on: connection) { answered?(path) } }))
+            }
+            return
+        }
         response.chunked = snapshot.faults.contains(.chunked)
         for case .contentEncoding(let coding) in snapshot.faults {
             response.headers["Content-Encoding"] = coding
@@ -325,6 +532,12 @@ public final class FakeImmichServer: Sendable {
         let answered = snapshot.onAnswered
         let path = request.path
         send(response, on: connection) { answered?(path) }
+    }
+
+    /// `route` ("POST /albums") is `pattern`, or below it when the pattern's
+    /// path ends in "/".
+    static func route(_ route: String, matches pattern: String) -> Bool {
+        pattern.hasSuffix("/") ? route.hasPrefix(pattern) : route == pattern
     }
 
     private func answer(_ request: ParsedRequest, key: String?, state snapshot: State) -> Response {
@@ -358,16 +571,39 @@ public final class FakeImmichServer: Sendable {
         case ("GET", "/users/me"):
             return requires("user.read") ?? .json(["id": Self.ownerID, "name": "Owner", "email": "owner@example.invalid"])
         case ("GET", "/albums"):
-            return requires("album.read") ?? .json(snapshot.albums.map { album in
-                ["id": album.id, "albumName": album.name, "assetCount": album.assetCount,
-                 "albumUsers": [["user": ["id": Self.ownerID], "role": "editor"]]] as [String: Any]
-            })
+            if let missing = requires("album.read") { return missing }
+            let query = Self.query(request.query)
+            var albums = snapshot.albums
+            if query["isOwned"] == "true" { albums = albums.filter(\.isOwned) }
+            if let name = query["name"] { albums = albums.filter { $0.name == name } }
+            if let holding = query["assetId"] {
+                let asset = snapshot.assets.first { $0.id == holding }
+                albums = albums.filter { asset?.albumIDs.contains($0.id) == true }
+            }
+            return .json(albums.map { Self.albumJSON($0, state: snapshot) })
         case ("POST", "/search/metadata"):
             return requires("asset.read") ?? search(request.body, state: snapshot)
+        case ("POST", "/assets"):
+            return requires("asset.upload") ?? upload(request)
+        case ("POST", "/albums"):
+            return requires("album.create") ?? createAlbum(request.body)
+        case ("POST", "/stacks"):
+            if let missing = requires("stack.create") { return missing }
+            if snapshot.faults.contains(.refuseStack) {
+                return .json(["message": "Not found or no asset.update access", "statusCode": 400], status: 400)
+            }
+            return createStack(request.body)
         default:
             break
         }
         let parts = path.split(separator: "/")
+        if request.method == "PUT", parts.count == 3, parts[0] == "albums", parts[2] == "assets" {
+            return requires("albumAsset.create") ?? addToAlbum(String(parts[1]), request.body)
+        }
+        if request.method == "GET", parts.count == 2, parts[0] == "assets" {
+            if let missing = requires("asset.read") { return missing }
+            return readAsset(String(parts[1]))
+        }
         guard request.method == "GET", parts.count == 3, parts[0] == "assets" else {
             return .json(["message": "Not found"], status: 404)
         }
@@ -410,7 +646,13 @@ public final class FakeImmichServer: Sendable {
             return .json(["message": "Bad request"], status: 400)
         }
         let filter = object["filter"] as? [String: Any] ?? [:]
-        var matches = snapshot.assets
+        var matches = snapshot.assets.filter(\.visibleToAccount)
+        // `eq` and `in` compare bytes: case and Unicode form count (status.md, item 6).
+        if let condition = filter["originalPath"] as? [String: Any] {
+            let wanted = ((condition["in"] as? [String]) ?? []) + ((condition["eq"] as? String).map { [$0] } ?? [])
+            let forms = wanted.map { Array($0.utf8) }
+            matches = matches.filter { asset in asset.originalPath.map { forms.contains(Array($0.utf8)) } ?? false }
+        }
         if let type = (filter["type"] as? [String: Any])?["eq"] as? String { matches = matches.filter { $0.type == type } }
         if let visibility = (filter["visibility"] as? [String: Any])?["eq"] as? String {
             matches = matches.filter { $0.visibility == visibility }
@@ -452,12 +694,231 @@ public final class FakeImmichServer: Sendable {
                 "tags": asset.tags.map { ["id": UUID().uuidString.lowercased(), "name": $0, "value": $0] },
                 "visibility": asset.visibility, "livePhotoVideoId": asset.livePhotoVideoID ?? NSNull(),
                 "libraryId": asset.libraryID ?? NSNull(),
+                "originalPath": asset.originalPath ?? NSNull(),
+                "stack": Self.stackJSON(of: asset.id, state: snapshot),
                 "exifInfo": exif,
             ]
         }
         return .json(["albums": ["total": 0, "count": 0, "items": [], "facets": []],
                       "assets": ["total": items.count, "count": items.count, "items": items, "facets": [],
                                  "nextPage": NSNull(), "nextCursor": next]])
+    }
+
+    // MARK: Publishing (issue #28; docs/features/publishing-engine/status.md)
+
+    static func query(_ text: String) -> [String: String] {
+        var items: [String: String] = [:]
+        for pair in text.split(separator: "&") {
+            let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
+            guard let name = parts.first?.removingPercentEncoding else { continue }
+            items[name] = parts.count > 1 ? (parts[1].replacingOccurrences(of: "+", with: " ").removingPercentEncoding ?? parts[1]) : ""
+        }
+        return items
+    }
+
+    private static func albumJSON(_ album: Album, state: State) -> [String: Any] {
+        let style = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+        let members = state.assets.filter { $0.albumIDs.contains(album.id) }.count
+        return ["id": album.id, "albumName": album.name, "assetCount": max(album.assetCount, members),
+                "createdAt": style.format(album.createdAt), "ownerId": Self.ownerID,
+                "albumUsers": [["user": ["id": Self.ownerID], "role": "editor"]]]
+    }
+
+    /// The listed members of an asset's stack: not trashed; nil when fewer
+    /// than two are listed (status.md, items 5 and 10).
+    private static func stackRef(of id: String, state: State) -> (id: String, primary: String, members: [String])? {
+        guard let asset = state.assets.first(where: { $0.id == id }), let stackID = asset.stackID,
+              let primary = state.stacks[stackID] else { return nil }
+        let members = state.assets.filter { $0.stackID == stackID && !$0.isTrashed }.map(\.id)
+        guard members.count >= 2 else { return nil }
+        return (stackID, primary, members)
+    }
+
+    private static func stackJSON(of id: String, state: State) -> Any {
+        guard let stack = stackRef(of: id, state: state) else { return NSNull() }
+        return ["id": stack.id, "primaryAssetId": stack.primary, "assetCount": stack.members.count]
+    }
+
+    /// `GET /assets/{id}`: the key's own, a partner's or a shared asset;
+    /// missing, unshared and locked alike are 400 (status.md, item 6).
+    private func readAsset(_ id: String) -> Response {
+        state.withLock { state in
+            guard let asset = state.assets.first(where: { $0.id == id }), asset.visibleToAccount,
+                  asset.visibility != "locked" else {
+                return .json(["message": "Not found or no asset.read access", "statusCode": 400], status: 400)
+            }
+            return .json(Self.assetJSON(asset, state: state))
+        }
+    }
+
+    private static func assetJSON(_ asset: Asset, state: State) -> [String: Any] {
+        let style = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+        var exif: [String: Any] = ["make": "Synthetic", "model": "Generator"]
+        if asset.reportsSize { exif["fileSizeInByte"] = asset.data.count }
+        return [
+            "id": asset.id, "type": asset.type, "originalFileName": asset.fileName, "checksum": asset.checksum,
+            "fileCreatedAt": style.format(asset.takenAt), "fileModifiedAt": style.format(asset.takenAt),
+            "localDateTime": style.format(asset.takenAt), "ownerId": asset.ownerID, "isTrashed": asset.isTrashed,
+            "visibility": asset.visibility, "libraryId": asset.libraryID ?? NSNull(),
+            "originalPath": asset.originalPath ?? NSNull(), "stack": stackJSON(of: asset.id, state: state),
+            "exifInfo": exif,
+        ]
+    }
+
+    /// `POST /assets`: multipart; a file the account already uploaded (any
+    /// visibility, the trash included) is answered 200 `duplicate` with the
+    /// existing id, else 201 `created` (status.md, item 9).
+    private func upload(_ request: ParsedRequest) -> Response {
+        guard let type = request.headers["content-type"], let range = type.range(of: "boundary=") else {
+            return .json(["message": "Bad request"], status: 400)
+        }
+        let boundary = String(type[range.upperBound...])
+        let parts = Self.multipart(request.body, boundary: boundary)
+        guard let file = parts.first(where: { $0.name == "assetData" }), let created = parts.first(where: { $0.name == "fileCreatedAt" }),
+              parts.contains(where: { $0.name == "fileModifiedAt" }) else {
+            return .json(["message": ["assetData, fileCreatedAt and fileModifiedAt are required"]], status: 400)
+        }
+        var fields: [String: String] = [:]
+        for part in parts where part.name != "assetData" { fields[part.name] = String(decoding: part.data, as: UTF8.self) }
+        let checksum = Data(Insecure.SHA1.hash(data: file.data)).base64EncodedString()
+        let style = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+        let taken = (try? style.parse(String(decoding: created.data, as: UTF8.self)))
+            ?? (try? Date.ISO8601FormatStyle().parse(String(decoding: created.data, as: UTF8.self))) ?? Date()
+        let (id, duplicate) = state.withLock { state -> (String, Bool) in
+            if let existing = state.assets.first(where: { $0.isUpload && $0.ownerID == Self.ownerID && $0.checksum == checksum }) {
+                state.uploads.append(Upload(fields: fields, partFileName: file.fileName, partContentType: file.contentType,
+                                            data: file.data, assetID: existing.id, duplicate: true))
+                return (existing.id, true)
+            }
+            let name = fields["filename"] ?? file.fileName ?? "file"
+            var asset = Asset(fileName: name, data: file.data, visibility: fields["visibility"] ?? "timeline", takenAt: taken)
+            asset.originalPath = "/data/upload/\(Self.ownerID)/\(asset.id)/\(name)"
+            asset.uploadFields = fields
+            asset.isUpload = true
+            state.assets.append(asset)
+            state.uploads.append(Upload(fields: fields, partFileName: file.fileName, partContentType: file.contentType,
+                                        data: file.data, assetID: asset.id, duplicate: false))
+            return (asset.id, false)
+        }
+        state.withLock { $0.onUploadReceived }?(id)
+        return .json(["id": id, "status": duplicate ? "duplicate" : "created"], status: duplicate ? 200 : 201)
+    }
+
+    struct Part {
+        var name: String
+        var fileName: String?
+        var contentType: String?
+        var data: Data
+    }
+
+    static func multipart(_ body: Data, boundary: String) -> [Part] {
+        let delimiter = Data("--\(boundary)".utf8)
+        var parts: [Part] = []
+        var cursor = body.startIndex
+        while let start = body.range(of: delimiter, in: cursor..<body.endIndex) {
+            let afterDelimiter = start.upperBound
+            if body[afterDelimiter...].starts(with: Data("--".utf8)) { break }
+            guard let headEnd = body.range(of: Data("\r\n\r\n".utf8), in: afterDelimiter..<body.endIndex) else { break }
+            let head = String(decoding: body[afterDelimiter..<headEnd.lowerBound], as: UTF8.self)
+            guard let next = body.range(of: Data("\r\n".utf8) + delimiter, in: headEnd.upperBound..<body.endIndex) else { break }
+            var part = Part(name: "", data: Data(body[headEnd.upperBound..<next.lowerBound]))
+            for line in head.components(separatedBy: "\r\n") {
+                let lower = line.lowercased()
+                if lower.hasPrefix("content-disposition:") {
+                    part.name = Self.parameter("name", in: line) ?? ""
+                    part.fileName = Self.parameter("filename", in: line)
+                } else if lower.hasPrefix("content-type:") {
+                    part.contentType = line.dropFirst("content-type:".count).trimmingCharacters(in: .whitespaces)
+                }
+            }
+            parts.append(part)
+            cursor = next.lowerBound + 2
+        }
+        return parts
+    }
+
+    private static func parameter(_ name: String, in line: String) -> String? {
+        guard let range = line.range(of: " \(name)=\"") ?? line.range(of: ";\(name)=\"") else { return nil }
+        let rest = line[range.upperBound...]
+        guard let end = rest.firstIndex(of: "\"") else { return nil }
+        return String(rest[..<end])
+    }
+
+    /// `POST /albums`: the assets it names that the account may add are
+    /// added; the others are dropped silently (status.md, table).
+    private func createAlbum(_ body: Data) -> Response {
+        guard let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let name = object["albumName"] as? String else { return .json(["message": "Bad request"], status: 400) }
+        let ids = object["assetIds"] as? [String] ?? []
+        return state.withLock { state in
+            // A later album is newer, whatever the clock.
+            let newest = state.albums.map(\.createdAt).max() ?? Date(timeIntervalSince1970: 1_700_000_000)
+            let album = Album(name: name, assetCount: 0, createdAt: max(Date(), newest.addingTimeInterval(1)))
+            state.albums.append(album)
+            for index in state.assets.indices where ids.contains(state.assets[index].id)
+                && state.assets[index].ownerID == Self.ownerID && state.assets[index].visibility != "locked" {
+                state.assets[index].albumIDs.append(album.id)
+            }
+            return .json(Self.albumJSON(album, state: state), status: 201)
+        }
+    }
+
+    /// `PUT /albums/{id}/assets`: per id, added, or `duplicate` when it is
+    /// already there; a trashed asset is added too (status.md, item 9).
+    private func addToAlbum(_ albumID: String, _ body: Data) -> Response {
+        guard let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let ids = object["ids"] as? [String] else { return .json(["message": "Bad request"], status: 400) }
+        return state.withLock { state in
+            guard state.albums.contains(where: { $0.id == albumID && $0.isOwned }) else {
+                return .json(["message": "Not found or no album.update access", "statusCode": 400], status: 400)
+            }
+            let results = ids.map { id -> [String: Any] in
+                guard let index = state.assets.firstIndex(where: { $0.id == id && $0.visibleToAccount }) else {
+                    return ["id": id, "success": false, "error": "no_permission"]
+                }
+                if state.assets[index].albumIDs.contains(albumID) { return ["id": id, "success": false, "error": "duplicate"] }
+                state.assets[index].albumIDs.append(albumID)
+                return ["id": id, "success": true]
+            }
+            return .json(results)
+        }
+    }
+
+    /// `POST /stacks` as Immich 3.2.0 and 3.4.2 do it (status.md, items 5,
+    /// 9, 10; 2026-11-26): every id the account's own and not locked; the
+    /// stacks whose primary is named are merged, their members in the trash
+    /// left out (and unstacked); a named non-primary member leaves its old
+    /// stack alone; the first id is the new primary; named assets in the
+    /// trash keep the new stack's id but are not listed.
+    private func createStack(_ body: Data) -> Response {
+        guard let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let ids = object["assetIds"] as? [String], ids.count >= 2 else {
+            return .json(["message": ["assetIds must contain at least 2 elements"]], status: 400)
+        }
+        return state.withLock { state in
+            for id in ids {
+                guard let asset = state.assets.first(where: { $0.id == id }), asset.ownerID == Self.ownerID,
+                      asset.visibility != "locked" else {
+                    return .json(["message": "Not found or no asset.update access", "statusCode": 400], status: 400)
+                }
+            }
+            let merged = Set(state.stacks.filter { ids.contains($0.value) }.keys)
+            let gathered = state.assets.filter { $0.stackID.map(merged.contains) == true && !$0.isTrashed }.map(\.id)
+            var members = ids
+            for id in gathered where !members.contains(id) { members.append(id) }
+            let stackID = UUID().uuidString.lowercased()
+            for index in state.assets.indices {
+                if members.contains(state.assets[index].id) {
+                    state.assets[index].stackID = stackID
+                } else if let old = state.assets[index].stackID, merged.contains(old) {
+                    state.assets[index].stackID = nil
+                }
+            }
+            for old in merged { state.stacks[old] = nil }
+            state.stacks[stackID] = ids[0]
+            let listed = state.assets.filter { $0.stackID == stackID && !$0.isTrashed }.map { ["id": $0.id] }
+            return .json(["id": stackID, "primaryAssetId": ids[0], "assets": listed], status: 201)
+        }
     }
 
     /// `data` in the zlib format (RFC 1950): a header, raw deflate, and the

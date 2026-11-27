@@ -91,7 +91,7 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Connects to the server you add, on your local network, to import photos from it.</string>
+	<string>Connects to the server you add, on your local network, to import photos from it and publish photos to it.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSSupportsAutomaticTermination</key>

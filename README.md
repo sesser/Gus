@@ -60,14 +60,14 @@ I built this with Claude. AI did the work, I did the orchestration.
   browse its photos in the same import window by album or capture date, pick
   some and Gus copies the original files to your folder, checks each one
   against the server's checksum and adds it to the library as an ordinary
-  photo. Photos you already imported are marked and left unchecked. Importing
-  the same album or All Photos again goes into the project of that name
-  instead of making a second one (card and folder imports still make a new
-  project each time). Gus only reads from the server: nothing on it is ever
-  changed, and Immich's own edits, favorites, tags and albums aren't brought
-  over (a description and a star rating are, when yours are empty). Photos
-  only: no videos, and a Live Photo comes as its still. The library app only,
-  not the standalone importer
+  photo. Photos you already imported from that server, or published to it, are
+  marked and left unchecked. Importing the same album or All Photos again goes
+  into the project of that name instead of making a second one (card and
+  folder imports still make a new project each time). Importing only reads
+  from the server and changes nothing on it, and Immich's own edits,
+  favorites, tags and albums aren't brought over (a description and a star
+  rating are, when yours are empty). Photos only: no videos, and a Live Photo
+  comes as its still. The library app only, not the standalone importer
 
 **Editing**
 
@@ -175,6 +175,15 @@ I built this with Claude. AI did the work, I did the orchestration.
   metadata, an optional watermark and saved presets. Export never replaces an
   original that's in your library, even when you choose Replace: the new file
   gets a numbered name instead (`IMG_1-2.jpg`)
+- Publish to an Immich server (File ▸ Publish…, ⌥⌘E): selected photos go up
+  with their edits, as Export would write them (always standard range, no
+  videos), optionally into an album or the archive, each stacked on top of its
+  original there: the photo you imported from that server, or one in an Immich
+  external library found through a list of which of your folders is which
+  server path. Check Originals says beforehand which have one. Publishing a
+  photo again asks whether to skip it or add a new copy (which can add a
+  second copy of an unchanged photo, #302), and Retry Failed finishes what a
+  run left undone until you quit. It is one way, not a sync
 - ExifTool is used for metadata when it's installed, ImageIO otherwise
 
 **Command line**
@@ -196,15 +205,22 @@ app doesn't have open.
 
 Gus does its analysis (keyword suggestions, subject masks) on the Mac and has
 no telemetry. The one thing it contacts over a network is an Immich server you
-add yourself, and only that server: it sends the API key (kept in the macOS
-Keychain, nowhere else) and read requests, never anything else, and it never
-creates, changes or deletes anything on the server. A server must use
-`https://`; plain `http://` is allowed only on your local network and only
-after Gus tells you the key and photos cross the network unencrypted and you
-confirm. A certificate macOS doesn't trust is never accepted silently: you see
-its fingerprint and may trust that one certificate for that server, and Gus
-refuses it if it changes. There is no switch to turn certificate checking off.
-The About window and the standalone importer contact nothing.
+add yourself, and only that server. It sends the API key (kept in the macOS
+Keychain, nowhere else) and read requests, which include, when it looks for
+originals, the server paths your folder list gives. Only when you publish does
+it also send the rendered photos, create an album, add photos to one and stack
+them on their originals. It never sends a request that updates or deletes
+anything on the server, though creating a stack makes Immich replace the stack
+the original was in, and photos of that stack sitting in Immich's trash can
+drop out of it. A server must use `https://`; plain `http://` is allowed only
+on your local network and only after Gus tells you the key and photos cross
+the network unencrypted and you confirm. A certificate macOS doesn't trust is
+never accepted silently: you see its fingerprint and may trust that one
+certificate for that server, and Gus refuses it if it changes. There is no
+switch to turn certificate checking off. A copy of a library shares its saved
+server keys with the original, so changing a server's address or key in one can
+send the new key to the old address from the other (#303). The About window and
+the standalone importer contact nothing.
 
 ## Not there yet
 
@@ -215,9 +231,11 @@ export of your own photos (only an HDR merge can write a DNG), recovering a
 camera's tone curve for JPEG merges, sky and named-object masks, DCP camera profiles, hand-made and
 burst stacks, black and white for part of a photo (through a mask), mapping of Lightroom black and white settings on import,
 hierarchical keywords, importing straight from a camera over USB, a second
-backup destination on import, importing from servers other than Immich,
-sending edited photos back to Immich (publishing is planned, #28), importing
-videos or Immich's own edits, exporting a gain-map photo's HDR version
+backup destination on import, importing from or publishing to servers other
+than Immich, publishing to Apple Photos (#299), making Immich share links
+(#297), finding what you've published or changed since (#298), publishing
+videos or HDR, publishing from `photocli`, importing videos or Immich's own
+edits, exporting a gain-map photo's HDR version
 (#286), and a control for how strong its HDR is (#288). Metadata is never
 written into original files; it goes to XMP sidecars.
 
@@ -282,7 +300,7 @@ macOS raw decoder can't.
 
 | Path | Contents |
 |---|---|
-| `Sources/PhotoCore` | Catalog (GRDB), import, metadata, edits, masks and rendering, camera color (`CameraColor/`), presets, previews, sidecars, export, server connections for Immich import (`Remote/`) |
+| `Sources/PhotoCore` | Catalog (GRDB), import, metadata, edits, masks and rendering, camera color (`CameraColor/`), presets, previews, sidecars, export, server connections for Immich import and publishing (`Remote/`) |
 | `Sources/PhotoUI` | UI shared by both apps: the import window, the About window, grid pieces, palette, String Catalog |
 | `Sources/PhotoApp` | The library app: window and toolbar, grid, loupe, inspector, sidebar, sheets |
 | `Sources/PhotoImporter` | The standalone importer |

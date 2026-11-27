@@ -44,6 +44,16 @@ struct MainView: View {
         .sheet(isPresented: $model.showsMergeSheet, onDismiss: { model.modalDidClose() }) {
             MergeSheet(model: model)
         }
+        // Publishing (issue #28): the sheet, the Server sheet in its place, and the results.
+        .sheet(isPresented: $model.showsPublishSheet, onDismiss: { model.modalDidClose() }) {
+            PublishSheet(model: model)
+        }
+        .sheet(item: Bindable(model.publish).serverSheet, onDismiss: { model.modalDidClose() }) { sheet in
+            ServerSheet(sheet: sheet)
+        }
+        .sheet(isPresented: $model.showsPublishResults, onDismiss: { model.modalDidClose() }) {
+            PublishResultsSheet(model: model)
+        }
         .sheet(isPresented: $model.showsCopySheet, onDismiss: { model.modalDidClose() }) {
             CopyAdjustmentsSheet(model: model)
         }

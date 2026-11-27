@@ -11,6 +11,9 @@ struct ImportGridView: NSViewRepresentable {
     /// Read in the parent's body so a change updates the grid.
     let shots: [SourceShot]
     let selection: Set<URL>
+    /// The server's name, read in the parent's body: a rename taken in place
+    /// changes the marked cells' tooltips (design review F31).
+    let serverName: String?
 
     func makeCoordinator() -> ImportGridController {
         ImportGridController(model: model)
@@ -21,7 +24,7 @@ struct ImportGridView: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        context.coordinator.update(shots: shots, selection: selection)
+        context.coordinator.update(shots: shots, selection: selection, serverName: serverName)
     }
 }
 
@@ -33,6 +36,7 @@ final class ImportGridController: NSObject, NSCollectionViewDataSource, NSCollec
     let layout = UniformGridLayout()
     private(set) var shots: [SourceShot] = []
     private var selection: Set<URL> = []
+    private var serverName: String?
     /// The keyboard focus, by shot so it survives rescans.
     private(set) var focusID: URL?
 
@@ -77,7 +81,11 @@ final class ImportGridController: NSObject, NSCollectionViewDataSource, NSCollec
         }
     }
 
-    func update(shots: [SourceShot], selection: Set<URL>) {
+    func update(shots: [SourceShot], selection: Set<URL>, serverName: String?) {
+        // A rename taken in place (publishing design D-18): the cells on
+        // screen name the server in their tooltips (design review F31).
+        let renamed = serverName != self.serverName
+        self.serverName = serverName
         // A server's page appended: insert the new items, so nothing on
         // screen moves, reloads or fetches its thumbnail again (D10).
         if shots.count > self.shots.count, !self.shots.isEmpty,
@@ -90,16 +98,23 @@ final class ImportGridController: NSObject, NSCollectionViewDataSource, NSCollec
                 context.duration = 0
                 collectionView.insertItems(at: Set((start..<shots.count).map { IndexPath(item: $0, section: 0) }))
             }
-            if selectionChanged { refreshVisibleCells() }
+            if selectionChanged || renamed { refreshVisibleCells() }
             return
         }
-        if shots.map(\.id) != self.shots.map(\.id) || shots != self.shots {
+        if shots.map(\.id) != self.shots.map(\.id) {
             self.shots = shots
             self.selection = selection
             if let focusID, !shots.contains(where: { $0.id == focusID }) { self.focusID = nil }
             collectionView.reloadData()
             collectionView.noteFocusRingMaskChanged()
-        } else if selection != self.selection {
+        } else if shots != self.shots {
+            // The same photos with new marks (a publish record written while
+            // the window shows the server, publishing design §11): the cells
+            // update in place, with no reload.
+            self.shots = shots
+            self.selection = selection
+            refreshVisibleCells()
+        } else if selection != self.selection || renamed {
             self.selection = selection
             refreshVisibleCells()
         }
@@ -137,7 +152,10 @@ final class ImportGridController: NSObject, NSCollectionViewDataSource, NSCollec
     private func configure(_ cell: ImportCell, at index: Int) {
         let shot = shots[index]
         let server = model.browse.map { browse in
-            ServerMarks(isEdited: model.remoteAsset(for: shot.id)?.isEdited == true, serverName: browse.service.name)
+            ServerMarks(isEdited: model.remoteAsset(for: shot.id)?.isEdited == true, serverName: browse.service.name,
+                        isPublished: model.remoteAsset(for: shot.id).map {
+                            browse.published.contains($0.id) && !browse.linked.contains($0.id)
+                        } ?? false)
         }
         cell.configure(with: shot, included: selection.contains(shot.id), colorSpace: colorSpace, pixelSize: pixelSize,
                        server: server) { [weak model] url, size, space in

@@ -24,7 +24,8 @@ enum ImportGridProbe {
             guard let view = grid.item(at: path)?.view as? ImportCellView else { continue }
             let value = view.accessibilityValue().map { "\($0)" } ?? "-"
             print("debug-script:   \(path.item) \(view.accessibilityRole()?.rawValue ?? "-") "
-                  + "'\(view.accessibilityLabel() ?? "-")' value \(value) [\(view.debugFlags)]")
+                  + "'\(view.accessibilityLabel() ?? "-")' value \(value) [\(view.debugFlags)] "
+                  + "tip '\((view.toolTip ?? "").replacingOccurrences(of: "\n", with: " / "))'")
         }
     }
 

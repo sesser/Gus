@@ -17,7 +17,12 @@ public struct ServerAlert: Equatable, Identifiable {
 @MainActor
 @Observable
 public final class ServerBrowse {
-    public let service: RemoteServiceRecord
+    /// The server as the window last read it: its address and trusted
+    /// certificate are the ones every check contacts (publishing design D-18);
+    /// a rename saved elsewhere is taken in place.
+    public var service: RemoteServiceRecord { record.service }
+    /// `service` with the count of renames taken in place (design review F30).
+    var record: RemoteSourceRecord
     @ObservationIgnored public private(set) var client: (any RemotePhotoSource)?
     public internal(set) var isConnecting = true
     /// Why the server can't be browsed now (any of the check's results).
@@ -31,6 +36,9 @@ public final class ServerBrowse {
     public internal(set) var assets: [RemoteAsset] = []
     @ObservationIgnored var assetsByURL: [URL: RemoteAsset] = [:]
     public internal(set) var linked: Set<String> = []
+    /// Published to this server from this library (publishing R20): marked
+    /// In Library like a linked photo.
+    public internal(set) var published: Set<String> = []
     public internal(set) var nextCursor: String?
     public internal(set) var isLoadingPage = false
     public internal(set) var loadedFirstPage = false
@@ -45,7 +53,7 @@ public final class ServerBrowse {
     @ObservationIgnored let thumbnails = RemoteThumbnails()
 
     init(service: RemoteServiceRecord) {
-        self.service = service
+        self.record = RemoteSourceRecord(service)
     }
 
     public var address: ServerAddress? { service.serverAddress }
@@ -70,12 +78,17 @@ public final class ServerBrowse {
         pageTask?.cancel()
     }
 
+    /// Imported from this server or published to it from this library (R20).
+    public func isInLibrary(_ id: String) -> Bool {
+        linked.contains(id) || published.contains(id)
+    }
+
     func setClient(_ client: (any RemotePhotoSource)?) {
         self.client = client
     }
 }
 
-extension CardImportModel {
+extension CardImportModel: ServerSheetHost {
     private static let serverLog = Logger(subsystem: AppBranding.bundleIdentifier, category: "server-import")
 
     // MARK: Connections
@@ -125,20 +138,41 @@ extension CardImportModel {
 
     /// The check, then the albums and the first page (Try Again and Rescan
     /// run it too). `keepingSelection`: Rescan keeps photos still listed.
-    public func connectServer(keepingSelection: Bool = false) {
+    /// The key is read with the server's row as saved now, and only a row
+    /// with the window's address and trusted certificate is contacted
+    /// (publishing design D-18, security review N7). Otherwise nothing is
+    /// sent and the window follows the server as saved, or, while an import
+    /// runs, leaves everything as it was until the reconnect after it.
+    /// `keepingSubtitle`: that reconnect keeps the import's ending subtitle.
+    public func connectServer(keepingSelection: Bool = false, keepingSubtitle: Bool = false) {
         guard let browse, let library else { return }
         browse.cancel()
         let kept = keepingSelection ? selection : []
+        let before = (failure: browse.failure, albumGone: browse.albumGone)
         browse.isConnecting = true
         browse.failure = nil
         browse.albumGone = false
         let service = browse.service
+        let began = browse.record.revision
         let keys = library.remoteKeyStore
+        let catalog = library.catalog
         browse.connectTask = Task {
-            let outcome = await Self.check(service, keys: keys)
+            let outcome = await RemoteImportConnection.connect(service, catalog: catalog, keys: keys)
             guard !Task.isCancelled, self.browse === browse else { return }
             browse.isConnecting = false
             switch outcome {
+            case .changed(let change):
+                if isImporting {
+                    // The run keeps the connection it was started with; the grid,
+                    // its state and the selection stay as they were (D-18).
+                    browse.failure = before.failure
+                    browse.albumGone = before.albumGone
+                    return
+                }
+                switch change {
+                case .connectionChanged(let now): follow(.chooseAgain(now), keepingSubtitle: keepingSubtitle)
+                case .removed, .unchanged: follow(.leave, keepingSubtitle: keepingSubtitle)
+                }
             case .failed(let result):
                 // No grid will appear: a later one must not take the keyboard (N-4).
                 focusesGridWhenShown = false
@@ -146,7 +180,10 @@ extension CardImportModel {
                 browse.setClient(nil)
                 shots = []
                 selection = []
-            case .ready(let client, let info):
+            case .ready(let client, let info, let saved):
+                // The row was read as the check began: a rename taken since
+                // is newer and stays (design review F30).
+                follow(browse.record.afterCheck(began: began, saved: saved, importing: isImporting))
                 browse.setClient(client)
                 browse.info = info
                 loadAlbums()
@@ -155,35 +192,36 @@ extension CardImportModel {
         }
     }
 
-    enum CheckOutcome {
-        case ready(any RemotePhotoSource, RemoteServerInfo)
-        case failed(ConnectionCheckResult)
+    /// The server the window shows was saved again (publishing design D-18,
+    /// §11.1). Never brings the window forward or moves the keyboard.
+    func follow(_ follow: RemoteSourceFollow, keepingSubtitle: Bool = false) {
+        switch follow {
+        case .none, .afterImport:
+            break
+        case .takeSaved(let saved):
+            takeSaved(saved)
+        case .chooseAgain(let saved):
+            // As choosing the server: an earlier "Imported n photos" goes,
+            // except after the import that just ended.
+            let done = doneText
+            chooseServer(saved)
+            if keepingSubtitle { doneText = done }
+        case .leave:
+            // As after Remove Server….
+            closeServer()
+            Task { await loadServers() }
+        }
     }
 
-    /// The key from the store, a client, and the check (R2).
-    /// Off the main actor: the Keychain may ask the person (code review C8).
-    nonisolated static func check(_ service: RemoteServiceRecord, keys: any RemoteKeyStore) async -> CheckOutcome {
-        guard let address = service.serverAddress else { return .failed(.notImmich) }
-        let key: String
-        do throws(RemoteKeyStoreError) {
-            guard let stored = try keys.key(account: service.uuid) else {
-                return .failed(.keychain(RemoteKeyStoreError.from(errSecItemNotFound).message))
-            }
-            key = stored
-        } catch {
-            return .failed(.keychain(error.message))
+    /// The same address and certificate saved under another name: taken in
+    /// place; the Project name follows unless the person typed one.
+    private func takeSaved(_ saved: RemoteServiceRecord) {
+        guard let browse, browse.record.take(saved) else { return }
+        if !browse.projectNameEdited {
+            let noteWasShown = addsToExistingProject
+            browse.projectName = RemoteProjectName.prefill(connection: saved.name, scope: browse.scopeName)
+            announceProjectNote(wasShown: noteWasShown)
         }
-        let connection = RemoteConnection(address: address, key: key, pinned: service.pinnedFingerprint,
-                                          unencryptedConfirmed: service.allowsUnencrypted)
-        let client: ImmichClient
-        do {
-            client = try ImmichClient(connection: connection)
-        } catch {
-            return .failed(.unreachable(reason: "", isLocalHost: address.isLocalNetworkHost))
-        }
-        let result = await client.check()
-        guard case .passed(let info) = result else { return .failed(result) }
-        return .ready(client, info)
     }
 
     func loadAlbums() {
@@ -299,20 +337,24 @@ extension CardImportModel {
                 let linked = (try? await catalog?.linkedRemoteIDs(provider: browse.service.provider,
                                                                   address: address.normalized,
                                                                   among: page.assets.map(\.id))) ?? []
+                let published = (try? await catalog?.publishedRemoteIDs(provider: browse.service.provider,
+                                                                        address: address.normalized,
+                                                                        among: page.assets.map(\.id))) ?? []
                 guard !Task.isCancelled, self.browse === browse else { return }
                 browse.isLoadingPage = false
                 let isFirst = !browse.loadedFirstPage
                 browse.loadedFirstPage = true
                 browse.linked.formUnion(linked)
+                browse.published.formUnion(published)
                 // A page may repeat a photo the last one ended with (offsets
                 // move when photos are added): appended once.
                 let new = page.assets.filter { browse.assetsByURL[$0.gridURL] == nil }
                 for asset in new { browse.assetsByURL[asset.gridURL] = asset }
                 browse.assets += new
                 browse.nextCursor = page.nextCursor
-                shots += new.map { $0.shot(linked: browse.linked.contains($0.id)) }
+                shots += new.map { $0.shot(linked: browse.isInLibrary($0.id)) }
                 if !kept.isEmpty {
-                    selection.formUnion(new.filter { !browse.linked.contains($0.id) }.map(\.gridURL).filter(kept.contains))
+                    selection.formUnion(new.filter { !browse.isInLibrary($0.id) }.map(\.gridURL).filter(kept.contains))
                 }
                 if isFirst {
                     AccessibilityText.announce(String(localized: "\(browse.assets.count) photos loaded",
@@ -430,9 +472,10 @@ extension CardImportModel {
         await library?.didFinishCopyImport(CopyImportResult(project: result.project,
                                                             insertedVersionIDs: result.insertedVersionIDs,
                                                             nextCounter: result.nextCounter))
-        // Marks change: read the server again (design §4.7).
+        // Marks change: read the server again (design §4.7), as saved now:
+        // a server saved again during the run is followed here (D-18).
         let done = doneText
-        connectServer(keepingSelection: false)
+        connectServer(keepingSelection: false, keepingSubtitle: true)
         doneText = done
     }
 
@@ -444,12 +487,19 @@ extension CardImportModel {
 
     public func showAddServer() {
         guard let library, !isImporting else { return }
-        serverSheet = ServerSheetModel(mode: .add, model: self, keys: library.remoteKeyStore)
+        serverSheet = ServerSheetModel(mode: .add, host: self, purpose: .importing, keys: library.remoteKeyStore)
+    }
+
+    /// The chosen server is being published to (design §4): it can't be
+    /// edited or removed until the run ends.
+    public var serverIsBusyPublishing: Bool {
+        guard let uuid = library?.publishingServerUUID, let browse else { return false }
+        return browse.service.uuid == uuid
     }
 
     public func showEditServer(reviewingCertificate: Bool = false) {
-        guard let library, let service = browse?.service, !isImporting else { return }
-        let sheet = ServerSheetModel(mode: .edit(service), model: self, keys: library.remoteKeyStore)
+        guard let library, let service = browse?.service, !isImporting, !serverIsBusyPublishing else { return }
+        let sheet = ServerSheetModel(mode: .edit(service), host: self, purpose: .importing, keys: library.remoteKeyStore)
         if reviewingCertificate, case .certificateChanged(let summary)? = browse?.failure {
             sheet.page = .certificate(summary, changed: true)
         }
@@ -457,7 +507,8 @@ extension CardImportModel {
     }
 
     public func askToRemoveServer(_ service: RemoteServiceRecord? = nil) {
-        guard !isImporting, let service = service ?? browse?.service else { return }
+        guard !isImporting, let service = service ?? browse?.service,
+              service.uuid != library?.publishingServerUUID else { return }
         removingServer = service
     }
 
@@ -479,12 +530,14 @@ extension CardImportModel {
             }
             if browse?.service.id == id { closeServer() }
             await loadServers()
+            library.remoteServersChanged()
         }
     }
 
     /// The sheet saved a server: it becomes the source.
-    func serverSaved(_ service: RemoteServiceRecord) async {
+    public func serverSheetSaved(_ service: RemoteServiceRecord) async {
         await loadServers()
+        library?.remoteServersChanged()
         serverSheet = nil
         chooseServer(service)
         // The keyboard goes to the grid once it is in the window, after the
@@ -497,6 +550,69 @@ extension CardImportModel {
         guard let service = removalAfterSheet else { return }
         removalAfterSheet = nil
         askToRemoveServer(service)
+    }
+
+    // MARK: Publishing (issue #28)
+
+    /// A publish run wrote records: photos the window lists that are now
+    /// published are marked In Library in place, and unchecked (design §11).
+    public func publishedRecordsChanged() {
+        guard let browse, let address = browse.address, let catalog = library?.catalog, !browse.assets.isEmpty else { return }
+        let ids = browse.assets.map(\.id)
+        Task {
+            guard let published = try? await catalog.publishedRemoteIDs(provider: browse.service.provider,
+                                                                        address: address.normalized, among: ids),
+                  self.browse === browse, !published.subtracting(browse.published).isEmpty else { return }
+            browse.published.formUnion(published)
+            shots = shots.map { shot in
+                guard let asset = browse.assetsByURL[shot.id], browse.isInLibrary(asset.id) else { return shot }
+                var marked = shot
+                marked.files = marked.files.map { file in
+                    var file = file
+                    file.isDuplicate = true
+                    return file
+                }
+                return marked
+            }
+            selection = selection.filter { url in browse.assetsByURL[url].map { !browse.isInLibrary($0.id) } ?? true }
+        }
+    }
+
+    /// The servers again, after Publish added or changed one. The server the
+    /// window shows is followed as saved now, whether the window is in front,
+    /// behind, minimized or closed (publishing design D-18): a rename in
+    /// place; another address or certificate as choosing it again; nothing
+    /// while an import from it runs (the reconnect after it follows).
+    public func loadServersAfterPublish() async {
+        await loadServers()
+        guard let browse, let id = browse.service.id else { return }
+        follow(RemoteSourceFollow.after(held: browse.service, now: servers.first { $0.id == id }, importing: isImporting))
+    }
+
+    // MARK: Hosting the Server sheet (publishing design §4)
+
+    public var savedServers: [RemoteServiceRecord] { servers }
+    public var serverCatalog: Catalog? { library?.catalog }
+    public var serverSheetWindow: NSWindow? { window }
+
+    public func serverSheetCancelled() {
+        serverSheet = nil
+    }
+
+    /// Save found the server being edited removed (publishing design D-16):
+    /// nothing was saved; the sheet closes, the servers are read again, and a
+    /// removed source is left as after Remove Server….
+    public func serverSheetFoundRemoved(_ service: RemoteServiceRecord) async {
+        serverSheet = nil
+        if let id = service.id, browse?.service.id == id { closeServer() }
+        await loadServers()
+        library?.remoteServersChanged()
+    }
+
+    /// Remove Server… asked from the sheet: asked once the sheet has gone (S3).
+    public func serverSheetRemove(_ service: RemoteServiceRecord) {
+        removalAfterSheet = service
+        serverSheet = nil
     }
 
     /// Stop and Quit: waits for the stopped import to remove its partial file
